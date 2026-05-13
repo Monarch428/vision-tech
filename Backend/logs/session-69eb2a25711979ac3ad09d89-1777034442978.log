@@ -1,0 +1,16 @@
+[2026-04-24T12:40:42.987Z] INFO: User abhinesh07@gmail.com logged in | Session log: C:\Users\brand\Downloads\vision-tech\Backend\logs\session-69eb2a25711979ac3ad09d89-1777034442978.log
+[2026-04-24T12:40:42.990Z] INFO: [guest] POST /api/auth/login | Status: 200 | IP: ::1 | Duration: 148ms
+[2026-04-24T12:40:43.089Z] INFO: [abhinesh07@gmail.com] GET /api/user-subscriptions/my | Status: 304 | IP: ::1 | Duration: 38ms
+[2026-04-24T12:40:43.093Z] INFO: [abhinesh07@gmail.com] GET /api/payments/my | Status: 304 | IP: ::1 | Duration: 53ms
+[2026-04-24T12:40:43.153Z] INFO: [abhinesh07@gmail.com] GET /api/user-subscriptions/my | Status: 304 | IP: ::1 | Duration: 58ms
+[2026-04-24T12:40:43.157Z] INFO: [abhinesh07@gmail.com] GET /api/payments/my | Status: 304 | IP: ::1 | Duration: 60ms
+[2026-04-24T12:40:50.797Z] INFO: [guest] GET /api/admin/subscriptions | Status: 304 | IP: ::1 | Duration: 7ms
+[2026-04-24T12:40:50.804Z] INFO: [guest] GET /api/admin/subscriptions | Status: 304 | IP: ::1 | Duration: 5ms
+[2026-04-24T12:40:52.790Z] INFO: [abhinesh07@gmail.com] GET /api/v1/users | Status: 200 | IP: ::1 | Duration: 83ms
+[2026-04-24T12:40:52.799Z] INFO: [abhinesh07@gmail.com] GET /api/v1/users | Status: 304 | IP: ::1 | Duration: 8ms
+[2026-04-24T12:40:55.072Z] INFO: [abhinesh07@gmail.com] GET /api/v1/users | Status: 304 | IP: ::1 | Duration: 13ms
+[2026-04-24T12:40:55.079Z] INFO: [abhinesh07@gmail.com] GET /api/v1/users | Status: 304 | IP: ::1 | Duration: 5ms
+[2026-04-24T12:40:55.852Z] INFO: [abhinesh07@gmail.com] GET /api/user-subscriptions/my | Status: 304 | IP: ::1 | Duration: 11ms
+[2026-04-24T12:40:55.854Z] INFO: [abhinesh07@gmail.com] GET /api/payments/my | Status: 304 | IP: ::1 | Duration: 16ms
+[2026-04-24T12:40:55.862Z] INFO: [abhinesh07@gmail.com] GET /api/user-subscriptions/my | Status: 304 | IP: ::1 | Duration: 7ms
+[2026-04-24T12:40:55.867Z] INFO: [abhinesh07@gmail.com] GET /api/payments/my | Status: 304 | IP: ::1 | Duration: 11ms
