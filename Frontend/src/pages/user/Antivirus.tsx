@@ -1,11 +1,7 @@
 import { useEffect, useState, type JSX } from "react";
+import { createAntivirusSchedule } from "../../services/user/antivirus.service";
 
 type TabType = "status" | "schedule" | "assistance";
-
-// ─────────────────────────────────────────────
-// Constants
-// ─────────────────────────────────────────────
-const BASE_URL = "http://localhost:5000";
 
 const serviceStatuses = [
   {
@@ -125,30 +121,7 @@ export default function Antivirus() {
 
     try {
       setSubmitting(true);
-      const token = localStorage.getItem("token");
-
-      const res = await fetch(`${BASE_URL}/api/antivirus-schedules`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({
-          serviceType,
-          preferredDate,
-          preferredTime,
-          numberOfDevices: numDevices,
-        }),
-      });
-
-      const data = await res.json();
-
-      if (!res.ok) {
-        setSubmitError(
-          data.message || "Failed to schedule service. Please try again.",
-        );
-        return;
-      }
+      await createAntivirusSchedule({ serviceType, preferredDate, preferredTime, numberOfDevices: numDevices });
 
       // Success — reset form
       setSubmitSuccess("Service scheduled successfully!");

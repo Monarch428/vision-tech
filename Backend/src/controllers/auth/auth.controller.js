@@ -98,8 +98,25 @@ const login = async (req, res) => {
   try {
     const { email, password } = req.body;
 
+    
+    const config = await systemConfigModel.findOne();
+
     if (!email || !password)
       return res.status(400).json({ message: "Email and password are required" });
+
+if (!config?.security?.allowedIpAddresses?.includes(req.ip)) {
+  await systemLogger({
+    type: "warning",
+    action: "BLOCKED_IP_LOGIN_ATTEMPT",
+    details: `Unauthorized IP ${req.ip} attempted to log in with email ${email}`,
+    module: "auth",
+    ipAddress: req.ip
+  });
+
+  return res.status(403).json({
+    message: "Access denied from this IP address"
+  });
+}
 
     const emailNormalized = email.toLowerCase().trim();
     const user = await User.findOne({ email: emailNormalized }).select("+password +loginAttempts +lockUntil");
@@ -110,7 +127,6 @@ const login = async (req, res) => {
       return res.status(400).json({ message: "Invalid credentials" });
     }
 
-    const config = await systemConfigModel.findOne();
     const maxAttempts = config?.security?.maxLoginAttempts;
 
     if (!maxAttempts) {
@@ -165,7 +181,6 @@ const login = async (req, res) => {
       });
     }
 
-    // ── Success — reset counters ───────────────────────────────────────────
     user.loginAttempts = 0;
     user.lockUntil = undefined;
     user.lastLogin = new Date();

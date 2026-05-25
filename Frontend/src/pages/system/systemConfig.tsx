@@ -1,8 +1,15 @@
 import { useState, useEffect, useMemo } from "react";
+import { useNavigate } from "react-router-dom";
 
 type TabType = "general" | "email" | "security" | "notifications";
 
-const API_BASE = "http://localhost:3000/api/system-config";
+import {
+  getSystemConfig,
+  createSystemConfig,
+  updateSystemConfig,
+  sendTestEmail,
+  type SystemConfigPayload,
+} from "../../services/config/systemConfig.service";
 
 // ─────────────────────────────────────────────
 // Toggle Component
@@ -290,6 +297,7 @@ function SystemActions() {
 // Main Component
 // ─────────────────────────────────────────────
 export default function SystemConfig() {
+  const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState<TabType>("general");
   const [fetchLoading, setFetchLoading] = useState(true);
   const [isExisting, setIsExisting] = useState(false);
@@ -338,24 +346,13 @@ export default function SystemConfig() {
   const handleTestEmail = async () => {
     try {
       setTestEmailLoading(true);
-
-      const res = await fetch(`${API_BASE}/test-email`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${getToken()}`,
-        },
-        body: JSON.stringify({
-          fromEmail
-        }),
-      });
-
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.message);
-
+      await sendTestEmail(fromEmail);
       setToast({ message: "Test email sent!", type: "success" });
     } catch (err: any) {
-      setToast({ message: err.message, type: "error" });
+      setToast({
+        message: err?.response?.data?.message || "Failed to send test email.",
+        type: "error",
+      });
     } finally {
       setTestEmailLoading(false);
     }
@@ -405,29 +402,11 @@ export default function SystemConfig() {
     fetchConfig();
   }, []);
 
-  const getToken = () => localStorage.getItem("token") || "";
-
   const fetchConfig = async () => {
     try {
       setFetchLoading(true);
-
-      const res = await fetch(`${API_BASE}/me`, {
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${getToken()}`,
-        },
-      });
-
-      const data = await res.json();
-
-      if (res.status === 404) {
-        setIsExisting(false);
-        return;
-      }
-
-      if (!res.ok) throw new Error(data.message || "Failed to fetch config");
-
-      const c = data.config;
+      const res = await getSystemConfig();
+      const c = res.data.config;
 
       setSiteName(c.general?.siteName ?? "");
       setSiteUrl(c.general?.siteUrl ?? "");
@@ -457,8 +436,14 @@ export default function SystemConfig() {
 
       setIsExisting(true);
     } catch (err: any) {
+      // 404 means no config yet — not an error
+      if (err?.response?.status === 404) {
+        setIsExisting(false);
+        return;
+      }
       setToast({
-        message: err.message || "Failed to load configuration.",
+        message:
+          err?.response?.data?.message || "Failed to load configuration.",
         type: "error",
       });
     } finally {
@@ -504,22 +489,21 @@ export default function SystemConfig() {
     if (!tabValid[tab]) return;
     try {
       setSavingTab(tab);
-      const method = isExisting ? "PUT" : "POST";
-      const res = await fetch(API_BASE, {
-        method,
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${getToken()}`,
-        },
-        body: JSON.stringify(buildPayload()),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.message || "Failed to save settings");
+      const payload = buildPayload() as SystemConfigPayload;
+      if (isExisting) {
+        await updateSystemConfig(payload);
+      } else {
+        await createSystemConfig(payload);
+      }
       setIsExisting(true);
       setToast({ message: "Settings saved successfully.", type: "success" });
+      if (tab === "security") {
+        localStorage.removeItem("token");
+        navigate("/login");
+      }
     } catch (err: any) {
       setToast({
-        message: err.message || "Failed to save settings.",
+        message: err?.response?.data?.message || "Failed to save settings.",
         type: "error",
       });
     } finally {

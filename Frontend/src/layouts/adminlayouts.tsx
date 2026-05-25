@@ -10,7 +10,6 @@ export default function AdminLayout() {
   const stored = localStorage.getItem('user');
   const authUser = stored ? JSON.parse(stored) : null;
 
-  // ← add this — checks token on every route change
   useEffect(() => {
     checkTokenValidity();
   }, [location.pathname]);

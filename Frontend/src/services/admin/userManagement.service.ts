@@ -11,7 +11,22 @@ API.interceptors.request.use((config) => {
   return config;
 });
 
-export const getAllUsers  = ()          => API.get('/v1/users');
+API.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    if (error.response?.status === 401) {
+      localStorage.removeItem("token");
+      localStorage.removeItem("user");
+
+      window.location.replace("/login");
+    }
+
+    return Promise.reject(error);
+  }
+);
+
+export const getAllUsers  = () => API.get('/v1/users');
+export const getSystemConfig = () => API.get('/system-config/me');
 export const getUserById  = (id: string) => API.get(`/v1/users/${id}`);
 export const createUser   = (data: {
   name: string; email: string; password: string; role: string; status?: string;

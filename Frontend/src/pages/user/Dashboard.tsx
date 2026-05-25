@@ -1,50 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
-
-const API = "http://localhost:5000/api";
-
-function authHeaders(): Record<string, string> {
-  const token = localStorage.getItem("token");
-  return {
-    "Content-Type": "application/json",
-    Authorization: `Bearer ${token}`,
-  };
-}
-
-interface Subscription {
-  _id: string;
-  sub_id: string;
-  user: string;
-  planName: "free" | "pro" | "enterprise";
-  status: "active" | "paused" | "expired" | "cancelled";
-  startDate: string;
-  endDate: string | null;
-  nextRenewalDate: string | null;
-}
-
-interface Invoice {
-  _id: string;
-  invoiceNumber?: string;
-  amount: number;
-  status: "success" | "failed" | "pending";
-  paymentMethod: string;
-  paidAt: string;
-  user?: {
-    _id: string;
-    name: string;
-    email: string;
-  };
-  subscription?: {
-    _id: string;
-    status?: string;
-    plan?: {
-      _id?: string;
-      name?: string;
-      price?: number;
-      billingCycle?: string;
-    };
-  };
-}
+import { getMyInvoice, getMySubscription, type Invoice, type Subscription } from "../../services/user/dashboard.service";
 
 const PLANS = [
   {
@@ -265,16 +221,12 @@ export default function Dashboard() {
   const fetchSub = useCallback(async () => {
     try {
       setSubLoading(true);
-      const res = await fetch(`${API}/user-subscriptions/my`, {
-        headers: authHeaders(),
-      });
-      const json = await res.json();
-      if (res.status === 404) {
-        setSub(null);
-        return;
+      const data = await getMySubscription();
+      if (data) {
+        setSub(data);
+      } else {
+        showToast(data || "Could not load subscription", "error");
       }
-      if (json.success) setSub(json.data);
-      else showToast(json.message || "Could not load subscription", "error");
     } catch {
       showToast("Failed to connect to server", "error");
     } finally {
@@ -285,9 +237,8 @@ export default function Dashboard() {
   const fetchInvoices = useCallback(async () => {
     try {
       setInvoicesLoading(true);
-      const res = await fetch(`${API}/payments/my`, { headers: authHeaders() });
-      const json = await res.json();
-      if (json.success) setInvoices(json.data);
+      const data = await getMyInvoice();
+      setInvoices(data);
     } catch {
       // silent
     } finally {
@@ -538,9 +489,7 @@ export default function Dashboard() {
                     </svg>
                     <p className="text-xs text-amber-700 font-medium">
                       Deactivates in{" "}
-                      <strong>
-                        {daysRemaining(sub.nextRenewalDate)} days
-                      </strong>{" "}
+                      <strong>{daysRemaining(sub.nextRenewalDate)} days</strong>{" "}
                       ·{" "}
                       {new Date(sub.nextRenewalDate).toLocaleDateString(
                         "en-US",

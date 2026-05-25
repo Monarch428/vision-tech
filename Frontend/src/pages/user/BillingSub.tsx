@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
+import { createSubscription, downloadInvoice, getMyInvoices, getMySubscription, updateSubscription } from "../../services/user/billingSub.service";
 
 const API = "http://localhost:5000/api";
 
@@ -914,18 +915,17 @@ export default function BillingSub() {
   const fetchSub = useCallback(async () => {
     try {
       setSubLoading(true);
-      const res = await fetch(`${API}/user-subscriptions/my`, {
-        headers: authHeaders(),
-      });
-      const json = await res.json();
-      if (res.status === 404) {
+      const data = await getMySubscription();
+      setSub(data);
+    } catch (err: any) {
+      if (err.response?.status === 404) {
         setSub(null);
-        return;
+      } else {
+        showToast(
+          err.response?.data?.message || "Could not load subscription",
+          "error",
+        );
       }
-      if (json.success) setSub(json.data);
-      else showToast(json.message || "Could not load subscription", "error");
-    } catch {
-      showToast("Failed to connect to server", "error");
     } finally {
       setSubLoading(false);
     }
@@ -934,9 +934,8 @@ export default function BillingSub() {
   const fetchInvoices = useCallback(async () => {
     try {
       setInvoicesLoading(true);
-      const res = await fetch(`${API}/payments/my`, { headers: authHeaders() });
-      const json = await res.json();
-      if (json.success) setInvoices(json.data);
+      const data = await getMyInvoices();
+      setInvoices(data);
     } catch {
       // silent
     } finally {
@@ -959,20 +958,14 @@ export default function BillingSub() {
       return;
     try {
       setCancelling(true);
-      const res = await fetch(`${API}/user-subscriptions/${sub._id}`, {
-        method: "PUT",
-        headers: authHeaders(),
-        body: JSON.stringify({ status: "cancelled", cancelledAt: new Date() }),
+      const data = await updateSubscription(sub._id, {
+        status: "cancelled",
+        cancelledAt: new Date().toISOString(),
       });
-      const json = await res.json();
-      if (json.success) {
-        setSub(json.data);
-        showToast("Subscription cancelled. Active until billing period ends.");
-      } else {
-        showToast(json.message || "Failed to cancel", "error");
-      }
-    } catch {
-      showToast("Failed to cancel subscription", "error");
+      setSub(data);
+      showToast("Subscription cancelled. Active until billing period ends.");
+    } catch (err: any) {
+      showToast(err.response?.data?.message || "Failed to cancel", "error");
     } finally {
       setCancelling(false);
     }
@@ -982,20 +975,11 @@ export default function BillingSub() {
     if (!sub) return;
     try {
       setReactivating(true);
-      const res = await fetch(`${API}/user-subscriptions/${sub._id}`, {
-        method: "PUT",
-        headers: authHeaders(),
-        body: JSON.stringify({ status: "active" }),
-      });
-      const json = await res.json();
-      if (json.success) {
-        setSub(json.data);
-        showToast("Subscription reactivated successfully!");
-      } else {
-        showToast(json.message || "Failed to reactivate", "error");
-      }
-    } catch {
-      showToast("Failed to connect to server", "error");
+      const data = await updateSubscription(sub._id, { status: "active" });
+      setSub(data);
+      showToast("Subscription reactivated successfully!");
+    } catch (err: any) {
+      showToast(err.response?.data?.message || "Failed to reactivate", "error");
     } finally {
       setReactivating(false);
     }
@@ -1004,51 +988,34 @@ export default function BillingSub() {
   const handlePayPalSuccess = useCallback(async () => {
     if (!paypalPlan) throw new Error("No plan selected");
 
-    let res: Response;
+    let data: Subscription;
 
     if (!sub) {
-      res = await fetch(`${API}/user-subscriptions`, {
-        method: "POST",
-        headers: authHeaders(),
-        body: JSON.stringify({
-          user: authUser?._id || authUser?.id,
-          planName: paypalPlan.name,
-          startDate: new Date().toISOString(),
-        }),
+      data = await createSubscription({
+        user: authUser?._id || authUser?.id,
+        planName: paypalPlan.name,
+        startDate: new Date().toISOString(),
       });
     } else if (activateNow) {
-      res = await fetch(`${API}/user-subscriptions/${sub._id}`, {
-        method: "PUT",
-        headers: authHeaders(),
-        body: JSON.stringify({
-          planName: paypalPlan.name,
-          status: "active",
-          cancelledAt: new Date(),
-        }),
+      data = await updateSubscription(sub._id, {
+        planName: paypalPlan.name,
+        status: "active",
+        cancelledAt: new Date().toISOString(),
       });
     } else {
-      res = await fetch(`${API}/user-subscriptions/${sub._id}`, {
-        method: "PUT",
-        headers: authHeaders(),
-        body: JSON.stringify({
-          pendingPlanName: paypalPlan.name,
-          status: sub.status,
-        }),
+      data = await updateSubscription(sub._id, {
+        pendingPlanName: paypalPlan.name,
+        status: sub.status,
       });
     }
 
-    const json = await res.json();
-    if (!json.success) throw new Error(json.message || "Plan update failed");
-
-    setSub(json.data);
+    setSub(data);
     await fetchInvoices();
-
     showToast(
       activateNow
         ? `Successfully activated ${paypalPlan.label} plan!`
         : `${paypalPlan.label} plan scheduled — activates after your current plan ends.`,
     );
-
     setPaypalPlan(null);
   }, [paypalPlan, sub, activateNow, authUser, fetchInvoices]);
 
@@ -1488,31 +1455,13 @@ export default function BillingSub() {
                       </span>
                     </div>
                     <button
-                      onClick={async () => {
-                        try {
-                          const res = await fetch(
-                            `${API}/payments/${inv._id}/invoice`,
-                            { headers: authHeaders() },
-                          );
-                          if (!res.ok) {
-                            const err = await res.json().catch(() => null);
-                            throw new Error(
-                              err?.message || "Failed to download invoice",
-                            );
-                          }
-                          const blob = await res.blob();
-                          const url = window.URL.createObjectURL(blob);
-                          const a = document.createElement("a");
-                          a.href = url;
-                          a.download = `${inv.invoiceNumber || "invoice"}.pdf`;
-                          document.body.appendChild(a);
-                          a.click();
-                          a.remove();
-                          window.URL.revokeObjectURL(url);
-                        } catch (error) {
-                          console.error("Invoice download failed:", error);
-                        }
-                      }}
+                      onClick={() =>
+                        downloadInvoice(inv._id, inv.invoiceNumber).catch(
+                          (err) => {
+                            console.error("Invoice download failed:", err);
+                          },
+                        )
+                      }
                       className="p-2 border border-gray-200 rounded-lg hover:bg-gray-100 transition-colors text-gray-500"
                     >
                       <svg

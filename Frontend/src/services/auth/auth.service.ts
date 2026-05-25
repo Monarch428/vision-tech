@@ -24,10 +24,9 @@ export interface LoginResponse {
   };
 }
 
-// ── Separate response type for loginTimer ─────────────────────────────────────
 export interface LoginTimerResponse {
   locked: boolean;
-  lockUntil?: string;      // ISO date string, only present when locked
+  lockUntil?: string;  
   attemptsLeft: number;
   maxAttempts: number;
 }
@@ -39,7 +38,6 @@ export const loginUser = async (
   return response.data;
 };
 
-// ── Takes email string, returns lock status — not LoginResponse ───────────────
 export const loginTimer = async (
   email: string
 ): Promise<LoginTimerResponse> => {

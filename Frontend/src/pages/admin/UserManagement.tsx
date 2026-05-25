@@ -5,7 +5,8 @@ import {
   createUser,
   updateUser,
   deleteUser,
-} from "../../services/admin/userManagementService";
+  getSystemConfig,
+} from "../../services/admin/userManagement.service";
 import { createPortal } from "react-dom";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -497,21 +498,8 @@ export default function UserManagement() {
   useEffect(() => {
     const fetchConfig = async () => {
       try {
-        const token = localStorage.getItem("token");
-
-        const res = await fetch("http://localhost:5000/api/system-config/me", {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        });
-
-        if (!res.ok) {
-          throw new Error(`HTTP ${res.status}`);
-        }
-
-        const data = await res.json();
-
-        setMinPasswordLength(data.config?.security?.minimumPasswordLength || 6);
+        const res = await getSystemConfig();
+        setMinPasswordLength(res.data.config?.security?.minimumPasswordLength || 6);
       } catch (err) {
         console.error("Failed to fetch system config:", err);
       } finally {
@@ -599,7 +587,6 @@ export default function UserManagement() {
     },
   ];
 
-  // ── Manual create ──
   const handleCreate = async () => {
     const errors = validateStep1Add(addForm,minPasswordLength ?? 6);
     if (Object.keys(errors).length) {

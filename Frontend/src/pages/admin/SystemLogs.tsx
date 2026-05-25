@@ -13,6 +13,7 @@ import {
   Calendar,
   FileText,
 } from "lucide-react";
+import { getSystemLogs } from "../../services/admin/systemLogs.service";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 type LogType = "success" | "info" | "warning" | "error";
@@ -205,21 +206,15 @@ export default function SystemLogs() {
       setLoading(true);
       setError("");
 
-      const res = await fetch(
-        `http://localhost:3000/api/system-logs?page=1&limit=500&search=${search}&type=${
-          typeFilter === "All Types" ? "all" : typeFilter
-        }`,
-        {
-          headers: { "Content-Type": "application/json" },
-        },
-      );
-
-      const data = await res.json();
-
-      if (!res.ok) throw new Error(data.message || "Failed to fetch");
+      const res = await getSystemLogs({
+        page: 1,
+        limit: 500,
+        search,
+        type: typeFilter === "All Types" ? "all" : typeFilter,
+      });
 
       setLogs(
-        (data.logs || []).map((log: any) => ({
+        (res.data.logs || []).map((log: any) => ({
           _id: log._id,
           timestamp: log.loggedAt || log.createdAt || new Date().toISOString(),
           type: log.type || "info",
@@ -230,7 +225,7 @@ export default function SystemLogs() {
         })),
       );
     } catch (err: any) {
-      setError(err.message || "Something went wrong");
+      setError(err?.response?.data?.message || "Something went wrong");
     } finally {
       setLoading(false);
     }

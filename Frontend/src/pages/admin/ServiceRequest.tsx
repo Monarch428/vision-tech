@@ -1,4 +1,9 @@
 import { useState, useMemo, useEffect } from "react";
+import {
+  getAllServiceRequests,
+  getSupportAgents,
+  assignTicket as assignTicketService,
+} from "../../services/admin/serviceRequest.service";
 
 type Priority = "high" | "medium" | "low";
 type Status = "in-progress" | "open" | "resolved" | "closed";
@@ -64,13 +69,12 @@ function getEmailFromToken(): string {
 }
 
 // ── Assign Ticket Wizard Modal ────────────────────────────────────────────
-// ── Assign Ticket Wizard Modal ────────────────────────────────────────────
 function AssignWizard({
   ticket,
   onClose,
   onAssigned,
 }: {
-  ticket: any;
+  ticket: ServiceRequest;
   onClose: () => void;
   onAssigned: (ticketId: string, agentId: string, newStatus: Status) => void;
 }) {
@@ -83,16 +87,11 @@ function AssignWizard({
   const [agents, setAgents] = useState<{ _id: string; name: string }[]>([]);
   const [loadingAgents, setLoadingAgents] = useState(true);
 
-  const token = localStorage.getItem("token");
-
   useEffect(() => {
     const fetchAgents = async () => {
       try {
-        const res = await fetch("http://localhost:5000/api/v1/users/userRole", {
-          headers: { Authorization: `Bearer ${token}` },
-        });
-        const data = await res.json();
-        if (data.success) setAgents(data.data);
+        const res = await getSupportAgents();
+        if (res.data.success) setAgents(res.data.data);
       } catch {
         console.error("Failed to fetch agents");
       } finally {
@@ -109,34 +108,20 @@ function AssignWizard({
     setAssigning(true);
     try {
       const userEmail = getEmailFromToken();
-
-      const res = await fetch(
-        `http://localhost:5000/api/support-requests/assign/${ticket._id}`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
-          },
-          body: JSON.stringify({
-            assigned_user_id: selectedAgent,
-            status: selectedStatus || undefined, // ← new
-            assigned_by: userEmail,
-          }),
-        },
-      );
-      const data = await res.json();
-      if (!data.success) {
+      const res = await assignTicketService(ticket._id, {
+        assigned_user_id: selectedAgent,
+        status: selectedStatus,
+        assigned_by: userEmail,
+      });
+      if (!res.data.success) {
         alert("Assignment failed");
         return;
       }
       setStep("done");
       onAssigned(ticket._id, selectedAgent, selectedStatus as Status);
-      setTimeout(() => {
-        window.location.reload();
-      }, 1200);
-    } catch {
-      alert("Server error");
+      setTimeout(() => window.location.reload(), 1200);
+    } catch (err: any) {
+      alert(err?.response?.data?.message || "Server error");
     } finally {
       setAssigning(false);
     }
@@ -242,7 +227,7 @@ function AssignWizard({
               )}
             </div>
 
-            {/* ── Status select (new) ── */}
+            {/* Status select */}
             <div>
               <label className="block text-sm font-semibold text-gray-700 mb-2">
                 Status
@@ -385,41 +370,39 @@ export default function ServiceRequests() {
   const [activeTab, setActiveTab] = useState<TabFilter>("all");
   const [search, setSearch] = useState("");
   const [typeFilter, setTypeFilter] = useState("All Types");
-  const [assignTicket, setAssignTicket] = useState<any | null>(null);
+  const [selectedTicket, setSelectedTicket] = useState<ServiceRequest | null>(
+    null,
+  );
 
   const isAdmin = getRoleFromToken() === "admin";
 
   useEffect(() => {
-    const fetchRequests = async () => {
-      try {
-        const token = localStorage.getItem("token");
-        const res = await fetch(
-          "http://localhost:5000/api/support-requests/all",
-          {
-            headers: { Authorization: `Bearer ${token}` },
-          },
-        );
-        const data = await res.json();
-        if (!data.success) {
-          setError(data.message || "Failed to load");
-          return;
-        }
-        setRequests(data.data);
-      } catch {
-        setError("Server error. Please try again.");
-      } finally {
-        setLoading(false);
-      }
-    };
     fetchRequests();
   }, []);
+
+  const fetchRequests = async () => {
+    try {
+      const res = await getAllServiceRequests();
+      if (!res.data.success) {
+        setError(res.data.message || "Failed to load");
+        return;
+      }
+      setRequests(res.data.data);
+    } catch (err: any) {
+      setError(
+        err?.response?.data?.message || "Server error. Please try again.",
+      );
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const counts = useMemo(
     () => ({
       open: requests.filter((r) => r.status === "open").length,
       inProgress: requests.filter((r) => r.status === "in-progress").length,
       resolved: requests.filter((r) => r.status === "resolved").length,
-      closed: requests.filter((r) => r.status === "closed").length, // ← add
+      closed: requests.filter((r) => r.status === "closed").length,
       high: requests.filter((r) => r.priority === "high").length,
     }),
     [requests],
@@ -455,10 +438,9 @@ export default function ServiceRequests() {
 
   const handleAssigned = (
     ticketId: string,
-    agentId: string,
+    _agentId: string,
     newStatus: Status,
   ) => {
-    console.log(`Ticket ${ticketId} assigned to agent ${agentId}`);
     setRequests((prev) =>
       prev.map((r) => (r._id === ticketId ? { ...r, status: newStatus } : r)),
     );
@@ -470,10 +452,10 @@ export default function ServiceRequests() {
 
   return (
     <>
-      {assignTicket && (
+      {selectedTicket && (
         <AssignWizard
-          ticket={assignTicket}
-          onClose={() => setAssignTicket(null)}
+          ticket={selectedTicket}
+          onClose={() => setSelectedTicket(null)}
           onAssigned={handleAssigned}
         />
       )}
@@ -507,7 +489,11 @@ export default function ServiceRequests() {
                 value: counts.resolved,
                 color: "text-green-600",
               },
-              { label: "Closed", value: counts.closed, color: "text-gray-500" }, // ← add
+              {
+                label: "Closed",
+                value: counts.closed,
+                color: "text-gray-500",
+              },
               {
                 label: "High Priority",
                 value: counts.high,
@@ -644,7 +630,7 @@ export default function ServiceRequests() {
                         {isAdmin && (
                           <td className="py-3">
                             <button
-                              onClick={() => setAssignTicket(req)}
+                              onClick={() => setSelectedTicket(req)}
                               className="text-xs font-semibold text-white bg-green-500 hover:bg-green-600 rounded-lg px-3 py-1.5 transition-colors flex items-center gap-1.5 whitespace-nowrap"
                             >
                               <svg

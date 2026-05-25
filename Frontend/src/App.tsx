@@ -14,7 +14,6 @@ import Antivirus from "./pages/user/Antivirus";
 import BillingSub from "./pages/user/BillingSub";
 import SystemConfig from "./pages/system/systemConfig";
 import { useEffect, useRef } from "react";
-import { setupAutoLogout } from "./utils/auth";
 
 function App() {
  const initialized = useRef(false);
@@ -22,7 +21,6 @@ function App() {
   useEffect(() => {
     if (initialized.current) return;
     initialized.current = true;
-    setupAutoLogout();
   }, []);
   
   return (

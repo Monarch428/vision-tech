@@ -6,8 +6,13 @@ import {
   PauseCircle,
   Search,
   Pause,
-  Play
+  Play,
 } from "lucide-react";
+
+import {
+  getAllSubscriptions,
+  updateSubscriptionStatus,
+} from "../../services/admin/subscriptions.service";
 
 interface BackendSubscription {
   _id: string;
@@ -68,14 +73,9 @@ export default function Subscriptions() {
     try {
       setLoading(true);
       setError("");
-      const res = await fetch("http://localhost:5000/api/admin/subscriptions", {
-        method: "GET",
-        headers: { "Content-Type": "application/json" },
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.message || "Failed to fetch");
+      const res = await getAllSubscriptions();
 
-      const mapped: Subscription[] = (data.data || []).map(
+      const mapped: Subscription[] = (res.data.data || []).map(
         (item: BackendSubscription) => ({
           _id: item._id,
           id: item.sub_id,
@@ -95,7 +95,7 @@ export default function Subscriptions() {
       );
       setSubs(mapped);
     } catch (err: any) {
-      setError(err.message || "Something went wrong");
+      setError(err?.response?.data?.message || "Something went wrong");
     } finally {
       setLoading(false);
     }
@@ -132,19 +132,9 @@ export default function Subscriptions() {
     try {
       const newStatus: Subscription["status"] =
         currentStatus === "active" ? "paused" : "active";
-      const res = await fetch(
-        `http://localhost:5000/api/user-subscriptions/${_id}`,
-        {
-          method: "PUT",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${localStorage.getItem("token")}`,
-          },
-          body: JSON.stringify({ status: newStatus }),
-        },
-      );
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.message || "Failed to update");
+
+      await updateSubscriptionStatus(_id, newStatus);
+
       setSubs((prev) =>
         prev.map((s) =>
           s._id === _id
@@ -157,7 +147,7 @@ export default function Subscriptions() {
         ),
       );
     } catch (err: any) {
-      alert(err.message || "Failed to update subscription");
+      alert(err?.response?.data?.message || "Failed to update subscription");
     }
   };
 

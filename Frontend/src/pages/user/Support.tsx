@@ -1,10 +1,17 @@
 import { useEffect, useRef, useState } from "react";
 
-type Tab = "my-tickets" | "book-support" | "new-request";
-type Priority = "low" | "medium" | "high";
-type Status = "in progress" | "open" | "resolved" | "closed";
+import {
+  getSupportTickets,
+  bookSupportSession,
+  assignTicket,
+  createSupportRequest,
+  getAgents,
+  type Ticket,
+  type Priority,
+  type Status,
+} from "../../services/user/support.service";
 
-const token = localStorage.getItem("token");
+type Tab = "my-tickets" | "book-support" | "new-request";
 
 function getRoleFromToken(): string {
   try {
@@ -39,26 +46,26 @@ const priorityStyles: Record<Priority, string> = {
 
 // ── India Public Holidays 2026 ─────────────────────────────────────────────
 const INDIA_HOLIDAYS = new Set([
-  "2026-01-01", // New Year's Day
-  "2026-01-14", // Makar Sankranti / Pongal
-  "2026-01-26", // Republic Day
-  "2026-03-03", // Holi
-  "2026-04-02", // Ram Navami
-  "2026-04-03", // Good Friday
-  "2026-04-14", // Dr. Ambedkar Jayanti / Tamil New Year
-  "2026-05-01", // Labour Day / Maharashtra Day
-  "2026-05-31", // Buddha Purnima
-  "2026-06-27", // Eid ul-Adha (approx)
-  "2026-07-17", // Muharram (approx)
-  "2026-08-15", // Independence Day
-  "2026-08-25", // Janmashtami (approx)
-  "2026-09-25", // Dussehra (approx)
-  "2026-10-02", // Gandhi Jayanti
-  "2026-10-20", // Diwali / Naraka Chaturdashi (approx)
-  "2026-10-21", // Diwali - Lakshmi Puja (approx)
-  "2026-10-22", // Diwali - Bhai Dooj (approx)
-  "2026-11-04", // Guru Nanak Jayanti (approx)
-  "2026-12-25", // Christmas
+  "2026-01-01",
+  "2026-01-14",
+  "2026-01-26",
+  "2026-03-03",
+  "2026-04-02",
+  "2026-04-03",
+  "2026-04-14",
+  "2026-05-01",
+  "2026-05-31",
+  "2026-06-27",
+  "2026-07-17",
+  "2026-08-15",
+  "2026-08-25",
+  "2026-09-25",
+  "2026-10-02",
+  "2026-10-20",
+  "2026-10-21",
+  "2026-10-22",
+  "2026-11-04",
+  "2026-12-25",
 ]);
 
 function isDisabledDate(dateStr: string): boolean {
@@ -167,7 +174,11 @@ function DatePicker({
       </button>
 
       <div
-        className={`absolute z-50 mt-1 transition-all duration-200 origin-top ${open ? "opacity-100 scale-y-100" : "opacity-0 scale-y-95 pointer-events-none"}`}
+        className={`absolute z-50 mt-1 transition-all duration-200 origin-top ${
+          open
+            ? "opacity-100 scale-y-100"
+            : "opacity-0 scale-y-95 pointer-events-none"
+        }`}
       >
         <div className="bg-white border border-gray-200 rounded-xl shadow-lg p-3 w-60">
           <div className="flex items-center justify-between mb-2">
@@ -210,7 +221,9 @@ function DatePicker({
             {["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"].map((d, i) => (
               <div
                 key={d}
-                className={`text-center text-[9px] font-semibold py-0.5 ${i === 0 || i === 6 ? "text-red-400" : "text-gray-400"}`}
+                className={`text-center text-[9px] font-semibold py-0.5 ${
+                  i === 0 || i === 6 ? "text-red-400" : "text-gray-400"
+                }`}
               >
                 {d}
               </div>
@@ -298,11 +311,8 @@ function AssignWizard({
   useEffect(() => {
     const fetchAgents = async () => {
       try {
-        const res = await fetch("http://localhost:5000/api/v1/users/userRole", {
-          headers: { Authorization: `Bearer ${token}` },
-        });
-        const data = await res.json();
-        if (data.success) setAgents(data.data);
+        const data = await getAgents();
+        setAgents(data);
       } catch {
         console.error("Failed to fetch agents");
       } finally {
@@ -318,29 +328,15 @@ function AssignWizard({
     if (!selectedAgent) return;
     setAssigning(true);
     try {
-      const res = await fetch(
-        `http://localhost:5000/api/support-booking/assign/${ticket._id}`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
-          },
-          body: JSON.stringify({ assigned_user_id: selectedAgent, status: selectedStatus || undefined }),
-        },
-      );
-      const data = await res.json();
-      if (!data.success) {
-        alert("Assignment failed");
-        return;
-      }
+      await assignTicket(ticket._id, {
+        assigned_user_id: selectedAgent,
+        status: selectedStatus || undefined,
+      });
       setStep("done");
       onAssigned(ticket._id, selectedAgent);
-      setTimeout(() => {
-        window.location.reload();
-      }, 1200);
+      setTimeout(() => window.location.reload(), 1200);
     } catch {
-      alert("Server error");
+      alert("Assignment failed");
     } finally {
       setAssigning(false);
     }
@@ -398,7 +394,7 @@ function AssignWizard({
           </button>
         </div>
 
-        {/* Step: Select Agent */}
+        {/* Step: Select */}
         {step === "select" && (
           <div className="px-5 py-4 space-y-4">
             <div className="bg-gray-50 rounded-xl px-3.5 py-3 text-xs text-gray-500 space-y-1">
@@ -561,10 +557,10 @@ function AssignWizard({
 
 // ── Tab: My Tickets ────────────────────────────────────────────────────────
 function MyTickets() {
-  const [tickets, setTickets] = useState([]);
+  const [tickets, setTickets] = useState<Ticket[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const [assignTicket, setAssignTicket] = useState<any | null>(null);
+  const [assignTicketModal, setAssignTicketModal] = useState<any | null>(null);
 
   const userRole = getRoleFromToken();
   const isAdmin = userRole === "admin";
@@ -580,19 +576,10 @@ function MyTickets() {
   useEffect(() => {
     const fetchTickets = async () => {
       try {
-        const token = localStorage.getItem("token");
-        const res = await fetch("http://localhost:5000/api/support-booking/", {
-          method: "GET",
-          headers: { Authorization: `Bearer ${token}` },
-        });
-        const data = await res.json();
-        if (!data.success) {
-          setError(data.message || "Failed to load tickets");
-          return;
-        }
-        setTickets(data.data);
-      } catch {
-        setError("Server error. Please try again.");
+        const data = await getSupportTickets();
+        setTickets(data);
+      } catch (err: any) {
+        setError(err.response?.data?.message || "Failed to load tickets");
       } finally {
         setLoading(false);
       }
@@ -612,10 +599,10 @@ function MyTickets() {
 
   return (
     <>
-      {assignTicket && (
+      {assignTicketModal && (
         <AssignWizard
-          ticket={assignTicket}
-          onClose={() => setAssignTicket(null)}
+          ticket={assignTicketModal}
+          onClose={() => setAssignTicketModal(null)}
           onAssigned={handleAssigned}
         />
       )}
@@ -666,7 +653,7 @@ function MyTickets() {
                 </button>
                 {isAdmin && (
                   <button
-                    onClick={() => setAssignTicket(ticket)}
+                    onClick={() => setAssignTicketModal(ticket)}
                     className="text-sm font-medium text-white bg-green-500 hover:bg-green-600 rounded-lg px-3 py-1.5 transition-colors whitespace-nowrap flex items-center gap-1.5"
                   >
                     <svg
@@ -708,32 +695,19 @@ function BookSupport() {
       return;
     }
     try {
-      setSubmitted(false);
-      const res = await fetch("http://localhost:5000/api/support-booking", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({
-          duration: Number(duration),
-          category: "general",
-          priority: "medium",
-          description: reason,
-        }),
+      await bookSupportSession({
+        duration: Number(duration),
+        category: "general",
+        priority: "medium",
+        description: reason,
       });
-      const data = await res.json();
-      if (!data.success) {
-        alert(data.message || "Something went wrong");
-        return;
-      }
       setSubmitted(true);
       setDate("");
       setDuration("");
       setReason("");
       setTimeout(() => setSubmitted(false), 3000);
-    } catch {
-      alert("Server error");
+    } catch (err: any) {
+      alert(err.response?.data?.message || "Server error");
     }
   };
 
@@ -819,7 +793,6 @@ function NewRequest() {
   const [description, setDescription] = useState("");
   const [files, setFiles] = useState<File[]>([]);
   const [submitted, setSubmitted] = useState(false);
-  const token = localStorage.getItem("token");
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files) setFiles(Array.from(e.target.files));
@@ -840,25 +813,13 @@ function NewRequest() {
       return;
     }
     try {
-      const res = await fetch("http://localhost:5000/api/support-requests", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({
-          subject,
-          description,
-          priority,
-          category,
-          attachments: [],
-        }),
+      await createSupportRequest({
+        subject,
+        description,
+        priority: priority as Priority,
+        category,
+        attachments: [],
       });
-      const data = await res.json();
-      if (!data.success) {
-        alert(data.message || "Something went wrong");
-        return;
-      }
       setSubmitted(true);
       setSubject("");
       setPriority("");
@@ -866,8 +827,8 @@ function NewRequest() {
       setDescription("");
       setFiles([]);
       setTimeout(() => setSubmitted(false), 3000);
-    } catch {
-      alert("Server error");
+    } catch (err: any) {
+      alert(err.response?.data?.message || "Server error");
     }
   };
 
@@ -1013,7 +974,6 @@ export default function Support() {
           </p>
         </div>
 
-        {/* Tab Switcher */}
         <div className="flex gap-1 bg-gray-100 p-1 rounded-2xl w-fit mb-6">
           {tabs.map((tab) => (
             <button
@@ -1030,7 +990,6 @@ export default function Support() {
           ))}
         </div>
 
-        {/* Content */}
         <div className="bg-white rounded-2xl border border-gray-100 p-6 shadow-sm">
           {activeTab === "my-tickets" && <MyTickets />}
           {activeTab === "book-support" && <BookSupport />}
