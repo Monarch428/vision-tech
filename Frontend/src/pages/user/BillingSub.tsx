@@ -1,16 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { createSubscription, downloadInvoice, getMyInvoices, getMySubscription, updateSubscription } from "../../services/user/billingSub.service";
 
-const API = "http://localhost:5000/api";
-
-function authHeaders(): Record<string, string> {
-  const token = localStorage.getItem("token");
-  return {
-    "Content-Type": "application/json",
-    Authorization: `Bearer ${token}`,
-  };
-}
-
 interface Subscription {
   _id: string;
   sub_id: string;
