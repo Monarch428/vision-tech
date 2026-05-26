@@ -16,7 +16,7 @@ const LOCK_DURATION_MS = 24 * 60 * 60 * 1000;
 const generateToken = async(user) => {
   const config = await systemConfig.findOne();
 
-  const expiresIn = config?.security?.sessionTimeoutMinutes || 10;``
+  const expiresIn = config?.security?.sessionTimeoutMinutes || 10;
 
   return jwt.sign(
     { id: user._id, email: user.email, role: user.role },

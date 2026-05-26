@@ -126,9 +126,4 @@ app.use('/api/system-config',      systemConfig);
 
 startSubscriptionReminder();
 
-// ✅ listen LAST
-app.listen(3000, () => {
-  logger.info("Server running on port 3000");
-});
-
 module.exports = app;
