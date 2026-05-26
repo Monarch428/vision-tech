@@ -104,19 +104,23 @@ const login = async (req, res) => {
     if (!email || !password)
       return res.status(400).json({ message: "Email and password are required" });
 
-if (!config?.security?.allowedIpAddresses?.includes(req.ip)) {
-  await systemLogger({
-    type: "warning",
-    action: "BLOCKED_IP_LOGIN_ATTEMPT",
-    details: `Unauthorized IP ${req.ip} attempted to log in with email ${email}`,
-    module: "auth",
-    ipAddress: req.ip
-  });
+    const allowedIpAddresses = config?.security?.allowedIpAddresses || [];
+    const ipRestrictionEnabled =
+      allowedIpAddresses.length > 0 && !allowedIpAddresses.includes("*");
 
-  return res.status(403).json({
-    message: "Access denied from this IP address"
-  });
-}
+    if (ipRestrictionEnabled && !allowedIpAddresses.includes(req.ip)) {
+      await systemLogger({
+        type: "warning",
+        action: "BLOCKED_IP_LOGIN_ATTEMPT",
+        details: `Unauthorized IP ${req.ip} attempted to log in with email ${email}`,
+        module: "auth",
+        ipAddress: req.ip
+      });
+
+      return res.status(403).json({
+        message: "Access denied from this IP address"
+      });
+    }
 
     const emailNormalized = email.toLowerCase().trim();
     const user = await User.findOne({ email: emailNormalized }).select("+password +loginAttempts +lockUntil");

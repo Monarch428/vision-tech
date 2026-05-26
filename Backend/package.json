@@ -5,7 +5,10 @@
   "main": "index.js",
   "scripts": {
     "dev": "nodemon src/server.js",
-    "start": "node src/server.js"
+    "start": "node src/server.js",
+    "seed": "node src/seeds/seedData.js",
+    "seed:dev": "node src/seeds/seedData.js --mode=dev",
+    "seed:prod": "node src/seeds/seedData.js --mode=prod"
   },
   "keywords": [],
   "author": "",
