@@ -17,30 +17,40 @@ const startSubscriptionReminder = require("./cron/subscriptionReminder");
 
 const app = express();
 
+const normalizeOrigin = (value) => (value || "").trim().replace(/\/$/, "");
+
 const allowedOrigins = [
   process.env.FRONTEND_URL,
+  ...(process.env.CORS_ALLOWED_ORIGINS || "").split(","),
   "http://localhost:5173",
   "http://127.0.0.1:5173",
-].filter(Boolean);
+].map(normalizeOrigin).filter(Boolean);
+
+const corsOptions = {
+  origin(origin, callback) {
+    // Allow server-to-server requests and same-origin tools with no Origin header.
+    if (!origin) {
+      return callback(null, true);
+    }
+
+    const normalizedOrigin = normalizeOrigin(origin);
+
+    if (allowedOrigins.includes(normalizedOrigin)) {
+      return callback(null, true);
+    }
+
+    logger.warn(`CORS blocked for origin: ${normalizedOrigin}`);
+    return callback(new Error(`CORS blocked for origin: ${normalizedOrigin}`));
+  },
+  methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+  allowedHeaders: ["Content-Type", "Authorization"],
+  optionsSuccessStatus: 204,
+};
 
 app.use(
-  cors({
-    origin(origin, callback) {
-      // Allow server-to-server requests and same-origin tools with no Origin header.
-      if (!origin) {
-        return callback(null, true);
-      }
-
-      if (allowedOrigins.includes(origin)) {
-        return callback(null, true);
-      }
-
-      return callback(new Error(`CORS blocked for origin: ${origin}`));
-    },
-    methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-    allowedHeaders: ["Content-Type", "Authorization"],
-  })
+  cors(corsOptions)
 );
+app.options(/.*/, cors(corsOptions));
 app.use(express.json());
 
 // ✅ Request logger middleware
