@@ -1,0 +1,48 @@
+[
+  {
+    "_id": "6a2027dcafbaa1ef7bf97fca",
+    "name": "free",
+    "__v": 0,
+    "billingCycle": "monthly",
+    "createdAt": "2026-06-03T13:10:52.504Z",
+    "features": [
+      "1 Device monitoring",
+      "Basic support",
+      "Self-help tools",
+      "Community access"
+    ],
+    "price": 0,
+    "updatedAt": "2026-06-04T04:46:25.588Z"
+  },
+  {
+    "_id": "6a2027dcafbaa1ef7bf97fcb",
+    "name": "pro",
+    "__v": 0,
+    "billingCycle": "monthly",
+    "createdAt": "2026-06-03T13:10:52.545Z",
+    "features": [
+      "5 Devices monitoring",
+      "Priority support",
+      "Antivirus services",
+      "RMM included"
+    ],
+    "price": 49.99,
+    "updatedAt": "2026-06-04T04:46:25.622Z"
+  },
+  {
+    "_id": "6a2027dcafbaa1ef7bf97fcc",
+    "name": "enterprise",
+    "__v": 0,
+    "billingCycle": "monthly",
+    "createdAt": "2026-06-03T13:10:52.548Z",
+    "features": [
+      "Unlimited devices",
+      "24/7 dedicated support",
+      "Full antivirus suite",
+      "Advanced RMM",
+      "Custom integrations"
+    ],
+    "price": 149.99,
+    "updatedAt": "2026-06-04T04:46:25.628Z"
+  }
+]

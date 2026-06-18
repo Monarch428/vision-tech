@@ -1,0 +1,1235 @@
+[
+  {
+    "_id": "6a202811ce080d645e327e87",
+    "type": "warning",
+    "action": "USER_LOGIN_FAILED",
+    "user": null,
+    "userEmail": "vijayabhinesh07@gmail.com",
+    "details": "Login failed: user not found",
+    "module": "auth",
+    "ipAddress": "::1",
+    "referenceId": "",
+    "loggedAt": "2026-06-03T13:11:45.079Z",
+    "createdAt": "2026-06-03T13:11:45.086Z",
+    "updatedAt": "2026-06-03T13:11:45.086Z",
+    "__v": 0
+  },
+  {
+    "_id": "6a202840684c604878c6b78c",
+    "type": "success",
+    "action": "USER_LOGIN",
+    "user": "6a2027dcbadb6bb782f763d5",
+    "userEmail": "vijay@gmail.com",
+    "details": "User logged in successfully",
+    "module": "auth",
+    "ipAddress": "::1",
+    "referenceId": "",
+    "metadata": {
+      "role": "admin",
+      "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/148.0.0.0 Safari/537.36 Edg/148.0.0.0"
+    },
+    "loggedAt": "2026-06-03T13:12:32.980Z",
+    "createdAt": "2026-06-03T13:12:32.980Z",
+    "updatedAt": "2026-06-03T13:12:32.980Z",
+    "__v": 0
+  },
+  {
+    "_id": "6a21020da69f7f36374e3de0",
+    "type": "warning",
+    "action": "USER_LOGIN_FAILED",
+    "user": null,
+    "userEmail": "vijayabhinesh07@gmail.com",
+    "details": "Login failed: user not found",
+    "module": "auth",
+    "ipAddress": "::1",
+    "referenceId": "",
+    "loggedAt": "2026-06-04T04:41:49.698Z",
+    "createdAt": "2026-06-04T04:41:49.719Z",
+    "updatedAt": "2026-06-04T04:41:49.719Z",
+    "__v": 0
+  },
+  {
+    "_id": "6a210220a69f7f36374e3de1",
+    "type": "warning",
+    "action": "USER_LOGIN_FAILED",
+    "user": "6a2027dcbadb6bb782f763d5",
+    "userEmail": "vijay@gmail.com",
+    "details": "Login failed: invalid password",
+    "module": "auth",
+    "ipAddress": "::1",
+    "referenceId": "",
+    "loggedAt": "2026-06-04T04:42:08.399Z",
+    "createdAt": "2026-06-04T04:42:08.401Z",
+    "updatedAt": "2026-06-04T04:42:08.401Z",
+    "__v": 0
+  },
+  {
+    "_id": "6a210249a69f7f36374e3de2",
+    "type": "warning",
+    "action": "USER_LOGIN_FAILED",
+    "user": "6a2027dcbadb6bb782f763d5",
+    "userEmail": "vijay@gmail.com",
+    "details": "Login failed: invalid password",
+    "module": "auth",
+    "ipAddress": "::1",
+    "referenceId": "",
+    "loggedAt": "2026-06-04T04:42:49.499Z",
+    "createdAt": "2026-06-04T04:42:49.500Z",
+    "updatedAt": "2026-06-04T04:42:49.500Z",
+    "__v": 0
+  },
+  {
+    "_id": "6a210257a69f7f36374e3de3",
+    "type": "warning",
+    "action": "USER_LOGIN_FAILED",
+    "user": "6a2027dcbadb6bb782f763d5",
+    "userEmail": "vijay@gmail.com",
+    "details": "Login failed: invalid password",
+    "module": "auth",
+    "ipAddress": "::1",
+    "referenceId": "",
+    "loggedAt": "2026-06-04T04:43:03.771Z",
+    "createdAt": "2026-06-04T04:43:03.772Z",
+    "updatedAt": "2026-06-04T04:43:03.772Z",
+    "__v": 0
+  },
+  {
+    "_id": "6a21028ba69f7f36374e3de4",
+    "type": "warning",
+    "action": "USER_LOGIN_FAILED",
+    "user": "6a2027dcbadb6bb782f763d5",
+    "userEmail": "vijay@gmail.com",
+    "details": "Login failed: invalid password",
+    "module": "auth",
+    "ipAddress": "::1",
+    "referenceId": "",
+    "loggedAt": "2026-06-04T04:43:55.708Z",
+    "createdAt": "2026-06-04T04:43:55.709Z",
+    "updatedAt": "2026-06-04T04:43:55.709Z",
+    "__v": 0
+  },
+  {
+    "_id": "6a21028ca69f7f36374e3de5",
+    "type": "warning",
+    "action": "USER_ACCOUNT_LOCKED",
+    "user": "6a2027dcbadb6bb782f763d5",
+    "userEmail": "vijay@gmail.com",
+    "details": "Account locked for 24h after 5 failed attempts",
+    "module": "auth",
+    "ipAddress": "::1",
+    "referenceId": "",
+    "loggedAt": "2026-06-04T04:43:56.698Z",
+    "createdAt": "2026-06-04T04:43:56.698Z",
+    "updatedAt": "2026-06-04T04:43:56.698Z",
+    "__v": 0
+  },
+  {
+    "_id": "6a210337a69f7f36374e3de6",
+    "type": "success",
+    "action": "USER_LOGIN",
+    "user": "6a2103212925e04c3ebb1cba",
+    "userEmail": "abhi@gmail.com",
+    "details": "User logged in successfully",
+    "module": "auth",
+    "ipAddress": "::1",
+    "referenceId": "",
+    "metadata": {
+      "role": "admin",
+      "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/148.0.0.0 Safari/537.36 Edg/148.0.0.0"
+    },
+    "loggedAt": "2026-06-04T04:46:47.341Z",
+    "createdAt": "2026-06-04T04:46:47.342Z",
+    "updatedAt": "2026-06-04T04:46:47.342Z",
+    "__v": 0
+  },
+  {
+    "_id": "6a210444a69f7f36374e3de7",
+    "type": "success",
+    "action": "USER_LOGIN",
+    "user": "6a2103212925e04c3ebb1cba",
+    "userEmail": "abhi@gmail.com",
+    "details": "User logged in successfully",
+    "module": "auth",
+    "ipAddress": "::1",
+    "referenceId": "",
+    "metadata": {
+      "role": "admin",
+      "userAgent": "PostmanRuntime/7.54.0"
+    },
+    "loggedAt": "2026-06-04T04:51:16.693Z",
+    "createdAt": "2026-06-04T04:51:16.694Z",
+    "updatedAt": "2026-06-04T04:51:16.694Z",
+    "__v": 0
+  },
+  {
+    "_id": "6a211b30e09115432d08d81c",
+    "type": "warning",
+    "action": "USER_LOGIN_FAILED",
+    "user": null,
+    "userEmail": "vijayabhinesh07@gmail.com",
+    "details": "Login failed: user not found",
+    "module": "auth",
+    "ipAddress": "::1",
+    "referenceId": "",
+    "loggedAt": "2026-06-04T06:29:04.090Z",
+    "createdAt": "2026-06-04T06:29:04.091Z",
+    "updatedAt": "2026-06-04T06:29:04.091Z",
+    "__v": 0
+  },
+  {
+    "_id": "6a211bb7e09115432d08d81d",
+    "type": "warning",
+    "action": "USER_LOGIN_FAILED",
+    "user": null,
+    "userEmail": "vijayabhinesh07@gmail.com",
+    "details": "Login failed: user not found",
+    "module": "auth",
+    "ipAddress": "::1",
+    "referenceId": "",
+    "loggedAt": "2026-06-04T06:31:19.890Z",
+    "createdAt": "2026-06-04T06:31:19.892Z",
+    "updatedAt": "2026-06-04T06:31:19.892Z",
+    "__v": 0
+  },
+  {
+    "_id": "6a211bbde09115432d08d81e",
+    "type": "warning",
+    "action": "USER_LOGIN_FAILED",
+    "user": null,
+    "userEmail": "vijayabhinesh07@gmail.com",
+    "details": "Login failed: user not found",
+    "module": "auth",
+    "ipAddress": "::1",
+    "referenceId": "",
+    "loggedAt": "2026-06-04T06:31:25.407Z",
+    "createdAt": "2026-06-04T06:31:25.411Z",
+    "updatedAt": "2026-06-04T06:31:25.411Z",
+    "__v": 0
+  },
+  {
+    "_id": "6a211bcae09115432d08d81f",
+    "type": "success",
+    "action": "USER_LOGIN",
+    "user": "6a2103212925e04c3ebb1cba",
+    "userEmail": "abhi@gmail.com",
+    "details": "User logged in successfully",
+    "module": "auth",
+    "ipAddress": "::1",
+    "referenceId": "",
+    "metadata": {
+      "role": "admin",
+      "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/148.0.0.0 Safari/537.36 Edg/148.0.0.0"
+    },
+    "loggedAt": "2026-06-04T06:31:38.021Z",
+    "createdAt": "2026-06-04T06:31:38.023Z",
+    "updatedAt": "2026-06-04T06:31:38.023Z",
+    "__v": 0
+  },
+  {
+    "_id": "6a211ed475724994eb618938",
+    "type": "success",
+    "action": "USER_LOGIN",
+    "user": "6a2103212925e04c3ebb1cba",
+    "userEmail": "abhi@gmail.com",
+    "details": "User logged in successfully",
+    "module": "auth",
+    "ipAddress": "::1",
+    "referenceId": "",
+    "metadata": {
+      "role": "admin",
+      "userAgent": "PostmanRuntime/7.54.0"
+    },
+    "loggedAt": "2026-06-04T06:44:36.158Z",
+    "createdAt": "2026-06-04T06:44:36.159Z",
+    "updatedAt": "2026-06-04T06:44:36.159Z",
+    "__v": 0
+  },
+  {
+    "_id": "6a213e7075724994eb61893b",
+    "type": "success",
+    "action": "USER_LOGIN",
+    "user": "6a2103212925e04c3ebb1cba",
+    "userEmail": "abhi@gmail.com",
+    "details": "User logged in successfully",
+    "module": "auth",
+    "ipAddress": "::1",
+    "referenceId": "",
+    "metadata": {
+      "role": "admin",
+      "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/148.0.0.0 Safari/537.36 Edg/148.0.0.0"
+    },
+    "loggedAt": "2026-06-04T08:59:28.776Z",
+    "createdAt": "2026-06-04T08:59:28.777Z",
+    "updatedAt": "2026-06-04T08:59:28.777Z",
+    "__v": 0
+  },
+  {
+    "_id": "6a2140bea724ba38defca082",
+    "type": "success",
+    "action": "USER_LOGIN",
+    "user": "6a2103212925e04c3ebb1cba",
+    "userEmail": "abhi@gmail.com",
+    "details": "User logged in successfully",
+    "module": "auth",
+    "ipAddress": "::1",
+    "referenceId": "",
+    "metadata": {
+      "role": "admin",
+      "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/148.0.0.0 Safari/537.36 Edg/148.0.0.0"
+    },
+    "loggedAt": "2026-06-04T09:09:18.320Z",
+    "createdAt": "2026-06-04T09:09:18.321Z",
+    "updatedAt": "2026-06-04T09:09:18.321Z",
+    "__v": 0
+  },
+  {
+    "_id": "6a2141b2bac604ede1a17a1e",
+    "type": "success",
+    "action": "USER_LOGIN",
+    "user": "6a2103212925e04c3ebb1cba",
+    "userEmail": "abhi@gmail.com",
+    "details": "User logged in successfully",
+    "module": "auth",
+    "ipAddress": "::1",
+    "referenceId": "",
+    "metadata": {
+      "role": "admin",
+      "userAgent": "PostmanRuntime/7.54.0"
+    },
+    "loggedAt": "2026-06-04T09:13:22.318Z",
+    "createdAt": "2026-06-04T09:13:22.319Z",
+    "updatedAt": "2026-06-04T09:13:22.319Z",
+    "__v": 0
+  },
+  {
+    "_id": "6a2152b2bac604ede1a17a23",
+    "type": "success",
+    "action": "USER_LOGIN",
+    "user": "6a2103212925e04c3ebb1cba",
+    "userEmail": "abhi@gmail.com",
+    "details": "User logged in successfully",
+    "module": "auth",
+    "ipAddress": "::1",
+    "referenceId": "",
+    "metadata": {
+      "role": "admin",
+      "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/148.0.0.0 Safari/537.36 Edg/148.0.0.0"
+    },
+    "loggedAt": "2026-06-04T10:25:54.993Z",
+    "createdAt": "2026-06-04T10:25:54.994Z",
+    "updatedAt": "2026-06-04T10:25:54.994Z",
+    "__v": 0
+  },
+  {
+    "_id": "6a226114a6cfd9fbe0fa09ac",
+    "type": "success",
+    "action": "USER_LOGIN",
+    "user": "6a2103212925e04c3ebb1cba",
+    "userEmail": "abhi@gmail.com",
+    "details": "User logged in successfully",
+    "module": "auth",
+    "ipAddress": "::1",
+    "referenceId": "",
+    "metadata": {
+      "role": "admin",
+      "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/148.0.0.0 Safari/537.36 Edg/148.0.0.0"
+    },
+    "loggedAt": "2026-06-05T05:39:32.644Z",
+    "createdAt": "2026-06-05T05:39:32.645Z",
+    "updatedAt": "2026-06-05T05:39:32.645Z",
+    "__v": 0
+  },
+  {
+    "_id": "6a2297aaa6cfd9fbe0fa09ad",
+    "type": "success",
+    "action": "USER_LOGIN",
+    "user": "6a2103212925e04c3ebb1cba",
+    "userEmail": "abhi@gmail.com",
+    "details": "User logged in successfully",
+    "module": "auth",
+    "ipAddress": "::1",
+    "referenceId": "",
+    "metadata": {
+      "role": "admin",
+      "userAgent": "Mozilla/5.0 (Linux; Android 6.0; Nexus 5 Build/MRA58N) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/148.0.0.0 Mobile Safari/537.36 Edg/148.0.0.0"
+    },
+    "loggedAt": "2026-06-05T09:32:26.021Z",
+    "createdAt": "2026-06-05T09:32:26.022Z",
+    "updatedAt": "2026-06-05T09:32:26.022Z",
+    "__v": 0
+  },
+  {
+    "_id": "6a22b712a6cfd9fbe0fa09ae",
+    "type": "success",
+    "action": "USER_LOGIN",
+    "user": "6a2103212925e04c3ebb1cba",
+    "userEmail": "abhi@gmail.com",
+    "details": "User logged in successfully",
+    "module": "auth",
+    "ipAddress": "::1",
+    "referenceId": "",
+    "metadata": {
+      "role": "admin",
+      "userAgent": "Mozilla/5.0 (Linux; Android 6.0; Nexus 5 Build/MRA58N) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/148.0.0.0 Mobile Safari/537.36 Edg/148.0.0.0"
+    },
+    "loggedAt": "2026-06-05T11:46:26.075Z",
+    "createdAt": "2026-06-05T11:46:26.076Z",
+    "updatedAt": "2026-06-05T11:46:26.076Z",
+    "__v": 0
+  },
+  {
+    "_id": "6a23a49917769eaad55b0840",
+    "type": "success",
+    "action": "USER_LOGIN",
+    "user": "6a2103212925e04c3ebb1cba",
+    "userEmail": "abhi@gmail.com",
+    "details": "User logged in successfully",
+    "module": "auth",
+    "ipAddress": "::1",
+    "referenceId": "",
+    "metadata": {
+      "role": "admin",
+      "userAgent": "Mozilla/5.0 (Linux; Android 6.0; Nexus 5 Build/MRA58N) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/148.0.0.0 Mobile Safari/537.36 Edg/148.0.0.0"
+    },
+    "loggedAt": "2026-06-06T04:39:53.563Z",
+    "createdAt": "2026-06-06T04:39:53.564Z",
+    "updatedAt": "2026-06-06T04:39:53.564Z",
+    "__v": 0
+  },
+  {
+    "_id": "6a23ab04bcf1e6ec4c9693f8",
+    "type": "success",
+    "action": "USER_LOGIN",
+    "user": "6a2103212925e04c3ebb1cba",
+    "userEmail": "abhi@gmail.com",
+    "details": "User logged in successfully",
+    "module": "auth",
+    "ipAddress": "::1",
+    "referenceId": "",
+    "metadata": {
+      "role": "admin",
+      "userAgent": "Mozilla/5.0 (Linux; Android 6.0; Nexus 5 Build/MRA58N) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/148.0.0.0 Mobile Safari/537.36 Edg/148.0.0.0"
+    },
+    "loggedAt": "2026-06-06T05:07:16.135Z",
+    "createdAt": "2026-06-06T05:07:16.136Z",
+    "updatedAt": "2026-06-06T05:07:16.136Z",
+    "__v": 0
+  },
+  {
+    "_id": "6a23d3ecbcf1e6ec4c9693f9",
+    "type": "success",
+    "action": "USER_LOGIN",
+    "user": "6a2103212925e04c3ebb1cba",
+    "userEmail": "abhi@gmail.com",
+    "details": "User logged in successfully",
+    "module": "auth",
+    "ipAddress": "::1",
+    "referenceId": "",
+    "metadata": {
+      "role": "admin",
+      "userAgent": "Mozilla/5.0 (Linux; Android 6.0; Nexus 5 Build/MRA58N) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/148.0.0.0 Mobile Safari/537.36 Edg/148.0.0.0"
+    },
+    "loggedAt": "2026-06-06T08:01:48.096Z",
+    "createdAt": "2026-06-06T08:01:48.097Z",
+    "updatedAt": "2026-06-06T08:01:48.097Z",
+    "__v": 0
+  },
+  {
+    "_id": "6a23e2ddbcf1e6ec4c9693fb",
+    "type": "success",
+    "action": "USER_LOGIN",
+    "user": "6a2103212925e04c3ebb1cba",
+    "userEmail": "abhi@gmail.com",
+    "details": "User logged in successfully",
+    "module": "auth",
+    "ipAddress": "::1",
+    "referenceId": "",
+    "metadata": {
+      "role": "admin",
+      "userAgent": "Mozilla/5.0 (Linux; Android 6.0; Nexus 5 Build/MRA58N) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/148.0.0.0 Mobile Safari/537.36 Edg/148.0.0.0"
+    },
+    "loggedAt": "2026-06-06T09:05:33.450Z",
+    "createdAt": "2026-06-06T09:05:33.450Z",
+    "updatedAt": "2026-06-06T09:05:33.450Z",
+    "__v": 0
+  },
+  {
+    "_id": "6a23f1c8d9dbe7eeae3413c1",
+    "type": "success",
+    "action": "USER_LOGIN",
+    "user": "6a2103212925e04c3ebb1cba",
+    "userEmail": "abhi@gmail.com",
+    "details": "User logged in successfully",
+    "module": "auth",
+    "ipAddress": "::1",
+    "referenceId": "",
+    "metadata": {
+      "role": "admin",
+      "userAgent": "Mozilla/5.0 (Linux; Android 6.0; Nexus 5 Build/MRA58N) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/148.0.0.0 Mobile Safari/537.36 Edg/148.0.0.0"
+    },
+    "loggedAt": "2026-06-06T10:09:12.678Z",
+    "createdAt": "2026-06-06T10:09:12.678Z",
+    "updatedAt": "2026-06-06T10:09:12.678Z",
+    "__v": 0
+  },
+  {
+    "_id": "6a24011d93adf4827a088236",
+    "type": "success",
+    "action": "USER_LOGIN",
+    "user": "6a2103212925e04c3ebb1cba",
+    "userEmail": "abhi@gmail.com",
+    "details": "User logged in successfully",
+    "module": "auth",
+    "ipAddress": "::1",
+    "referenceId": "",
+    "metadata": {
+      "role": "admin",
+      "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/148.0.0.0 Safari/537.36 Edg/148.0.0.0"
+    },
+    "loggedAt": "2026-06-06T11:14:37.825Z",
+    "createdAt": "2026-06-06T11:14:37.826Z",
+    "updatedAt": "2026-06-06T11:14:37.826Z",
+    "__v": 0
+  },
+  {
+    "_id": "6a264c805cda98027726c7aa",
+    "type": "success",
+    "action": "USER_LOGIN",
+    "user": "6a2103212925e04c3ebb1cba",
+    "userEmail": "abhi@gmail.com",
+    "details": "User logged in successfully",
+    "module": "auth",
+    "ipAddress": "::1",
+    "referenceId": "",
+    "metadata": {
+      "role": "admin",
+      "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/148.0.0.0 Safari/537.36 Edg/148.0.0.0"
+    },
+    "loggedAt": "2026-06-08T05:00:48.956Z",
+    "createdAt": "2026-06-08T05:00:48.957Z",
+    "updatedAt": "2026-06-08T05:00:48.957Z",
+    "__v": 0
+  },
+  {
+    "_id": "6a2660ab4ec71617d2c21fa9",
+    "type": "success",
+    "action": "USER_LOGIN",
+    "user": "6a2103212925e04c3ebb1cba",
+    "userEmail": "abhi@gmail.com",
+    "details": "User logged in successfully",
+    "module": "auth",
+    "ipAddress": "::1",
+    "referenceId": "",
+    "metadata": {
+      "role": "admin",
+      "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/148.0.0.0 Safari/537.36 Edg/148.0.0.0"
+    },
+    "loggedAt": "2026-06-08T06:26:51.305Z",
+    "createdAt": "2026-06-08T06:26:51.305Z",
+    "updatedAt": "2026-06-08T06:26:51.305Z",
+    "__v": 0
+  },
+  {
+    "_id": "6a266ecb1fdc2f23b58f3eb2",
+    "type": "success",
+    "action": "USER_LOGIN",
+    "user": "6a2103212925e04c3ebb1cba",
+    "userEmail": "abhi@gmail.com",
+    "details": "User logged in successfully",
+    "module": "auth",
+    "ipAddress": "::1",
+    "referenceId": "",
+    "metadata": {
+      "role": "admin",
+      "userAgent": "Mozilla/5.0 (Linux; Android 6.0; Nexus 5 Build/MRA58N) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/148.0.0.0 Mobile Safari/537.36 Edg/148.0.0.0"
+    },
+    "loggedAt": "2026-06-08T07:27:07.085Z",
+    "createdAt": "2026-06-08T07:27:07.086Z",
+    "updatedAt": "2026-06-08T07:27:07.086Z",
+    "__v": 0
+  },
+  {
+    "_id": "6a2673c9c4888d5f9b2ee541",
+    "type": "success",
+    "action": "USER_LOGIN",
+    "user": "6a2103212925e04c3ebb1cba",
+    "userEmail": "abhi@gmail.com",
+    "details": "User logged in successfully",
+    "module": "auth",
+    "ipAddress": "::1",
+    "referenceId": "",
+    "metadata": {
+      "role": "admin",
+      "userAgent": "PostmanRuntime/7.54.0"
+    },
+    "loggedAt": "2026-06-08T07:48:25.435Z",
+    "createdAt": "2026-06-08T07:48:25.436Z",
+    "updatedAt": "2026-06-08T07:48:25.436Z",
+    "__v": 0
+  },
+  {
+    "_id": "6a267de14feea9fd97887ee2",
+    "type": "success",
+    "action": "USER_LOGIN",
+    "user": "6a2103212925e04c3ebb1cba",
+    "userEmail": "abhi@gmail.com",
+    "details": "User logged in successfully",
+    "module": "auth",
+    "ipAddress": "::1",
+    "referenceId": "",
+    "metadata": {
+      "role": "admin",
+      "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/148.0.0.0 Safari/537.36 Edg/148.0.0.0"
+    },
+    "loggedAt": "2026-06-08T08:31:29.368Z",
+    "createdAt": "2026-06-08T08:31:29.369Z",
+    "updatedAt": "2026-06-08T08:31:29.369Z",
+    "__v": 0
+  },
+  {
+    "_id": "6a26885b4feea9fd97887ee4",
+    "type": "success",
+    "action": "USER_LOGIN",
+    "user": "6a2103212925e04c3ebb1cba",
+    "userEmail": "abhi@gmail.com",
+    "details": "User logged in successfully",
+    "module": "auth",
+    "ipAddress": "::1",
+    "referenceId": "",
+    "metadata": {
+      "role": "admin",
+      "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/148.0.0.0 Safari/537.36 Edg/148.0.0.0"
+    },
+    "loggedAt": "2026-06-08T09:16:11.743Z",
+    "createdAt": "2026-06-08T09:16:11.744Z",
+    "updatedAt": "2026-06-08T09:16:11.744Z",
+    "__v": 0
+  },
+  {
+    "_id": "6a268b83bb5ff3ac127c836a",
+    "type": "success",
+    "action": "USER_LOGIN",
+    "user": "6a2103212925e04c3ebb1cba",
+    "userEmail": "abhi@gmail.com",
+    "details": "User logged in successfully",
+    "module": "auth",
+    "ipAddress": "::1",
+    "referenceId": "",
+    "metadata": {
+      "role": "admin",
+      "userAgent": "PostmanRuntime/7.54.0"
+    },
+    "loggedAt": "2026-06-08T09:29:39.060Z",
+    "createdAt": "2026-06-08T09:29:39.061Z",
+    "updatedAt": "2026-06-08T09:29:39.061Z",
+    "__v": 0
+  },
+  {
+    "_id": "6a268cf8bb5ff3ac127c836b",
+    "type": "success",
+    "action": "USER_LOGIN",
+    "user": "6a2103212925e04c3ebb1cba",
+    "userEmail": "abhi@gmail.com",
+    "details": "User logged in successfully",
+    "module": "auth",
+    "ipAddress": "::1",
+    "referenceId": "",
+    "metadata": {
+      "role": "admin",
+      "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/148.0.0.0 Safari/537.36 Edg/148.0.0.0"
+    },
+    "loggedAt": "2026-06-08T09:35:52.054Z",
+    "createdAt": "2026-06-08T09:35:52.054Z",
+    "updatedAt": "2026-06-08T09:35:52.054Z",
+    "__v": 0
+  },
+  {
+    "_id": "6a2691e3bb5ff3ac127c836c",
+    "type": "success",
+    "action": "USER_LOGIN",
+    "user": "6a2103212925e04c3ebb1cba",
+    "userEmail": "abhi@gmail.com",
+    "details": "User logged in successfully",
+    "module": "auth",
+    "ipAddress": "::1",
+    "referenceId": "",
+    "metadata": {
+      "role": "admin",
+      "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/148.0.0.0 Safari/537.36 Edg/148.0.0.0"
+    },
+    "loggedAt": "2026-06-08T09:56:51.901Z",
+    "createdAt": "2026-06-08T09:56:51.902Z",
+    "updatedAt": "2026-06-08T09:56:51.902Z",
+    "__v": 0
+  },
+  {
+    "_id": "6a269285a5982cb72028f10e",
+    "type": "success",
+    "action": "USER_LOGIN",
+    "user": "6a2103212925e04c3ebb1cba",
+    "userEmail": "abhi@gmail.com",
+    "details": "User logged in successfully",
+    "module": "auth",
+    "ipAddress": "::1",
+    "referenceId": "",
+    "metadata": {
+      "role": "admin",
+      "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/148.0.0.0 Safari/537.36 Edg/148.0.0.0"
+    },
+    "loggedAt": "2026-06-08T09:59:33.853Z",
+    "createdAt": "2026-06-08T09:59:33.853Z",
+    "updatedAt": "2026-06-08T09:59:33.853Z",
+    "__v": 0
+  },
+  {
+    "_id": "6a26930a9a276539126c8c83",
+    "type": "success",
+    "action": "USER_LOGIN",
+    "user": "6a2103212925e04c3ebb1cba",
+    "userEmail": "abhi@gmail.com",
+    "details": "User logged in successfully",
+    "module": "auth",
+    "ipAddress": "::1",
+    "referenceId": "",
+    "metadata": {
+      "role": "admin",
+      "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/148.0.0.0 Safari/537.36 Edg/148.0.0.0"
+    },
+    "loggedAt": "2026-06-08T10:01:46.169Z",
+    "createdAt": "2026-06-08T10:01:46.170Z",
+    "updatedAt": "2026-06-08T10:01:46.170Z",
+    "__v": 0
+  },
+  {
+    "_id": "6a2693399a276539126c8c84",
+    "type": "success",
+    "action": "USER_LOGIN",
+    "user": "6a2027dcbadb6bb782f763d5",
+    "userEmail": "vijay@gmail.com",
+    "details": "User logged in successfully",
+    "module": "auth",
+    "ipAddress": "::1",
+    "referenceId": "",
+    "metadata": {
+      "role": "admin",
+      "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/148.0.0.0 Safari/537.36 Edg/148.0.0.0"
+    },
+    "loggedAt": "2026-06-08T10:02:33.509Z",
+    "createdAt": "2026-06-08T10:02:33.509Z",
+    "updatedAt": "2026-06-08T10:02:33.509Z",
+    "__v": 0
+  },
+  {
+    "_id": "6a2693d37093ee32b79c7da5",
+    "type": "success",
+    "action": "USER_LOGIN",
+    "user": "6a2027dcbadb6bb782f763d5",
+    "userEmail": "vijay@gmail.com",
+    "details": "User logged in successfully",
+    "module": "auth",
+    "ipAddress": "::1",
+    "referenceId": "",
+    "metadata": {
+      "role": "admin",
+      "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/148.0.0.0 Safari/537.36 Edg/148.0.0.0"
+    },
+    "loggedAt": "2026-06-08T10:05:07.712Z",
+    "createdAt": "2026-06-08T10:05:07.713Z",
+    "updatedAt": "2026-06-08T10:05:07.713Z",
+    "__v": 0
+  },
+  {
+    "_id": "6a2693f96b0d2b772091f2eb",
+    "type": "success",
+    "action": "USER_LOGIN",
+    "user": "6a2027dcbadb6bb782f763d5",
+    "userEmail": "vijay@gmail.com",
+    "details": "User logged in successfully",
+    "module": "auth",
+    "ipAddress": "::1",
+    "referenceId": "",
+    "metadata": {
+      "role": "admin",
+      "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/148.0.0.0 Safari/537.36 Edg/148.0.0.0"
+    },
+    "loggedAt": "2026-06-08T10:05:45.409Z",
+    "createdAt": "2026-06-08T10:05:45.409Z",
+    "updatedAt": "2026-06-08T10:05:45.409Z",
+    "__v": 0
+  },
+  {
+    "_id": "6a2694826b0d2b772091f2ec",
+    "type": "success",
+    "action": "USER_LOGIN",
+    "user": "6a2027dcbadb6bb782f763d5",
+    "userEmail": "vijay@gmail.com",
+    "details": "User logged in successfully",
+    "module": "auth",
+    "ipAddress": "::1",
+    "referenceId": "",
+    "metadata": {
+      "role": "admin",
+      "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/148.0.0.0 Safari/537.36 Edg/148.0.0.0"
+    },
+    "loggedAt": "2026-06-08T10:08:02.329Z",
+    "createdAt": "2026-06-08T10:08:02.330Z",
+    "updatedAt": "2026-06-08T10:08:02.330Z",
+    "__v": 0
+  },
+  {
+    "_id": "6a2694c54d354cf47677d79d",
+    "type": "success",
+    "action": "USER_LOGIN",
+    "user": "6a2027dcbadb6bb782f763d5",
+    "userEmail": "",
+    "details": "User logged in successfully",
+    "module": "auth",
+    "ipAddress": "::1",
+    "referenceId": "",
+    "metadata": {
+      "role": "admin",
+      "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/148.0.0.0 Safari/537.36 Edg/148.0.0.0"
+    },
+    "loggedAt": "2026-06-08T10:09:09.036Z",
+    "createdAt": "2026-06-08T10:09:09.037Z",
+    "updatedAt": "2026-06-08T10:09:09.037Z",
+    "__v": 0
+  },
+  {
+    "_id": "6a269c774d354cf47677d79e",
+    "type": "success",
+    "action": "USER_LOGIN",
+    "user": "6a2027dcbadb6bb782f763d5",
+    "userEmail": "",
+    "details": "User logged in successfully",
+    "module": "auth",
+    "ipAddress": "::1",
+    "referenceId": "",
+    "metadata": {
+      "role": "admin",
+      "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/148.0.0.0 Safari/537.36 Edg/148.0.0.0"
+    },
+    "loggedAt": "2026-06-08T10:41:59.486Z",
+    "createdAt": "2026-06-08T10:41:59.487Z",
+    "updatedAt": "2026-06-08T10:41:59.487Z",
+    "__v": 0
+  },
+  {
+    "_id": "6a269c844d354cf47677d79f",
+    "type": "success",
+    "action": "USER_LOGIN",
+    "user": "6a2027dcbadb6bb782f763d5",
+    "userEmail": "",
+    "details": "User logged in successfully",
+    "module": "auth",
+    "ipAddress": "::1",
+    "referenceId": "",
+    "metadata": {
+      "role": "admin",
+      "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/148.0.0.0 Safari/537.36 Edg/148.0.0.0"
+    },
+    "loggedAt": "2026-06-08T10:42:12.994Z",
+    "createdAt": "2026-06-08T10:42:12.994Z",
+    "updatedAt": "2026-06-08T10:42:12.994Z",
+    "__v": 0
+  },
+  {
+    "_id": "6a269d584d354cf47677d7a0",
+    "type": "success",
+    "action": "USER_LOGIN",
+    "user": "6a2103212925e04c3ebb1cba",
+    "userEmail": "",
+    "details": "User logged in successfully",
+    "module": "auth",
+    "ipAddress": "::1",
+    "referenceId": "",
+    "metadata": {
+      "role": "admin",
+      "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/148.0.0.0 Safari/537.36 Edg/148.0.0.0"
+    },
+    "loggedAt": "2026-06-08T10:45:44.564Z",
+    "createdAt": "2026-06-08T10:45:44.564Z",
+    "updatedAt": "2026-06-08T10:45:44.564Z",
+    "__v": 0
+  },
+  {
+    "_id": "6a269f8a49c83fe1694f0cdd",
+    "type": "success",
+    "action": "USER_LOGIN",
+    "user": "6a2103212925e04c3ebb1cba",
+    "userEmail": "",
+    "details": "User logged in successfully",
+    "module": "auth",
+    "ipAddress": "::1",
+    "referenceId": "",
+    "metadata": {
+      "role": "admin",
+      "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36 Edg/149.0.0.0"
+    },
+    "loggedAt": "2026-06-08T10:55:06.044Z",
+    "createdAt": "2026-06-08T10:55:06.045Z",
+    "updatedAt": "2026-06-08T10:55:06.045Z",
+    "__v": 0
+  },
+  {
+    "_id": "6a269f9d8f21fac315fb072f",
+    "type": "success",
+    "action": "USER_LOGIN",
+    "user": "6a2103212925e04c3ebb1cba",
+    "userEmail": "abhi@gmail.com",
+    "details": "User logged in successfully",
+    "module": "auth",
+    "ipAddress": "::1",
+    "referenceId": "",
+    "metadata": {
+      "role": "admin",
+      "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36 Edg/149.0.0.0"
+    },
+    "loggedAt": "2026-06-08T10:55:25.499Z",
+    "createdAt": "2026-06-08T10:55:25.499Z",
+    "updatedAt": "2026-06-08T10:55:25.499Z",
+    "__v": 0
+  },
+  {
+    "_id": "6a26aeb88f21fac315fb0731",
+    "type": "success",
+    "action": "USER_LOGIN",
+    "user": "6a2103212925e04c3ebb1cba",
+    "userEmail": "abhi@gmail.com",
+    "details": "User logged in successfully",
+    "module": "auth",
+    "ipAddress": "::1",
+    "referenceId": "",
+    "metadata": {
+      "role": "admin",
+      "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36 Edg/149.0.0.0"
+    },
+    "loggedAt": "2026-06-08T11:59:52.960Z",
+    "createdAt": "2026-06-08T11:59:52.961Z",
+    "updatedAt": "2026-06-08T11:59:52.961Z",
+    "__v": 0
+  },
+  {
+    "_id": "6a26aed88f21fac315fb0732",
+    "type": "success",
+    "action": "USER_LOGIN",
+    "user": "6a2103212925e04c3ebb1cba",
+    "userEmail": "abhi@gmail.com",
+    "details": "User logged in successfully",
+    "module": "auth",
+    "ipAddress": "::1",
+    "referenceId": "",
+    "metadata": {
+      "role": "admin",
+      "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36 Edg/149.0.0.0"
+    },
+    "loggedAt": "2026-06-08T12:00:24.215Z",
+    "createdAt": "2026-06-08T12:00:24.216Z",
+    "updatedAt": "2026-06-08T12:00:24.216Z",
+    "__v": 0
+  },
+  {
+    "_id": "6a26bc708f21fac315fb0733",
+    "type": "success",
+    "action": "USER_LOGIN",
+    "user": "6a2103212925e04c3ebb1cba",
+    "userEmail": "abhi@gmail.com",
+    "details": "User logged in successfully",
+    "module": "auth",
+    "ipAddress": "::1",
+    "referenceId": "",
+    "metadata": {
+      "role": "admin",
+      "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36 Edg/149.0.0.0"
+    },
+    "loggedAt": "2026-06-08T12:58:24.548Z",
+    "createdAt": "2026-06-08T12:58:24.549Z",
+    "updatedAt": "2026-06-08T12:58:24.549Z",
+    "__v": 0
+  },
+  {
+    "_id": "6a26bc828f21fac315fb0734",
+    "type": "success",
+    "action": "USER_LOGIN",
+    "user": "6a2103212925e04c3ebb1cba",
+    "userEmail": "abhi@gmail.com",
+    "details": "User logged in successfully",
+    "module": "auth",
+    "ipAddress": "::1",
+    "referenceId": "",
+    "metadata": {
+      "role": "admin",
+      "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36 Edg/149.0.0.0"
+    },
+    "loggedAt": "2026-06-08T12:58:42.892Z",
+    "createdAt": "2026-06-08T12:58:42.892Z",
+    "updatedAt": "2026-06-08T12:58:42.892Z",
+    "__v": 0
+  },
+  {
+    "_id": "6a26bdc38f21fac315fb0735",
+    "type": "success",
+    "action": "USER_LOGIN",
+    "user": "6a2103212925e04c3ebb1cba",
+    "userEmail": "abhi@gmail.com",
+    "details": "User logged in successfully",
+    "module": "auth",
+    "ipAddress": "::1",
+    "referenceId": "",
+    "metadata": {
+      "role": "admin",
+      "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36 Edg/149.0.0.0"
+    },
+    "loggedAt": "2026-06-08T13:04:03.221Z",
+    "createdAt": "2026-06-08T13:04:03.222Z",
+    "updatedAt": "2026-06-08T13:04:03.222Z",
+    "__v": 0
+  },
+  {
+    "_id": "6a2799c0ccddfae4747c4c6f",
+    "type": "success",
+    "action": "USER_LOGIN",
+    "user": "6a2103212925e04c3ebb1cba",
+    "userEmail": "abhi@gmail.com",
+    "details": "User logged in successfully",
+    "module": "auth",
+    "ipAddress": "::1",
+    "referenceId": "",
+    "metadata": {
+      "role": "admin",
+      "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36 Edg/149.0.0.0"
+    },
+    "loggedAt": "2026-06-09T04:42:40.026Z",
+    "createdAt": "2026-06-09T04:42:40.027Z",
+    "updatedAt": "2026-06-09T04:42:40.027Z",
+    "__v": 0
+  },
+  {
+    "_id": "6a27abb0fdc61d8120b13b0d",
+    "type": "success",
+    "action": "USER_LOGIN",
+    "user": "6a2103212925e04c3ebb1cba",
+    "userEmail": "abhi@gmail.com",
+    "details": "User logged in successfully",
+    "module": "auth",
+    "ipAddress": "::1",
+    "referenceId": "",
+    "metadata": {
+      "role": "admin",
+      "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36 Edg/149.0.0.0"
+    },
+    "loggedAt": "2026-06-09T05:59:12.446Z",
+    "createdAt": "2026-06-09T05:59:12.447Z",
+    "updatedAt": "2026-06-09T05:59:12.447Z",
+    "__v": 0
+  },
+  {
+    "_id": "6a27b168f6eb6bac2d695c5b",
+    "type": "success",
+    "action": "USER_LOGIN",
+    "user": "6a2103212925e04c3ebb1cba",
+    "userEmail": "abhi@gmail.com",
+    "details": "User logged in successfully",
+    "module": "auth",
+    "ipAddress": "::1",
+    "referenceId": "",
+    "metadata": {
+      "role": "admin",
+      "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36 Edg/149.0.0.0"
+    },
+    "loggedAt": "2026-06-09T06:23:36.367Z",
+    "createdAt": "2026-06-09T06:23:36.367Z",
+    "updatedAt": "2026-06-09T06:23:36.367Z",
+    "__v": 0
+  },
+  {
+    "_id": "6a27b2d5ce7c9dc9837c42e3",
+    "type": "success",
+    "action": "USER_LOGIN",
+    "user": "6a2103212925e04c3ebb1cba",
+    "userEmail": "abhi@gmail.com",
+    "details": "User logged in successfully",
+    "module": "auth",
+    "ipAddress": "::1",
+    "referenceId": "",
+    "metadata": {
+      "role": "admin",
+      "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36 Edg/149.0.0.0"
+    },
+    "loggedAt": "2026-06-09T06:29:41.088Z",
+    "createdAt": "2026-06-09T06:29:41.089Z",
+    "updatedAt": "2026-06-09T06:29:41.089Z",
+    "__v": 0
+  },
+  {
+    "_id": "6a27b9101142b9030b6504cb",
+    "type": "success",
+    "action": "USER_LOGIN",
+    "user": "6a2103212925e04c3ebb1cba",
+    "userEmail": "abhi@gmail.com",
+    "details": "User logged in successfully",
+    "module": "auth",
+    "ipAddress": "::1",
+    "referenceId": "",
+    "metadata": {
+      "role": "admin",
+      "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36 Edg/149.0.0.0"
+    },
+    "loggedAt": "2026-06-09T06:56:16.402Z",
+    "createdAt": "2026-06-09T06:56:16.403Z",
+    "updatedAt": "2026-06-09T06:56:16.403Z",
+    "__v": 0
+  },
+  {
+    "_id": "6a27badbfcdd6bb222a3977b",
+    "type": "success",
+    "action": "USER_LOGIN",
+    "user": "6a2103212925e04c3ebb1cba",
+    "userEmail": "abhi@gmail.com",
+    "details": "User logged in successfully",
+    "module": "auth",
+    "ipAddress": "::1",
+    "referenceId": "",
+    "metadata": {
+      "role": "admin",
+      "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36 Edg/149.0.0.0"
+    },
+    "loggedAt": "2026-06-09T07:03:55.995Z",
+    "createdAt": "2026-06-09T07:03:55.995Z",
+    "updatedAt": "2026-06-09T07:03:55.995Z",
+    "__v": 0
+  },
+  {
+    "_id": "6a27bec5fcdd6bb222a3977c",
+    "type": "success",
+    "action": "USER_LOGIN",
+    "user": "6a2103212925e04c3ebb1cba",
+    "userEmail": "abhi@gmail.com",
+    "details": "User logged in successfully",
+    "module": "auth",
+    "ipAddress": "::1",
+    "referenceId": "",
+    "metadata": {
+      "role": "admin",
+      "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36 Edg/149.0.0.0"
+    },
+    "loggedAt": "2026-06-09T07:20:37.074Z",
+    "createdAt": "2026-06-09T07:20:37.075Z",
+    "updatedAt": "2026-06-09T07:20:37.075Z",
+    "__v": 0
+  },
+  {
+    "_id": "6a27c19959a9d27996061ff7",
+    "type": "success",
+    "action": "USER_LOGIN",
+    "user": "6a2103212925e04c3ebb1cba",
+    "userEmail": "abhi@gmail.com",
+    "details": "User logged in successfully",
+    "module": "auth",
+    "ipAddress": "::1",
+    "referenceId": "",
+    "metadata": {
+      "role": "admin",
+      "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36 Edg/149.0.0.0"
+    },
+    "loggedAt": "2026-06-09T07:32:41.360Z",
+    "createdAt": "2026-06-09T07:32:41.361Z",
+    "updatedAt": "2026-06-09T07:32:41.361Z",
+    "__v": 0
+  },
+  {
+    "_id": "6a27d46659a9d27996061ff8",
+    "type": "success",
+    "action": "USER_LOGIN",
+    "user": "6a2103212925e04c3ebb1cba",
+    "userEmail": "abhi@gmail.com",
+    "details": "User logged in successfully",
+    "module": "auth",
+    "ipAddress": "::1",
+    "referenceId": "",
+    "metadata": {
+      "role": "admin",
+      "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36 Edg/149.0.0.0"
+    },
+    "loggedAt": "2026-06-09T08:52:54.179Z",
+    "createdAt": "2026-06-09T08:52:54.180Z",
+    "updatedAt": "2026-06-09T08:52:54.180Z",
+    "__v": 0
+  },
+  {
+    "_id": "6a27d78f59a9d27996061ffb",
+    "type": "success",
+    "action": "USER_LOGIN",
+    "user": "6a2103212925e04c3ebb1cba",
+    "userEmail": "abhi@gmail.com",
+    "details": "User logged in successfully",
+    "module": "auth",
+    "ipAddress": "::1",
+    "referenceId": "",
+    "metadata": {
+      "role": "admin",
+      "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36 Edg/149.0.0.0"
+    },
+    "loggedAt": "2026-06-09T09:06:23.200Z",
+    "createdAt": "2026-06-09T09:06:23.200Z",
+    "updatedAt": "2026-06-09T09:06:23.200Z",
+    "__v": 0
+  },
+  {
+    "_id": "6a27d7fb59a9d27996061ffc",
+    "type": "success",
+    "action": "USER_LOGIN",
+    "user": "6a2103212925e04c3ebb1cba",
+    "userEmail": "abhi@gmail.com",
+    "details": "User logged in successfully",
+    "module": "auth",
+    "ipAddress": "::1",
+    "referenceId": "",
+    "metadata": {
+      "role": "admin",
+      "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36 Edg/149.0.0.0"
+    },
+    "loggedAt": "2026-06-09T09:08:11.696Z",
+    "createdAt": "2026-06-09T09:08:11.697Z",
+    "updatedAt": "2026-06-09T09:08:11.697Z",
+    "__v": 0
+  },
+  {
+    "_id": "6a27d82459a9d27996061ffd",
+    "type": "success",
+    "action": "USER_LOGIN",
+    "user": "6a2103212925e04c3ebb1cba",
+    "userEmail": "abhi@gmail.com",
+    "details": "User logged in successfully",
+    "module": "auth",
+    "ipAddress": "::1",
+    "referenceId": "",
+    "metadata": {
+      "role": "admin",
+      "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36 Edg/149.0.0.0"
+    },
+    "loggedAt": "2026-06-09T09:08:52.124Z",
+    "createdAt": "2026-06-09T09:08:52.125Z",
+    "updatedAt": "2026-06-09T09:08:52.125Z",
+    "__v": 0
+  },
+  {
+    "_id": "6a27e737137ace34d2f176df",
+    "type": "success",
+    "action": "USER_LOGIN",
+    "user": "6a2103212925e04c3ebb1cba",
+    "userEmail": "abhi@gmail.com",
+    "details": "User logged in successfully",
+    "module": "auth",
+    "ipAddress": "::1",
+    "referenceId": "",
+    "metadata": {
+      "role": "admin",
+      "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36 Edg/149.0.0.0"
+    },
+    "loggedAt": "2026-06-09T10:13:11.170Z",
+    "createdAt": "2026-06-09T10:13:11.170Z",
+    "updatedAt": "2026-06-09T10:13:11.170Z",
+    "__v": 0
+  }
+]

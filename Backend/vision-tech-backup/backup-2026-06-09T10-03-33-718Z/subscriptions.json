@@ -1,0 +1,34 @@
+[
+  {
+    "_id": "6a2027dcafbaa1ef7bf97fcd",
+    "user": "6a2027dcbadb6bb782f763d5",
+    "__v": 0,
+    "amount": 149.99,
+    "cancelledAt": null,
+    "createdAt": "2026-06-03T13:10:52.660Z",
+    "nextRenewalDate": "2126-06-03T13:10:52.659Z",
+    "pausedAt": null,
+    "plan": "6a2027dcafbaa1ef7bf97fcc",
+    "renewalReminderSent": false,
+    "startDate": "2026-06-03T13:10:52.659Z",
+    "status": "active",
+    "sub_id": "SUB-F763D5",
+    "updatedAt": "2026-06-03T13:10:52.660Z"
+  },
+  {
+    "_id": "6a210321afbaa1ef7bf97fce",
+    "user": "6a2103212925e04c3ebb1cba",
+    "__v": 0,
+    "amount": 49.99,
+    "cancelledAt": null,
+    "createdAt": "2026-06-04T04:46:25.784Z",
+    "nextRenewalDate": "2026-07-08T11:38:41.902Z",
+    "pausedAt": null,
+    "plan": "6a2027dcafbaa1ef7bf97fcb",
+    "renewalReminderSent": false,
+    "startDate": "2026-06-04T04:46:25.782Z",
+    "status": "active",
+    "sub_id": "SUB-BB1CBA",
+    "updatedAt": "2026-06-08T11:38:41.903Z"
+  }
+]

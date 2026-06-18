@@ -1,0 +1,77 @@
+[
+  {
+    "_id": "6a2027dcbadb6bb782f763d6",
+    "general": {
+      "siteName": "Vision Tech",
+      "siteUrl": "",
+      "timezone": "UTC",
+      "maintenanceMode": false,
+      "autoBackup": true
+    },
+    "email": {
+      "smtpHost": "",
+      "smtpPort": 587,
+      "smtpUsername": "",
+      "smtpPassword": "",
+      "fromEmail": "",
+      "fromName": "Vision Tech Support",
+      "emailNotificationsEnabled": true
+    },
+    "security": {
+      "sessionTimeoutMinutes": 60,
+      "maxLoginAttempts": 5,
+      "minimumPasswordLength": 8,
+      "requireTwoFactorAuth": false,
+      "allowedIpAddresses": [
+        "*"
+      ]
+    },
+    "notifications": {
+      "newUserRegistration": true,
+      "serviceRequestAlerts": true,
+      "systemErrors": true,
+      "securityAlerts": true,
+      "subscriptionRenewals": true
+    },
+    "updatedBy": "6a2027dcbadb6bb782f763d5",
+    "createdAt": "2026-06-03T13:10:52.669Z",
+    "updatedAt": "2026-06-03T13:10:52.669Z",
+    "__v": 0
+  },
+  {
+    "_id": "6a268a9cbb5ff3ac127c8369",
+    "general": {
+      "siteName": "BrandingBeez",
+      "siteUrl": "https://www.brandingbeez.co.uk/",
+      "timezone": "UTC",
+      "maintenanceMode": true,
+      "autoBackup": true
+    },
+    "email": {
+      "smtpHost": "",
+      "smtpPort": 587,
+      "smtpUsername": "abhi@gmail.com",
+      "smtpPassword": "123456",
+      "fromEmail": "",
+      "fromName": "",
+      "emailNotificationsEnabled": true
+    },
+    "security": {
+      "sessionTimeoutMinutes": 6,
+      "maxLoginAttempts": 10,
+      "minimumPasswordLength": 6,
+      "requireTwoFactorAuth": false,
+      "allowedIpAddresses": []
+    },
+    "notifications": {
+      "newUserRegistration": false,
+      "serviceRequestAlerts": false,
+      "systemErrors": false,
+      "securityAlerts": false,
+      "subscriptionRenewals": false
+    },
+    "createdAt": "2026-06-08T09:25:48.389Z",
+    "updatedAt": "2026-06-08T12:00:19.511Z",
+    "__v": 0
+  }
+]

@@ -1,0 +1,14 @@
+[
+  {
+    "_id": "6a26a9c18f21fac315fb0730",
+    "user": "6a2103212925e04c3ebb1cba",
+    "subscription": "6a210321afbaa1ef7bf97fce",
+    "amount": 49.99,
+    "status": "success",
+    "paymentMethod": "paypal",
+    "paidAt": "2026-06-08T11:38:41.907Z",
+    "createdAt": "2026-06-08T11:38:41.912Z",
+    "updatedAt": "2026-06-08T11:38:41.912Z",
+    "__v": 0
+  }
+]

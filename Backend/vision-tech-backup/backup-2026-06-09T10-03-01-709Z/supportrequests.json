@@ -1,0 +1,18 @@
+[
+  {
+    "_id": "6a23e8fb77ef9e3e288c68cd",
+    "user": "6a2103212925e04c3ebb1cba",
+    "ticketNumber": "REQ-1",
+    "subject": "ede",
+    "description": "dsfds",
+    "priority": "medium",
+    "status": "open",
+    "category": "antivirus",
+    "assigned_user_id": null,
+    "attachments": [],
+    "createdBy": "6a2103212925e04c3ebb1cba",
+    "createdAt": "2026-06-06T09:31:39.289Z",
+    "updatedAt": "2026-06-06T09:31:39.289Z",
+    "__v": 0
+  }
+]
