@@ -16,7 +16,12 @@ import {
 import { Line, Bar } from "react-chartjs-2";
 import { getAllUsers } from "../../services/admin/userManagement.service";
 import { getAllSubscriptions } from "../../services/admin/subscriptions.service";
-import { getAllServiceRequests } from "../../services/admin/serviceRequest.service.ts";
+import {
+  getAllServiceRequests,
+} from "../../services/admin/serviceRequest.service.ts";
+import {
+  getSupportTickets,
+} from "../../services/user/support.service.ts";
 import { getSystemLogs } from "../../services/admin/systemLogs.service";
 
 Chart.register(
@@ -117,9 +122,9 @@ export default function AdminDashboard() {
   const [criticalRequests, setCriticalRequests] = useState<number | null>(null);
   const [monthlyClientData, setMonthlyClientData] = useState<number[]>(Array(12).fill(0));
   const [monthlySubData, setMonthlySubData] = useState<number[]>(Array(12).fill(0));
-  const [recentLogs, setRecentLogs] = useState<
-  { _id: string; type: "success" | "info" | "warning" | "error"; action: string; details: string; timestamp: string } []
-    > ([]);
+  const [recentLogs, setRecentLogs] = useState
+    <{ _id: string; type: "success" | "info" | "warning" | "error"; action: string; details: string; timestamp: string }[]
+    >([]);
 
   const lineData: ChartData<"line"> = {
     labels: months,
@@ -199,15 +204,12 @@ export default function AdminDashboard() {
     fetchLogs();
   }, []);
 
+  // Last 5 service requests
   useEffect(() => {
     const fetchRequests = async () => {
       try {
-        const token = localStorage.getItem("token");
-        const res = await fetch("/api/support-requests/all", {
-          headers: { Authorization: `Bearer ${token}` },
-        });
-        const data = await res.json();
-        if (data.success) setRecentRequests(data.data.slice(0, 5));
+        const res = await getAllServiceRequests();
+        if (res.data.success) setRecentRequests(res.data.data.slice(0, 5));
       } catch (err) {
         console.error("Failed to fetch support requests:", err);
       }
@@ -215,15 +217,17 @@ export default function AdminDashboard() {
     fetchRequests();
   }, []);
 
+  // Last 5 support bookings
   useEffect(() => {
     const fetchBookings = async () => {
       try {
-        const token = localStorage.getItem("token");
-        const res = await fetch("/api/support-booking/all", {
-          headers: { Authorization: `Bearer ${token}` },
-        });
-        const data = await res.json();
-        if (data.success) setRecentSupportBookings(data.data.slice(0, 5));
+        const tickets = await getSupportTickets(); // already returns Ticket[], no .data
+        const sorted = [...tickets].sort(
+          (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+        );
+        setRecentSupportBookings(
+          (sorted.slice(0, 5) as unknown) as SupportBooking[]
+        );
       } catch (err) {
         console.error("Failed to fetch support bookings:", err);
       } finally {
