@@ -994,9 +994,9 @@ export default function BillingSub() {
 
               {!isCancelled ? (
                 <div className="flex flex-wrap gap-2">
-                  <button className="px-4 py-2 bg-green-500 hover:bg-green-600 text-white text-sm font-semibold rounded-xl transition-colors">
+                  {/* <button className="px-4 py-2 bg-green-500 hover:bg-green-600 text-white text-sm font-semibold rounded-xl transition-colors">
                     Update Payment Method
-                  </button>
+                  </button> */}
                   <button
                     onClick={handleCancel}
                     disabled={cancelling}

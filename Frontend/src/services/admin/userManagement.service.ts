@@ -38,3 +38,5 @@ export const updateUser   = (id: string, data: Partial<{
   name: string; email: string; password: string; role: string; status: string;
 }>) => API.put(`/v1/users/${id}`, data);
 export const deleteUser   = (id: string,action: "toggle" | "delete" = "toggle") => API.delete(`/v1/users/${id}?action=${action}`);
+
+export const currentUserRole = () => API.get('/v1/users/currentrole');

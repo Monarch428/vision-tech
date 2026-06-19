@@ -4,24 +4,24 @@ const SystemConfig = require('../../models/system-config/SystemConfig')
 const Sub = require('../../models/subscription/Subscription');
 const Plan = require('../../models/subscription/Plan');
 const { formatLastLogin } = require('../../utils/timeFormatter');
-const sendEmail  = require('../../utils/sendEmail'); 
+const sendEmail = require('../../utils/sendEmail');
 
 // Create User
 const createUser = async (req, res) => {
   try {
-    
+
     const { name, email, password, role, status, avatar } = req.body;
 
     const existingUser = await User.findOne({ email });
 
-    if(role === 'support'){
-      const existingSUpport = await User.findOne({role:'support'});
-        if (existingSUpport) {
-    return res.status(400).json({
-      success: false,
-      message: 'Only one support user is allowed',
-    });
-  }
+    if (role === 'support') {
+      const existingSUpport = await User.findOne({ role: 'support' });
+      if (existingSUpport) {
+        return res.status(400).json({
+          success: false,
+          message: 'Only one support user is allowed',
+        });
+      }
     }
 
     if (existingUser) {
@@ -32,37 +32,39 @@ const createUser = async (req, res) => {
     }
 
     const config = await SystemConfig.findOne().lean();
-    
+
     const minimumPasswordLength = config?.general?.minimumPasswordLength || 8;
-    
+
     if (password.length < minimumPasswordLength) {
       return res.status(400).json({ message: `Password must be at least ${minimumPasswordLength} characters long` });
     }
-     
+
+    const hashedPassword = await bcrypt.hash(password, 10);
+
     //creating user
     const user = await User.create({
       name,
       email,
-      password,
-      role,       
+      password: hashedPassword,
+      role,
       isActive: status === 'inactive' ? false : true,
       avatar: avatar || '',
       plan: 'free',
     });
-    
+
     //get freeplan
 
     const freePlan = await Plan.findOne({ name: /free/i });
 
     if (!freePlan) {
-  throw new Error('Free plan not found. Please ensure a Free plan exists in the database.');
-}
+      throw new Error('Free plan not found. Please ensure a Free plan exists in the database.');
+    }
     //Generate unique subscription ID
 
-    const last_sub = await Sub.findOne({sub_id:{$exists:true,$ne:null}}).sort({ createdAt: -1 });
+    const last_sub = await Sub.findOne({ sub_id: { $exists: true, $ne: null } }).sort({ createdAt: -1 });
 
     let nextSubId = 'SUB-001';
-    if(last_sub && last_sub.sub_id){
+    if (last_sub && last_sub.sub_id) {
       const lastNumber = parseInt(last_sub.sub_id.split('-')[1], 10);
       nextSubId = `SUB-${String(lastNumber + 1).padStart(3, '0')}`;
     }
@@ -88,15 +90,15 @@ const createUser = async (req, res) => {
 
     const newUser = await User.findById(user._id).select('-password');
 
-    if (config?.notifications?.newUserRegistration){
+    if (config?.notifications?.newUserRegistration) {
 
-    const adminUsers = await User.find({role:'admin'}).select('email name').lean();
+      const adminUsers = await User.find({ role: 'admin' }).select('email name').lean();
 
-    for(const admin of adminUsers){
-      await sendEmail({
-        to: admin.email,
-        subject: `New User Registered — ${newUser.name}`,
-        html: `
+      for (const admin of adminUsers) {
+        await sendEmail({
+          to: admin.email,
+          subject: `New User Registered — ${newUser.name}`,
+          html: `
           <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
             <h2 style="color: #16a34a;">New User Created</h2>
             <p>Hi <strong>${admin.name}</strong>,</p>
@@ -116,10 +118,10 @@ const createUser = async (req, res) => {
             <p>Thanks,<br/><strong>SOLO Support Team</strong></p>
           </div>
         `,
-      });
-    }
+        });
+      }
 
-  }
+    }
 
     res.status(201).json({
       success: true,
@@ -258,7 +260,7 @@ const updateUser = async (req, res) => {
 // Delete User
 const deleteUser = async (req, res) => {
   try {
-    const {action} = req.query;
+    const { action } = req.query;
 
     const user = await User.findById(req.params.id);
 
@@ -271,14 +273,14 @@ const deleteUser = async (req, res) => {
 
     //if actions -> permanant delete
 
-    if(action === 'delete'){
+    if (action === 'delete') {
       await Sub.deleteMany({ user: user._id });
       await User.findByIdAndDelete(user._id);
-      
+
       return res.status(200).json({
-        sucess:true,
-        message: 'User and subscription deleted successfully',  
-      }); 
+        sucess: true,
+        message: 'User and subscription deleted successfully',
+      });
     }
 
     // If active → deactivate
@@ -352,4 +354,28 @@ const getUserSB = async (req, res) => {
   }
 };
 
-module.exports = { createUser, getAllUsers, getUserById, updateUser, deleteUser, getUserSB };
+const getUserRole = async (req, res) => {
+  try {
+    const user = await User.findById(req.user.id).select('role');
+
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: 'User not found',
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      data: { role: user.role },
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: 'Error fetching user role',
+      error: error.message,
+    });
+  }
+};
+
+module.exports = { createUser, getAllUsers, getUserById, updateUser, deleteUser, getUserSB, getUserRole };
