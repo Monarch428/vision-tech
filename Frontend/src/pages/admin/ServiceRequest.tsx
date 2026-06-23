@@ -9,13 +9,19 @@ import TablePagination from "@mui/material/TablePagination";
 import TableRow from "@mui/material/TableRow";
 import {
   getAllServiceRequests,
-  getSupportAgents,
+  getAgentsForBooking,
   assignTicket as assignTicketService,
 } from "../../services/admin/serviceRequest.service";
 
 type Priority = "high" | "medium" | "low";
 type Status = "in-progress" | "open" | "resolved" | "closed";
 type TabFilter = "all" | Status;
+
+interface Agent {
+  _id: string;
+  name: string;
+  email?: string;
+}
 
 interface ServiceRequest {
   _id: string;
@@ -27,6 +33,7 @@ interface ServiceRequest {
   priority: Priority;
   status: Status;
   createdAt: string;
+  assigned_user_id?: { _id: string; name: string } | null;
 }
 
 const statusStyles: Record<Status, string> = {
@@ -59,6 +66,13 @@ const CATEGORIES = [
   "rmm",
 ];
 
+const STATUS_OPTIONS: { label: string; value: Status }[] = [
+  { label: "Open", value: "open" },
+  { label: "In Progress", value: "in-progress" },
+  { label: "Resolved", value: "resolved" },
+  { label: "Closed", value: "closed" },
+];
+
 function getRoleFromToken(): string {
   try {
     const token = localStorage.getItem("token");
@@ -89,22 +103,28 @@ function AssignWizard({
 }: {
   ticket: ServiceRequest;
   onClose: () => void;
-  onAssigned: (ticketId: string, agentId: string, newStatus: Status) => void;
+  onAssigned: (ticketId: string, agentId: string, agentName: string, newStatus: Status) => void;
 }) {
-  const [selectedAgent, setSelectedAgent] = useState("");
+  const [selectedAgent, setSelectedAgent] = useState(ticket.assigned_user_id?._id || "");
   const [selectedStatus, setSelectedStatus] = useState<Status | "">(
     ticket?.status || "",
   );
   const [step, setStep] = useState<"select" | "confirm" | "done">("select");
   const [assigning, setAssigning] = useState(false);
-  const [agents, setAgents] = useState<{ _id: string; name: string }[]>([]);
+  const [agents, setAgents] = useState<Agent[]>([]);
   const [loadingAgents, setLoadingAgents] = useState(true);
 
   useEffect(() => {
     const fetchAgents = async () => {
       try {
-        const res = await getSupportAgents();
-        if (res.data.success) setAgents(res.data.data);
+        const res = await getAgentsForBooking();
+        // handle both { data: [...] } and { data: { data: [...] } } shapes
+        const list = Array.isArray(res.data)
+          ? res.data
+          : Array.isArray(res.data?.data)
+          ? res.data.data
+          : [];
+        setAgents(list);
       } catch {
         console.error("Failed to fetch agents");
       } finally {
@@ -131,8 +151,7 @@ function AssignWizard({
         return;
       }
       setStep("done");
-      onAssigned(ticket._id, selectedAgent, selectedStatus as Status);
-      setTimeout(() => window.location.reload(), 1200);
+      onAssigned(ticket._id, selectedAgent, agent?.name || "", selectedStatus as Status);
     } catch (err: any) {
       alert(err?.response?.data?.message || "Server error");
     } finally {
@@ -141,13 +160,6 @@ function AssignWizard({
   };
 
   const ticketLabel = ticket.ticket_no || ticket.ticketNumber;
-
-  const STATUS_OPTIONS: { label: string; value: Status }[] = [
-    { label: "Open", value: "open" },
-    { label: "In Progress", value: "in-progress" },
-    { label: "Resolved", value: "resolved" },
-    { label: "Closed", value: "closed" },
-  ];
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
@@ -168,7 +180,9 @@ function AssignWizard({
               </svg>
             </div>
             <div>
-              <p className="text-sm font-bold text-gray-900 leading-tight">Assign Ticket</p>
+              <p className="text-sm font-bold text-gray-900 leading-tight">
+                {ticket.assigned_user_id ? "Reassign Ticket" : "Assign Ticket"}
+              </p>
               <p className="text-xs text-gray-400 leading-tight">#{ticketLabel}</p>
             </div>
           </div>
@@ -196,6 +210,8 @@ function AssignWizard({
               <label className="block text-sm font-semibold text-gray-700 mb-2">Assign to user</label>
               {loadingAgents ? (
                 <p className="text-xs text-gray-400 py-2">Loading agents...</p>
+              ) : agents.length === 0 ? (
+                <p className="text-xs text-red-400 py-2">No users found.</p>
               ) : (
                 <select
                   value={selectedAgent}
@@ -323,8 +339,6 @@ export default function ServiceRequests() {
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(10);
 
-  const isAdmin = getRoleFromToken() === "admin";
-
   useEffect(() => {
     fetchRequests();
   }, []);
@@ -392,21 +406,46 @@ export default function ServiceRequests() {
     return `${tab.label} (${tabCounts[tab.value as Status] ?? 0})`;
   };
 
-  const handleAssigned = (ticketId: string, _agentId: string, newStatus: Status) => {
+  const handleAssigned = (
+    ticketId: string,
+    agentId: string,
+    agentName: string,
+    newStatus: Status,
+  ) => {
     setRequests((prev) =>
-      prev.map((r) => (r._id === ticketId ? { ...r, status: newStatus } : r)),
+      prev.map((r) =>
+        r._id === ticketId
+          ? { ...r, status: newStatus, assigned_user_id: { _id: agentId, name: agentName } }
+          : r,
+      ),
     );
   };
 
   const columns = [
     "Req ID",
     "User",
-    "Subject",
+    "Request",
     "Type",
     "Priority",
     "Status",
-    ...(isAdmin ? ["Action"] : []),
+    "Assigned To",
+    "Action",
   ];
+
+  const AssignBtn = ({ req }: { req: ServiceRequest }) => (
+    <button
+      onClick={() => setSelectedTicket(req)}
+      className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-white bg-green-500 hover:bg-green-600 rounded-lg transition-colors whitespace-nowrap"
+    >
+      <svg width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+        <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
+        <circle cx="9" cy="7" r="4" />
+        <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
+        <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+      </svg>
+      {req.assigned_user_id ? "Reassign" : "Assign"}
+    </button>
+  );
 
   if (loading) return <p className="p-6 text-sm text-gray-400">Loading requests...</p>;
   if (error) return <p className="p-6 text-sm text-red-500">{error}</p>;
@@ -547,23 +586,18 @@ export default function ServiceRequests() {
                         {req.priority}
                       </span>
                     </div>
+                    <div className="col-span-2">
+                      <p className="text-gray-400">Assigned To</p>
+                      <p className="font-medium text-gray-700">
+                        {req.assigned_user_id?.name || (
+                          <span className="text-gray-400 font-normal">Unassigned</span>
+                        )}
+                      </p>
+                    </div>
                   </div>
 
-                  {/* Assign button (admin only) */}
-                  {isAdmin && (
-                    <button
-                      onClick={() => setSelectedTicket(req)}
-                      className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-white bg-green-500 hover:bg-green-600 rounded-lg transition-colors"
-                    >
-                      <svg width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                        <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
-                        <circle cx="9" cy="7" r="4" />
-                        <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
-                        <path d="M16 3.13a4 4 0 0 1 0 7.75" />
-                      </svg>
-                      Assign
-                    </button>
-                  )}
+                  {/* Assign button */}
+                  <AssignBtn req={req} />
                 </div>
               ))}
 
@@ -696,22 +730,16 @@ export default function ServiceRequests() {
                           {req.status}
                         </span>
                       </TableCell>
-                      {isAdmin && (
-                        <TableCell>
-                          <button
-                            onClick={() => setSelectedTicket(req)}
-                            className="text-xs font-semibold text-white bg-green-500 hover:bg-green-600 rounded-lg px-3 py-1.5 transition-colors flex items-center gap-1.5 whitespace-nowrap"
-                          >
-                            <svg width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                              <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
-                              <circle cx="9" cy="7" r="4" />
-                              <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
-                              <path d="M16 3.13a4 4 0 0 1 0 7.75" />
-                            </svg>
-                            Assign
-                          </button>
-                        </TableCell>
-                      )}
+                      <TableCell>
+                        {req.assigned_user_id?.name ? (
+                          <span className="text-sm text-gray-700">{req.assigned_user_id.name}</span>
+                        ) : (
+                          <span className="text-sm text-gray-400">Unassigned</span>
+                        )}
+                      </TableCell>
+                      <TableCell>
+                        <AssignBtn req={req} />
+                      </TableCell>
                     </TableRow>
                   ))
                 )}

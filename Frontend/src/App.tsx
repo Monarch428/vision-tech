@@ -16,6 +16,7 @@ import SystemConfig from "./pages/system/systemConfig";
 import { useEffect, useRef } from "react";
 import DataManagement from "./pages/admin/dataManagement";
 import ExternalServiceAccess from "./pages/admin/externalServiceAcess";
+import SupportBookings from "./pages/admin/SupportBookings";
 
 function App() {
  const initialized = useRef(false);
@@ -48,6 +49,7 @@ function App() {
           <Route path="/admin/adminManagement" element={<AdminManagement />} />
           <Route path="/admin/dataManagement" element={<DataManagement />} />
           <Route path="/admin/external" element={<ExternalServiceAccess />} />
+          <Route path="/admin/supportBookings" element={<SupportBookings />} />
         </Route>
 
         {/* Redirects */}

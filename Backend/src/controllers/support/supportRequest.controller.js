@@ -142,8 +142,6 @@ const assignTicket = async (req, res) => {
     const { ticketId } = req.params;
     const { assigned_user_id, status } = req.body;
 
-    const loggedInUser = await User.findById(req.user._id || req.user.id).lean();
-
     const ticket = await SupportRequest.findByIdAndUpdate(
       ticketId,
       { assigned_user_id, status },
@@ -166,27 +164,42 @@ const assignTicket = async (req, res) => {
       ipAddress: req.ip,
     });
 
-    if (loggedInUser?.email) {
-      await sendEmail({
-        to: loggedInUser.email,
-        subject: `Ticket ${ticket.ticketNumber} has been assigned`,
-        html: `
-          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-            <h2 style="color: #16a34a;">Ticket Assignment Confirmation</h2>
-            <p>Hi <strong>${loggedInUser.name}</strong>,</p>
-            <p>You have successfully assigned the following ticket.</p>
-            <div style="background: #f9fafb; border-radius: 8px; padding: 16px; margin: 16px 0;">
-              <p style="margin: 4px 0;"><strong>Ticket:</strong> ${ticket.ticketNumber}</p>
-              <p style="margin: 4px 0;"><strong>Description:</strong> ${ticket.description}</p>
-              <p style="margin: 4px 0;"><strong>Assigned To:</strong> ${ticket.assigned_user_id?.name || "Support Agent"}</p>
-              <p style="margin: 4px 0;"><strong>Status:</strong>
-                <span style="color: #16a34a; font-weight: bold; text-transform: capitalize;">${status}</span>
-              </p>
+    // ✅ Notify the ASSIGNED USER, not the admin who assigned it
+    try {
+      if (ticket.assigned_user_id?.email) {
+        await sendEmail({
+          to: ticket.assigned_user_id.email,   // vijayabhinesh07@gmail.com
+          subject: `You've been assigned Ticket ${ticket.ticketNumber}`,
+          html: `
+            <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+              <h2 style="color: #16a34a;">New Ticket Assigned to You</h2>
+              <p>Hi <strong>${ticket.assigned_user_id.name}</strong>,</p>
+              <p>You have been assigned the following support ticket:</p>
+              <div style="background: #f9fafb; border-radius: 8px; padding: 16px; margin: 16px 0;">
+                <p style="margin: 4px 0;"><strong>Ticket:</strong> ${ticket.ticketNumber}</p>
+                <p style="margin: 4px 0;"><strong>Subject:</strong> ${ticket.subject}</p>
+                <p style="margin: 4px 0;"><strong>Description:</strong> ${ticket.description}</p>
+                <p style="margin: 4px 0;"><strong>Requested By:</strong> ${ticket.user?.name || "—"}</p>
+                <p style="margin: 4px 0;"><strong>Status:</strong>
+                  <span style="color: #16a34a; font-weight: bold; text-transform: capitalize;">${status}</span>
+                </p>
+              </div>
+              <p style="color: #6b7280; font-size: 13px;">Please review and action this ticket from the Support Requests section.</p>
+              <p>Thanks,<br/><strong>SOLO Support Team</strong></p>
             </div>
-            <p style="color: #6b7280; font-size: 13px;">This is a confirmation of your action.</p>
-            <p>Thanks,<br/><strong>SOLO Support Team</strong></p>
-          </div>
-        `,
+          `,
+        });
+      }
+    } catch (emailError) {
+      // Don't fail the whole assignment if email fails
+      await systemLogger({
+        type: "error",
+        action: "SUPPORT_REQUEST_ASSIGN_EMAIL_ERROR",
+        user: req.user?._id,
+        userEmail: req.user?.email,
+        details: `Ticket assigned but failed to email assignee: ${emailError.message}`,
+        module: "support-requests",
+        ipAddress: req.ip,
       });
     }
 

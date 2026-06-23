@@ -19,11 +19,12 @@ const PLATFORM_ITEMS = [
 ];
 
 const ADMIN_ITEMS = [
-  { id: 'admin dashboard', label: 'Admin Dashboard', path: '/admin/adminManagement', icon: 'dashboard'   },
-  { id: 'users',           label: 'User Management', path: '/admin/users',           icon: 'users'       },
-  { id: 'subscriptions',   label: 'Subscriptions',   path: '/admin/subscriptions',  icon: 'card'        },
-  { id: 'servicerequest',  label: 'Service Request', path: '/admin/serviceRequest', icon: 'settings'    },
-  { id: 'Systemlogs',      label: 'System Logs',     path: '/admin/Systemlogs',     icon: 'system-logs' },
+  { id: 'admin dashboard', label: 'Admin Dashboard', path: '/admin/adminManagement', icon: 'dashboard'      },
+  { id: 'users',           label: 'User Management', path: '/admin/users',           icon: 'users'          },
+  { id: 'subscriptions',   label: 'Subscriptions',   path: '/admin/subscriptions',  icon: 'card'           },
+  { id: 'servicerequest',  label: 'Service Request', path: '/admin/serviceRequest', icon: 'settings'       },
+  { id: 'supportBookings', label: 'Support Booking', path: '/admin/supportBookings', icon: 'booking'       },
+  { id: 'Systemlogs',      label: 'System Logs',     path: '/admin/Systemlogs',     icon: 'system-logs'    },
 ];
 
 const SYSTEM_ITEMS = [
@@ -38,7 +39,7 @@ function getNavGroups(role: Role) {
       return [
         { section: 'Platform', items: PLATFORM_ITEMS },
         { section: 'Admin',    items: ADMIN_ITEMS    },
-        { section: 'System',   items: SYSTEM_ITEMS   }, 
+        { section: 'System',   items: SYSTEM_ITEMS   },
       ];
     case 'user':
       return [
@@ -63,6 +64,7 @@ function Icon({ name }: { name: string }) {
     users:        <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.8" viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg>,
     card:         <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.8" viewBox="0 0 24 24"><rect x="1" y="4" width="22" height="16" rx="2"/><path d="M1 10h22"/></svg>,
     settings:     <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.8" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14M4.93 4.93a10 10 0 0 0 0 14.14"/></svg>,
+    booking:      <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.8" viewBox="0 0 24 24"><path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2"/><rect x="9" y="3" width="6" height="4" rx="1"/><path d="M9 12h6M9 16h4"/></svg>,
     'system-logs':<svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.8" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V4a2 2 0 0 0-2-2z"/><path d="M8 6h8M8 12h8M8 18h8"/></svg>,
   };
   return icons[name] || null;

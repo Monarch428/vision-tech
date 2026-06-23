@@ -30,7 +30,7 @@ API.interceptors.response.use(
 );
 
 export type Priority = 'low' | 'medium' | 'high';
-export type Status = 'in progress' | 'open' | 'resolved' | 'closed';
+export type Status = "in-progress" | "open" | "resolved" | "closed";
 
 export interface Ticket {
   _id: string;

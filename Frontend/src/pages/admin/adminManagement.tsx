@@ -20,8 +20,8 @@ import {
   getAllServiceRequests,
 } from "../../services/admin/serviceRequest.service.ts";
 import {
-  getSupportTickets,
-} from "../../services/user/support.service.ts";
+  getAllSupportBookings,
+} from "../../services/admin/supportBookings.service.ts";
 import { getSystemLogs } from "../../services/admin/systemLogs.service";
 
 Chart.register(
@@ -221,13 +221,13 @@ export default function AdminDashboard() {
   useEffect(() => {
     const fetchBookings = async () => {
       try {
-        const tickets = await getSupportTickets(); // already returns Ticket[], no .data
-        const sorted = [...tickets].sort(
-          (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
-        );
-        setRecentSupportBookings(
-          (sorted.slice(0, 5) as unknown) as SupportBooking[]
-        );
+        const res = await getAllSupportBookings();
+        if (res.data.success) {
+          const sorted = [...res.data.data].sort(
+            (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+          );
+          setRecentSupportBookings(sorted.slice(0, 5));
+        }
       } catch (err) {
         console.error("Failed to fetch support bookings:", err);
       } finally {
@@ -464,7 +464,7 @@ export default function AdminDashboard() {
               title: "Service Fulfillment",
               desc: "Manage support bookings, installations, and active service tickets.",
               iconBg: "bg-orange-50", iconColor: "text-orange-500",
-              action: () => navigate("/user/support"),
+              action: () => navigate("/admin/supportBookings"),
               icon: (
                 <svg width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.8" viewBox="0 0 24 24">
                   <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />

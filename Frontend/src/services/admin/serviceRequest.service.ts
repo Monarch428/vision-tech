@@ -67,13 +67,13 @@ export const getAllServiceRequests = () =>
     criticalRequest: number;
   }>('/support-requests/all');
 
-// GET /support-requests/agents
-export const getSupportAgents = () =>
-  API.get<{ success: boolean; data: SupportAgent[] }>('/support-requests/agents');
+// GET /api/v1/users  — fetch all users to use as assignable agents
+export const getAgentsForBooking = () =>
+  API.get('/v1/users');
 
 // PATCH /support-requests/:id/assign
 export const assignTicket = (ticketId: string, payload: AssignTicketPayload) =>
-  API.patch<{ success: boolean; message?: string }>(
-    `/support-requests/${ticketId}/assign`,
+  API.post<{ success: boolean; message?: string }>(
+    `/support-requests/assign/${ticketId}`,
     payload
   );
