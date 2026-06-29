@@ -4,26 +4,30 @@ const crypto = require('crypto');
 const { v4: uuidv4 } = require('uuid');
 const User = require('../../models/auth/User');
 const Plan = require('../../models/subscription/Plan');
-const systemConfig = require('../../models/system-config/SystemConfig')
+const systemConfig = require('../../models/system-config/SystemConfig');
 const Subscription = require('../../models/subscription/Subscription');
-const { createSessionLogger, destroySessionLogger, logger } = require("../../utils/logger"); // ✅ single import
+const { createSessionLogger, destroySessionLogger, logger } = require("../../utils/logger");
 const sendEmail = require('../../utils/sendEmail');
 const systemLogger = require("../../utils/systemLogger");
 const systemConfigModel = require('../../models/system-config/SystemConfig');
 
 const LOCK_DURATION_MS = 24 * 60 * 60 * 1000;
 
+// ── Helpers ───────────────────────────────────────────────────────────────────
+
 const generateToken = async (user) => {
   const config = await systemConfig.findOne();
-
   const expiresIn = config?.security?.sessionTimeoutMinutes || 10;
-
   return jwt.sign(
     { id: user._id, email: user.email, role: user.role },
     process.env.JWT_SECRET,
     { expiresIn: `${expiresIn}m` }
   );
 };
+
+const generateOtp = () => crypto.randomInt(100000, 999999).toString();
+
+// ── Controllers ───────────────────────────────────────────────────────────────
 
 const refreshToken = async (req, res) => {
   try {
@@ -98,26 +102,19 @@ const login = async (req, res) => {
   try {
     const { email, password } = req.body;
 
-
-    const config = await systemConfigModel.findOne();
-
-    console.log(config);
-
     if (!email || !password)
       return res.status(400).json({ message: "Email and password are required" });
 
-    const allowedIpAddresses = config?.security?.allowedIpAddresses || [];
+    const config = await systemConfigModel.findOne();
 
-    const underMaintanance = config?.general?.maintenanceMode || false;
-
-    console.log(underMaintanance);
-
-    if (underMaintanance) {
+    const underMaintenance = config?.general?.maintenanceMode || false;
+    if (underMaintenance) {
       return res.status(503).json({
         message: "The system is currently under maintenance. Please try again later.",
       });
     }
 
+    const allowedIpAddresses = config?.security?.allowedIpAddresses || [];
     const ipRestrictionEnabled =
       allowedIpAddresses.length > 0 && !allowedIpAddresses.includes("*");
 
@@ -127,34 +124,31 @@ const login = async (req, res) => {
         action: "BLOCKED_IP_LOGIN_ATTEMPT",
         details: `Unauthorized IP ${req.ip} attempted to log in with email ${email}`,
         module: "auth",
-        ipAddress: req.ip
+        ipAddress: req.ip,
       });
-
-      return res.status(403).json({
-        message: "Access denied from this IP address"
-      });
+      return res.status(403).json({ message: "Access denied from this IP address" });
     }
 
     const emailNormalized = email.toLowerCase().trim();
-    const user = await User.findOne({ email: emailNormalized }).select("+password +loginAttempts +lockUntil");
+    const user = await User.findOne({ email: emailNormalized })
+      .select("+password +loginAttempts +lockUntil");
 
     if (!user) {
       await systemLogger({
         type: "warning", action: "USER_LOGIN_FAILED", userEmail: emailNormalized,
-        details: "Login failed: user not found", module: "auth", ipAddress: req.ip
+        details: "Login failed: user not found", module: "auth", ipAddress: req.ip,
       });
       return res.status(400).json({ message: "Invalid credentials" });
     }
 
     const maxAttempts = config?.security?.maxLoginAttempts;
-
     if (!maxAttempts) {
       return res.status(500).json({ message: "Login policy not configured. Contact administrator." });
     }
 
     const now = Date.now();
 
-    // ── Account still locked ───────────────────────────────────────────────
+    // Account still locked
     if (user.lockUntil && user.lockUntil > now) {
       return res.status(403).json({
         message: "Your account has been locked for 24 hours due to too many failed attempts.",
@@ -163,7 +157,7 @@ const login = async (req, res) => {
       });
     }
 
-    // ── Lock expired — reset ───────────────────────────────────────────────
+    // Lock expired — reset
     if (user.lockUntil && user.lockUntil <= now) {
       user.loginAttempts = 0;
       user.lockUntil = undefined;
@@ -175,13 +169,14 @@ const login = async (req, res) => {
       user.loginAttempts = (user.loginAttempts || 0) + 1;
 
       if (user.loginAttempts >= maxAttempts) {
-        user.lockUntil = new Date(now + LOCK_DURATION_MS); // locked for 1 day
+        user.lockUntil = new Date(now + LOCK_DURATION_MS);
         await user.save();
 
         await systemLogger({
           type: "warning", action: "USER_ACCOUNT_LOCKED", user: user._id,
-          userEmail: user.email, details: `Account locked for 24h after ${maxAttempts} failed attempts`,
-          module: "auth", ipAddress: req.ip
+          userEmail: user.email,
+          details: `Account locked for 24h after ${maxAttempts} failed attempts`,
+          module: "auth", ipAddress: req.ip,
         });
 
         return res.status(403).json({
@@ -195,7 +190,8 @@ const login = async (req, res) => {
 
       await systemLogger({
         type: "warning", action: "USER_LOGIN_FAILED", user: user._id,
-        userEmail: user.email, details: "Login failed: invalid password", module: "auth", ipAddress: req.ip
+        userEmail: user.email, details: "Login failed: invalid password",
+        module: "auth", ipAddress: req.ip,
       });
 
       return res.status(400).json({
@@ -204,31 +200,132 @@ const login = async (req, res) => {
       });
     }
 
+    // ── Credentials valid ──────────────────────────────────────────────────
     user.loginAttempts = 0;
     user.lockUntil = undefined;
     user.lastLogin = new Date();
+
+    const twoFactorEnabled = config?.security?.requireTwoFactorAuth ?? true;
+
+    if (!twoFactorEnabled) {
+      await user.save();
+      const token = await generateToken(user);
+
+      await systemLogger({
+        type: 'success', action: 'USER_LOGIN', user: user._id,
+        userEmail: user.email, details: 'Login complete (2FA disabled)',
+        module: 'auth', ipAddress: req.ip,
+        metadata: { role: user.role, userAgent: req.headers['user-agent'] },
+      });
+
+      return res.status(200).json({
+        message: 'Login successful.',
+        requiresOtp: false,
+        token,
+        user: { id: user._id, name: user.name, email: user.email, role: user.role },
+      });
+    }
+
+    // ── 2FA enabled — issue OTP ────────────────────────────────────────────
+    const otp = generateOtp();
+    const salt = await bcrypt.genSalt(10);
+    user.otpCode = await bcrypt.hash(otp, salt);
+    user.otpExpiry = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
+    await user.save();
+
+    await sendEmail({
+      to: user.email,
+      subject: 'Your login verification code',
+      html: `
+        <div style="font-family:sans-serif;max-width:480px;margin:auto;padding:24px">
+          <h2 style="color:#1a1a1a">Verify your login</h2>
+          <p style="color:#555">Use this code to complete sign-in. It expires in <strong>10 minutes</strong>.</p>
+          <div style="font-size:32px;font-weight:700;letter-spacing:8px;color:#22c55e;margin:24px 0">
+            ${otp}
+          </div>
+          <p style="color:#aaa;font-size:12px;">If you didn't attempt to log in, secure your account immediately.</p>
+        </div>
+      `,
+    });
+
+    await systemLogger({
+      type: 'success', action: 'USER_OTP_SENT', user: user._id,
+      userEmail: user.email, details: 'OTP sent for 2FA',
+      module: 'auth', ipAddress: req.ip,
+    });
+
+    return res.status(200).json({
+      message: 'Verification code sent to your email.',
+      requiresOtp: true,
+      email: user.email,
+      user: { name: user.name },
+    });
+
+  } catch (error) {
+    await systemLogger({
+      type: "error", action: "USER_LOGIN_ERROR",
+      userEmail: req.body?.email || "", details: error.message,
+      module: "auth", ipAddress: req.ip,
+    });
+    return res.status(500).json({ message: "Login failed", error: error.message });
+  }
+};
+
+const verifyOtp = async (req, res) => {
+  try {
+    const { email, otp } = req.body;
+
+    if (!email || !otp)
+      return res.status(400).json({ message: 'Email and OTP are required.' });
+
+    const emailNormalized = email.toLowerCase().trim();
+    const user = await User.findOne({ email: emailNormalized })
+      .select('+otpCode +otpExpiry');
+
+    if (!user || !user.otpCode || !user.otpExpiry) {
+      return res.status(400).json({ message: 'No pending verification found.' });
+    }
+
+    // OTP expired
+    if (user.otpExpiry < new Date()) {
+      user.otpCode = undefined;
+      user.otpExpiry = undefined;
+      await user.save();
+      return res.status(400).json({ message: 'OTP has expired. Please log in again.' });
+    }
+
+    const isValid = await bcrypt.compare(otp, user.otpCode);
+    if (!isValid) {
+      return res.status(400).json({ message: 'Invalid OTP.' });
+    }
+
+    // Clear OTP and issue token
+    user.otpCode = undefined;
+    user.otpExpiry = undefined;
     await user.save();
 
     const token = await generateToken(user);
 
     await systemLogger({
-      type: "success", action: "USER_LOGIN", user: user._id, userEmail: user.email,
-      details: "User logged in successfully", module: "auth", ipAddress: req.ip,
-      metadata: { role: user.role, userAgent: req.headers["user-agent"] }
+      type: 'success', action: 'USER_LOGIN', user: user._id,
+      userEmail: user.email, details: '2FA verified — login complete',
+      module: 'auth', ipAddress: req.ip,
+      metadata: { role: user.role, userAgent: req.headers['user-agent'] },
     });
 
     return res.status(200).json({
-      message: "Login successful",
+      message: 'Login successful.',
       token,
       user: { id: user._id, name: user.name, email: user.email, role: user.role },
     });
 
   } catch (error) {
     await systemLogger({
-      type: "error", action: "USER_LOGIN_ERROR",
-      userEmail: req.body?.email || "", details: error.message, module: "auth", ipAddress: req.ip
+      type: 'error', action: 'USER_OTP_ERROR',
+      userEmail: req.body?.email || '', details: error.message,
+      module: 'auth', ipAddress: req.ip,
     });
-    return res.status(500).json({ message: "Login failed", error: error.message });
+    return res.status(500).json({ message: 'OTP verification failed.', error: error.message });
   }
 };
 
@@ -248,7 +345,8 @@ const loginTimer = async (req, res) => {
     }
 
     const emailNormalized = email.toLowerCase().trim();
-    const user = await User.findOne({ email: emailNormalized }).select("+loginAttempts +lockUntil");
+    const user = await User.findOne({ email: emailNormalized })
+      .select("+loginAttempts +lockUntil");
 
     if (!user) {
       return res.status(200).json({ locked: false, attemptsLeft: maxAttempts });
@@ -259,7 +357,7 @@ const loginTimer = async (req, res) => {
     if (user.lockUntil && user.lockUntil > now) {
       return res.status(200).json({
         locked: true,
-        lockUntil: user.lockUntil,  // FE calculates remaining time from this
+        lockUntil: user.lockUntil,
         attemptsLeft: 0,
       });
     }
@@ -357,13 +455,69 @@ const logout = async (req, res) => {
   }
 };
 
+const resendOtp = async (req, res) => {
+  try {
+    const { email } = req.body;
+
+    if (!email)
+      return res.status(400).json({ message: 'Email is required.' });
+
+    const emailNormalized = email.toLowerCase().trim();
+    const user = await User.findOne({ email: emailNormalized })
+      .select('+otpCode +otpExpiry');
+
+    if (!user)
+      return res.status(400).json({ message: 'User not found.' });
+
+    // Generate new OTP
+    const otp = generateOtp();
+    const salt = await bcrypt.genSalt(10);
+    user.otpCode = await bcrypt.hash(otp, salt);
+    user.otpExpiry = new Date(Date.now() + 10 * 60 * 1000); // fresh 10 min
+    await user.save();
+
+    await sendEmail({
+      to: user.email,
+      subject: 'Your new login verification code',
+      html: `
+        <div style="font-family:sans-serif;max-width:480px;margin:auto;padding:24px">
+          <h2 style="color:#1a1a1a">New verification code</h2>
+          <p style="color:#555">Your previous code was replaced. This one expires in <strong>10 minutes</strong>.</p>
+          <div style="font-size:32px;font-weight:700;letter-spacing:8px;color:#22c55e;margin:24px 0">
+            ${otp}
+          </div>
+          <p style="color:#aaa;font-size:12px;">If you didn't request this, secure your account immediately.</p>
+        </div>
+      `,
+    });
+
+    await systemLogger({
+      type: 'success', action: 'USER_OTP_RESENT', user: user._id,
+      userEmail: user.email, details: 'OTP resent for 2FA',
+      module: 'auth', ipAddress: req.ip,
+    });
+
+    return res.status(200).json({ message: 'A new code has been sent to your email.' });
+
+  } catch (error) {
+    await systemLogger({
+      type: 'error', action: 'USER_OTP_RESEND_ERROR',
+      userEmail: req.body?.email || '', details: error.message,
+      module: 'auth', ipAddress: req.ip,
+    });
+    return res.status(500).json({ message: 'Failed to resend OTP.', error: error.message });
+  }
+};
+
 module.exports = {
   register,
   login,
-  getMe,
+  verifyOtp,
   loginTimer,
+  getMe,
   forgotPassword,
   resetPassword,
   logout,
-  refreshToken
+  resendOtp,
+  refreshToken,
 };

@@ -356,7 +356,7 @@ export default function SupportBookings() {
         {/* Header */}
         <div className="mb-5">
           <h1 className="text-xl sm:text-2xl font-semibold text-gray-900">Support Bookings</h1>
-          <p className="text-sm text-gray-500 mt-1">Manage and track all Support booking.</p>
+          <p className="text-md text-gray-700 mt-1">Manage and track all Support bookings</p>
         </div>
 
         {/* ── Stat Cards ── */}

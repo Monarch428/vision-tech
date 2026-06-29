@@ -1,10 +1,9 @@
 import axios from 'axios';
+// import Cookies from 'js-cookie';
 
 const API = axios.create({
   baseURL: import.meta.env.VITE_API_BASE_URL,
-  headers: {
-    'Content-Type': 'application/json',
-  },
+  headers: { 'Content-Type': 'application/json' },
 });
 
 export interface LoginPayload {
@@ -15,7 +14,9 @@ export interface LoginPayload {
 export interface LoginResponse {
   success: boolean;
   message: string;
-  token: string;
+  requiresOtp: boolean;
+  token:string;
+  email: string;
   user: {
     id: string;
     name: string;
@@ -26,21 +27,51 @@ export interface LoginResponse {
 
 export interface LoginTimerResponse {
   locked: boolean;
-  lockUntil?: string;  
+  lockUntil?: string;
   attemptsLeft: number;
   maxAttempts: number;
 }
 
-export const loginUser = async (
-  payload: LoginPayload
-): Promise<LoginResponse> => {
+export interface VerifyOtpPayload {
+  email: string;
+  otp: string;
+}
+
+export interface VerifyOtpResponse {
+  message: string;
+  token: string;
+  user: {
+    id: string;
+    name: string;
+    email: string;
+    role: string;
+  };
+}
+
+export interface ResendOtpPayload {
+  email: string;
+}
+
+export interface ResendOtpResponse {
+  message: string;
+}
+
+export const loginUser = async (payload: LoginPayload): Promise<LoginResponse> => {
   const response = await API.post('/auth/login', payload);
   return response.data;
 };
 
-export const loginTimer = async (
-  email: string
-): Promise<LoginTimerResponse> => {
+export const loginTimer = async (email: string): Promise<LoginTimerResponse> => {
   const response = await API.post('/auth/login-timer', { email });
+  return response.data;
+};
+
+export const verifyOtp = async (payload: VerifyOtpPayload): Promise<VerifyOtpResponse> => {
+  const response = await API.post('/auth/verify-otp', payload);
+  return response.data;
+};
+
+export const resendOtp = async (payload: ResendOtpPayload): Promise<ResendOtpResponse> => {
+  const response = await API.post('/auth/resend-otp', payload);
   return response.data;
 };

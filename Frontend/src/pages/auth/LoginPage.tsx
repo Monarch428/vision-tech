@@ -40,7 +40,7 @@ export default function LoginPage() {
           setAttemptsLeft(data.attemptsLeft);
           setMaxAttempts(data.maxAttempts);
         }
-      } catch {}
+      } catch { }
     };
     const debounce = setTimeout(check, 600);
     return () => clearTimeout(debounce);
@@ -86,25 +86,28 @@ export default function LoginPage() {
     setLoading(true);
     try {
       const data = await loginUser(formData);
-      localStorage.setItem("token", data.token);
-      localStorage.setItem("user", JSON.stringify(data.user));
 
-      Cookies.set("user", JSON.stringify(data.user), {
-  expires: 7,
-  path: "/",
-});
+      if (data.requiresOtp) {
+        navigate("/otpVerify", {
+          state: { email: data.email, name: data.user?.name ?? "" },
+        });
+        return;
+      }
 
-      navigate("/user/dashboard");
+      localStorage.setItem("token", data.token!);
+      navigate("/user/dashboard", { replace: true });
+
     } catch (error: any) {
       const res = error?.response?.data;
-      console.log(res);
-        if (res?.maintenance) {
-    setErrorMessage(res.message);
-    return;
-  }
+
+      if (res?.maintenance) {
+        setErrorMessage(res.message);
+        return;
+      }
+
       if (res?.locked) {
         startLockCountdown(new Date(res.lockUntil).getTime());
-        setErrorMessage("Too many failed attempts. Account locked for 10 minutes.");
+        setErrorMessage("Too many failed attempts. Account locked.");
       } else {
         setAttemptsLeft(res?.attemptsLeft ?? null);
         setErrorMessage(res?.message || "Login failed. Please try again.");
@@ -116,18 +119,10 @@ export default function LoginPage() {
 
   return (
     <div className="min-h-screen w-full bg-[#eef5ef] flex items-center justify-center p-4">
-
-      {/* Card wrapper — full width on mobile, fixed max on tablet+ */}
       <div className="w-full max-w-full xs:max-w-sm sm:max-w-[420px]">
-        <div
-          className="
-            bg-white rounded-2xl shadow-md
-            px-4 py-5
-            xs:px-6 xs:py-6
-            sm:px-7 sm:py-6
-          "
-        >
-          {/* ── Logo ── */}
+        <div className="bg-white rounded-2xl shadow-md px-4 py-5 xs:px-6 xs:py-6 sm:px-7 sm:py-6">
+
+          {/* Logo */}
           <div className="flex justify-center mb-2 sm:mb-3">
             <img
               src={logo}
@@ -136,7 +131,7 @@ export default function LoginPage() {
             />
           </div>
 
-          {/* ── Heading ── */}
+          {/* Heading */}
           <div className="text-center mb-4 sm:mb-5">
             <h1 className="text-md xs:text-xl sm:text-xl font-semibold text-black leading-tight">
               Welcome to SOLO
@@ -146,7 +141,7 @@ export default function LoginPage() {
             </p>
           </div>
 
-          {/* ── Form ── */}
+          {/* Form */}
           <form onSubmit={handleSubmit} className="space-y-2.5">
 
             {/* Email */}
@@ -163,10 +158,7 @@ export default function LoginPage() {
                 required
                 className="
                   w-full rounded-xl border border-gray-200 bg-gray-100
-                  px-3 outline-none
-                  h-7 text-xs
-                  xs:h-10
-                  sm:h-10 sm:px-4
+                  px-3 outline-none h-7 text-xs xs:h-10 sm:h-10 sm:px-4
                   transition-all duration-200
                   focus:border-green-500 focus:bg-white focus:ring-2 focus:ring-green-100
                 "
@@ -188,16 +180,13 @@ export default function LoginPage() {
                 disabled={locked}
                 className="
                   w-full rounded-xl border border-gray-200 bg-gray-100
-                  px-3 outline-none
-                  h-7 text-xs
-                  xs:h-10
-                  sm:h-10 sm:px-4
+                  px-3 mb-2 outline-none h-7 text-xs xs:h-10 sm:h-10 sm:px-4
                   transition-all duration-200
                   focus:border-green-500 focus:bg-white focus:ring-2 focus:ring-green-100
                   disabled:opacity-50 disabled:cursor-not-allowed
                 "
               />
-              <div className="mt-1 text-right">
+              {/* <div className="mt-1 text-right">
                 <button
                   type="button"
                   onClick={() => navigate("/forgot-password")}
@@ -205,7 +194,7 @@ export default function LoginPage() {
                 >
                   Forgot password?
                 </button>
-              </div>
+              </div> */}
             </div>
 
             {/* Attempts warning */}
@@ -228,9 +217,7 @@ export default function LoginPage() {
               disabled={loading || locked}
               className="
                 w-full rounded-xl bg-green-500 font-semibold text-white
-                h-7 text-sm
-                xs:h-10
-                sm:h-10
+                h-7 text-sm xs:h-10 sm:h-10
                 transition-all duration-200
                 hover:bg-green-600 active:scale-[0.98]
                 disabled:cursor-not-allowed disabled:opacity-70

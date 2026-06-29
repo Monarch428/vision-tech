@@ -633,14 +633,14 @@ export default function AdminDashboard() {
                 recentRequests.map((request) => (
                   <tr key={request._id} className="border-b border-gray-50 hover:bg-gray-50 transition">
                     <td className="py-3.5 text-md font-medium text-gray-900">{request.user?.name || "—"}</td>
-                    <td className="py-3.5 text-md text-gray-400">#{request.ticketNumber}</td>
-                    <td className="py-3.5 text-md text-gray-500 capitalize">{request.category}</td>
+                    <td className="py-3.5 text-md text-gray-700">#{request.ticketNumber}</td>
+                    <td className="py-3.5 text-md text-gray-700 capitalize">{request.category}</td>
                     <td className="py-3.5">
                       <span className={`text-xs font-medium px-2.5 py-1 rounded-full capitalize ${priorityClass(request.priority)}`}>
                         {request.priority}
                       </span>
                     </td>
-                    <td className="py-3.5 text-sm text-gray-400">{request.assigned_user_id?.name || "Unassigned"}</td>
+                    <td className="py-3.5 text-sm text-gray-700">{request.assigned_user_id?.name || "Unassigned"}</td>
                     <td className="py-3.5">
                       <span className={`text-xs font-medium px-2.5 py-1 rounded-full capitalize ${statusClass(request.status)}`}>
                         {request.status.replace("_", " ")}
@@ -688,12 +688,12 @@ export default function AdminDashboard() {
                 recentSupportBookings.map((booking) => (
                   <tr key={booking._id} className="border-b border-gray-50 hover:bg-gray-50 transition">
                     <td className="py-3.5 text-md font-medium text-gray-900">{booking.user?.name || "—"}</td>
-                    <td className="py-3.5 text-md text-gray-400">
+                    <td className="py-3.5 text-md text-gray-700">
                       {new Date(booking.createdAt).toLocaleDateString("en-GB").replace(/\//g, "-")}
                     </td>
                     <td className="py-3.5 text-md text-gray-500">{booking.duration} min</td>
                     <td className="py-3.5 text-md text-gray-500 max-w-[160px] truncate">{booking.description}</td>
-                    <td className="py-3.5 text-md text-gray-400">{booking.assigned_user_id?.name || "Unassigned"}</td>
+                    <td className="py-3.5 text-md text-gray-700">{booking.assigned_user_id?.name || "Unassigned"}</td>
                     <td className="py-3.5">
                       <span className={`text-xs font-medium px-2.5 py-1 rounded-full capitalize ${statusClass(booking.status)}`}>
                         {booking.status.replace("_", " ")}

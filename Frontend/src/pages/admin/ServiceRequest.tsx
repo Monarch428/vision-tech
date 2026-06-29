@@ -73,17 +73,6 @@ const STATUS_OPTIONS: { label: string; value: Status }[] = [
   { label: "Closed", value: "closed" },
 ];
 
-function getRoleFromToken(): string {
-  try {
-    const token = localStorage.getItem("token");
-    if (!token) return "";
-    const payload = JSON.parse(atob(token.split(".")[1]));
-    return payload.role || "";
-  } catch {
-    return "";
-  }
-}
-
 function getEmailFromToken(): string {
   try {
     const token = localStorage.getItem("token");
@@ -466,7 +455,7 @@ export default function ServiceRequests() {
           <h1 className="text-xl sm:text-2xl font-semibold text-gray-900">
             Service Requests
           </h1>
-          <p className="text-sm text-gray-500 mt-1">
+          <p className="text-md text-gray-700 mt-1">
             Manage and track all service requests
           </p>
         </div>

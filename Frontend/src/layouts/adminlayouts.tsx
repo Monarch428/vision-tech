@@ -52,7 +52,7 @@ export default function AdminLayout() {
               </div>
               <div className="hidden sm:flex flex-col">
                 <span className="text-[11px] font-semibold text-gray-900 leading-none">{authUser?.name || 'System Administrator'}</span>
-                <span className="text-[10px] text-gray-400">{authUser?.email || 'sysadmin@example.com'}</span>
+                <span className="text-[10px] text-gray-700">{authUser?.email || 'sysadmin@example.com'}</span>
               </div>
             </div>
           </div>

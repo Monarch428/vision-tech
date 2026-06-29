@@ -1,6 +1,6 @@
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import LoginPage from "./pages/auth/LoginPage";
-import ForgotPasswordPage from "./pages/auth/ForgotPasswordPage";
+// import ForgotPasswordPage from "./pages/auth/ForgotPasswordPage";
 import AdminLayout from "./layouts/adminlayouts";
 import Dashboard from "./pages/user/Dashboard";
 import UserManagement from "./pages/admin/UserManagement";
@@ -17,22 +17,24 @@ import { useEffect, useRef } from "react";
 import DataManagement from "./pages/admin/dataManagement";
 import ExternalServiceAccess from "./pages/admin/externalServiceAcess";
 import SupportBookings from "./pages/admin/SupportBookings";
+import OtpVerificationPage from "./pages/auth/OtpVerificationPage";
 
 function App() {
- const initialized = useRef(false);
+  const initialized = useRef(false);
 
   useEffect(() => {
     if (initialized.current) return;
     initialized.current = true;
   }, []);
-  
+
   return (
     <BrowserRouter>
       <Routes>
         {/* Public */}
         <Route path="/" element={<Navigate to="/login" replace />} />
         <Route path="/login" element={<LoginPage />} />
-        <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+        {/* <Route path="/forgot-password" element={<ForgotPasswordPage />} /> */}
+        <Route path="/otpVerify" element={<OtpVerificationPage />} />
 
         {/* Protected — all get sidebar + topbar from AdminLayout */}
         <Route element={<AdminLayout />}>
