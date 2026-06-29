@@ -1,7 +1,6 @@
 import { jwtDecode } from "jwt-decode";
 import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import Cookies from "js-cookie";
 import logo from "../../assets/logo.png";
 import { loginTimer, loginUser } from "../../services/auth/auth.service";
 

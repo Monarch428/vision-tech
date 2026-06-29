@@ -38,30 +38,6 @@ interface Agent {
   email?: string;
 }
 
-// ── Helpers ───────────────────────────────────────────────────────────────
-function formatDate(iso?: string): string {
-  if (!iso) return "—";
-  return new Date(iso).toLocaleDateString("en-IN", {
-    day: "2-digit",
-    month: "short",
-    year: "numeric",
-  });
-}
-
-// ── Priority Badge ────────────────────────────────────────────────────────
-function PriorityBadge({ priority }: { priority: string }) {
-  const styles: Record<string, string> = {
-    high: "bg-red-50 text-red-600 border border-red-200",
-    medium: "bg-orange-50 text-orange-500 border border-orange-200",
-    low: "bg-gray-100 text-gray-500 border border-gray-200",
-  };
-  return (
-    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold capitalize ${styles[priority] || styles.low}`}>
-      {priority}
-    </span>
-  );
-}
-
 // ── Status Badge ──────────────────────────────────────────────────────────
 function StatusBadge({ status }: { status: Status }) {
   const styles: Record<Status, string> = {
@@ -258,7 +234,7 @@ export default function SupportBookings() {
   const [error, setError] = useState("");
   const [search, setSearch] = useState("");
   const [activeTab, setActiveTab] = useState<TabFilter>("all");
-  const [typeFilter, setTypeFilter] = useState("all");
+  const [typeFilter, _setTypeFilter] = useState("all");
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(10);
   const [selectedBooking, setSelectedBooking] = useState<SupportBooking | null>(null);
