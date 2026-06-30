@@ -1,0 +1,38 @@
+[
+  {
+    "_id": "6a268a9cbb5ff3ac127c8369",
+    "general": {
+      "siteName": "BrandingBeez.co",
+      "siteUrl": "https://www.brandingbeez.co.uk/",
+      "timezone": "UTC",
+      "maintenanceMode": false,
+      "autoBackup": true
+    },
+    "email": {
+      "smtpHost": "smtp.gmail.com",
+      "smtpPort": 587,
+      "smtpUsername": "abhinesh.brandingbeez@gmail.com",
+      "smtpPassword": "rpicwmyvhhlptgas",
+      "fromEmail": "abhinesh.brandingbeez@gmail.com",
+      "fromName": "Vision Tech",
+      "emailNotificationsEnabled": true
+    },
+    "security": {
+      "sessionTimeoutMinutes": 50,
+      "maxLoginAttempts": 10,
+      "minimumPasswordLength": 6,
+      "requireTwoFactorAuth": false,
+      "allowedIpAddresses": []
+    },
+    "notifications": {
+      "newUserRegistration": true,
+      "serviceRequestAlerts": true,
+      "systemErrors": true,
+      "securityAlerts": true,
+      "subscriptionRenewals": true
+    },
+    "createdAt": "2026-06-08T09:25:48.389Z",
+    "updatedAt": "2026-06-26T09:31:57.391Z",
+    "__v": 0
+  }
+]

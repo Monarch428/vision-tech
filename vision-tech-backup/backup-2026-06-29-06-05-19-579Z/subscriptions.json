@@ -1,0 +1,50 @@
+[
+  {
+    "_id": "6a210321afbaa1ef7bf97fce",
+    "user": "6a2103212925e04c3ebb1cba",
+    "__v": 0,
+    "amount": 149.99,
+    "cancelledAt": null,
+    "createdAt": "2026-06-04T04:46:25.784Z",
+    "nextRenewalDate": "2026-07-12T09:49:48.446Z",
+    "pausedAt": null,
+    "plan": "6a2027dcafbaa1ef7bf97fcc",
+    "renewalReminderSent": false,
+    "startDate": "2026-06-04T04:46:25.782Z",
+    "status": "active",
+    "sub_id": "SUB-001",
+    "updatedAt": "2026-06-16T10:14:49.244Z"
+  },
+  {
+    "_id": "6a351813fef438846278942d",
+    "sub_id": "SUB-002",
+    "user": "6a351812fef438846278942c",
+    "plan": "6a2027dcafbaa1ef7bf97fca",
+    "amount": 0,
+    "status": "active",
+    "startDate": "2026-06-19T10:21:07.005Z",
+    "nextRenewalDate": "2126-06-19T10:21:07.005Z",
+    "cancelledAt": null,
+    "pausedAt": null,
+    "renewalReminderSent": false,
+    "createdAt": "2026-06-19T10:21:07.006Z",
+    "updatedAt": "2026-06-19T10:21:07.006Z",
+    "__v": 0
+  },
+  {
+    "_id": "6a391a29945781e513c95ffa",
+    "sub_id": "SUB-004",
+    "user": "6a391a29945781e513c95ff9",
+    "plan": "6a2027dcafbaa1ef7bf97fca",
+    "amount": 0,
+    "status": "active",
+    "startDate": "2026-06-22T11:19:05.100Z",
+    "nextRenewalDate": "2126-06-22T11:19:05.100Z",
+    "cancelledAt": null,
+    "pausedAt": null,
+    "renewalReminderSent": false,
+    "createdAt": "2026-06-22T11:19:05.101Z",
+    "updatedAt": "2026-06-22T11:19:05.101Z",
+    "__v": 0
+  }
+]

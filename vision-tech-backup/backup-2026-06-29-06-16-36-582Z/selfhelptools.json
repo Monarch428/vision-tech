@@ -1,0 +1,41 @@
+[
+  {
+    "_id": "6a420ce1c9e67eee4db17efd",
+    "user": "6a2103212925e04c3ebb1cba",
+    "category": "browser",
+    "progress": 100,
+    "scanStartedAt": "2026-06-29T06:12:49.043Z",
+    "scanFinishedAt": "2026-06-29T06:12:49.257Z",
+    "status": "completed",
+    "bitdefenderTaskId": null,
+    "createdAt": "2026-06-29T06:12:49.046Z",
+    "updatedAt": "2026-06-29T06:12:49.258Z",
+    "__v": 0
+  },
+  {
+    "_id": "6a420d799444407b0808db10",
+    "user": "6a2103212925e04c3ebb1cba",
+    "category": "backup",
+    "progress": 100,
+    "scanStartedAt": "2026-06-29T06:15:21.154Z",
+    "scanFinishedAt": "2026-06-29T06:15:21.690Z",
+    "status": "completed",
+    "bitdefenderTaskId": null,
+    "createdAt": "2026-06-29T06:15:21.181Z",
+    "updatedAt": "2026-06-29T06:15:21.694Z",
+    "__v": 0
+  },
+  {
+    "_id": "6a420dc49444407b0808db12",
+    "user": "6a2103212925e04c3ebb1cba",
+    "category": "backup",
+    "progress": 0,
+    "scanStartedAt": "2026-06-29T06:16:36.569Z",
+    "scanFinishedAt": null,
+    "status": "pending",
+    "bitdefenderTaskId": null,
+    "createdAt": "2026-06-29T06:16:36.571Z",
+    "updatedAt": "2026-06-29T06:16:36.571Z",
+    "__v": 0
+  }
+]

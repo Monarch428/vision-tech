@@ -1,26 +1,44 @@
 import { useState, useEffect } from 'react';
-import { Outlet, useLocation } from 'react-router-dom';
+import { Outlet, useLocation, useNavigate } from 'react-router-dom';
+import { jwtDecode } from 'jwt-decode';
 import Sidebar from '../components/Sidebar';
-import { checkTokenValidity } from '../utils/auth'; // ← add this
+import { checkTokenValidity } from '../utils/auth';
+import { getUserById } from '../services/admin/userManagement.service';
 
 export default function AdminLayout() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const location = useLocation(); // ← add this
+  const [authUser, setAuthUser] = useState<{ name?: string; email?: string } | null>(null);
 
-  const stored = localStorage.getItem('user');
-  const authUser = stored ? JSON.parse(stored) : null;
+  const navigate = useNavigate();
+  const location = useLocation();
 
   useEffect(() => {
     checkTokenValidity();
   }, [location.pathname]);
+
+  useEffect(() => {
+    const loadUser = async () => {
+      const token = localStorage.getItem('token');
+      if (!token) return;
+      try {
+        const decoded: any = jwtDecode(token);
+        const userId = decoded.id ?? decoded._id ?? decoded.userId ?? decoded.sub;
+        if (!userId) return;
+        const res = await getUserById(userId);
+        const data = res.data.data ?? res.data;
+        setAuthUser({ name: data.name, email: data.email });
+      } catch (err) {
+        console.error('Failed to load current user:', err);
+      }
+    };
+    loadUser();
+  }, []);
 
   return (
     <div className="flex h-screen bg-gray-50 overflow-hidden">
       <Sidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
 
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
-
-        {/* Topbar */}
         <header className="bg-white border-b border-gray-300 h-14 flex items-center justify-between px-4 sm:px-6 flex-shrink-0">
           <div className="flex items-center gap-3">
             <button
@@ -46,19 +64,26 @@ export default function AdminLayout() {
               <span className="absolute top-1.5 right-1.5 w-1.5 h-1.5 bg-green-500 rounded-full border border-white" />
             </div>
 
-            <div className="flex items-center gap-2 px-2 sm:px-3 py-1.5 border border-gray-200 rounded-full bg-white cursor-pointer hover:bg-gray-50 transition-colors">
+            <div
+              onClick={() => navigate("/user/profile", { replace: true })}
+              className="flex items-center gap-2 px-2 sm:px-3 py-1.5 border border-gray-200 rounded-full bg-white cursor-pointer hover:bg-gray-100 transition-colors"
+            >
               <div className="w-6 h-6 rounded-full bg-green-500 flex items-center justify-center text-white text-[10px] font-bold">
-                {authUser?.name?.slice(0, 2).toUpperCase() || 'SA'}
+                {authUser?.name?.slice(0, 2).toUpperCase() || "SA"}
               </div>
+
               <div className="hidden sm:flex flex-col">
-                <span className="text-[11px] font-semibold text-gray-900 leading-none">{authUser?.name || 'System Administrator'}</span>
-                <span className="text-[10px] text-gray-700">{authUser?.email || 'sysadmin@example.com'}</span>
+                <span className="text-[11px] font-semibold text-gray-900 leading-none">
+                  {authUser?.name || "System Administrator"}
+                </span>
+                <span className="text-[10px] text-gray-700">
+                  {authUser?.email || "sysadmin@example.com"}
+                </span>
               </div>
             </div>
           </div>
         </header>
 
-        {/* All child pages render here */}
         <main className="flex-1 overflow-y-auto p-4 sm:p-6">
           <Outlet />
         </main>

@@ -1,0 +1,42 @@
+[
+  {
+    "_id": "6a2103212925e04c3ebb1cba",
+    "name": "Admin",
+    "email": "vijayabhinesh07@gmail.com",
+    "password": "$2b$10$UmHkkuL5kU7L4EzqDYcoieG3ZojJY7RpL.vZOCx7.alwZEPq.r3lK",
+    "role": "support",
+    "isActive": true,
+    "lastLogin": "2026-06-30T14:00:21.356Z",
+    "resetPasswordToken": null,
+    "resetPasswordExpiry": null,
+    "loginAttempts": 0,
+    "createdAt": "2026-06-04T04:46:25.648Z",
+    "updatedAt": "2026-06-30T14:00:21.366Z",
+    "__v": 0,
+    "avatar": "",
+    "deletedAt": null,
+    "lastActiveAt": "2026-06-04T04:46:25.779Z",
+    "plan": "enterprise",
+    "status": "active",
+    "sub_id": "SUB-BB1CBA"
+  },
+  {
+    "_id": "6a351812fef438846278942c",
+    "name": "Test",
+    "email": "test@gmail.com",
+    "password": "$2b$10$iPZmNl2/WF7f02A84xk2/ORXu9xh/TlDsfFDEN8pSjoFCZfYGsfIq",
+    "role": "user",
+    "status": "active",
+    "avatar": "",
+    "deletedAt": null,
+    "isActive": true,
+    "plan": "free",
+    "sub_id": "SUB-002",
+    "lastActiveAt": "2026-06-19T10:21:06.830Z",
+    "createdAt": "2026-06-19T10:21:06.830Z",
+    "updatedAt": "2026-06-22T06:52:29.977Z",
+    "__v": 0,
+    "lastLogin": "2026-06-22T06:52:29.976Z",
+    "loginAttempts": 0
+  }
+]

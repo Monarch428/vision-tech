@@ -35,3 +35,5 @@ export const startBackupJob = async () => {
     const response = await API.post('/self-help/backup');
     return response.data;
 };
+
+export const getReportDebug = () => API.get('/self-help/scan-report-debug');

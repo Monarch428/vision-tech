@@ -1,0 +1,15 @@
+[
+  {
+    "_id": "6a420ce1c9e67eee4db17efd",
+    "user": "6a2103212925e04c3ebb1cba",
+    "category": "browser",
+    "progress": 100,
+    "scanStartedAt": "2026-06-29T06:12:49.043Z",
+    "scanFinishedAt": "2026-06-29T06:12:49.257Z",
+    "status": "completed",
+    "bitdefenderTaskId": null,
+    "createdAt": "2026-06-29T06:12:49.046Z",
+    "updatedAt": "2026-06-29T06:12:49.258Z",
+    "__v": 0
+  }
+]

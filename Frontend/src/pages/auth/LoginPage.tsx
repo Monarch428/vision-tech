@@ -2,7 +2,7 @@ import { jwtDecode } from "jwt-decode";
 import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import logo from "../../assets/logo.png";
-import { loginTimer, loginUser } from "../../services/auth/auth.service";
+import { loginTimer, loginUser, resendOtp } from "../../services/auth/auth.service";
 
 export default function LoginPage() {
   const [formData, setFormData] = useState({ email: "", password: "" });
@@ -116,6 +116,25 @@ export default function LoginPage() {
     }
   };
 
+  const handleForgotPassword = async () => {
+    if (!formData.email) {
+      setErrorMessage("Please enter your email first.");
+      return;
+    }
+    setErrorMessage("");
+    setLoading(true);
+    try {
+      await resendOtp({ email: formData.email }); // triggers the actual OTP send
+      navigate("/otpVerify", {
+        state: { mode: "forgotPassword", email: formData.email },
+      });
+    } catch (error: any) {
+      const res = error?.response?.data;
+      setErrorMessage(res?.message || "Couldn't send OTP. Please try again.");
+    } finally {
+      setLoading(false);
+    }
+  };
   return (
     <div className="min-h-screen w-full bg-[#eef5ef] flex items-center justify-center p-4">
       <div className="w-full max-w-full xs:max-w-sm sm:max-w-[420px]">
@@ -185,15 +204,15 @@ export default function LoginPage() {
                   disabled:opacity-50 disabled:cursor-not-allowed
                 "
               />
-              {/* <div className="mt-1 text-right">
+              <div className="mt-1 text-right">
                 <button
                   type="button"
-                  onClick={() => navigate("/forgot-password")}
+                  onClick={handleForgotPassword}
                   className="text-[11px] xs:text-xs sm:text-sm text-blue-600 underline underline-offset-2 hover:text-blue-800 transition-colors"
                 >
                   Forgot password?
                 </button>
-              </div> */}
+              </div>
             </div>
 
             {/* Attempts warning */}
