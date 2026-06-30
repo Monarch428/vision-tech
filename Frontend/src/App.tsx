@@ -8,6 +8,7 @@ import Subscriptions from "./pages/admin/Subscriptions";
 import Systemlogs from "./pages/admin/SystemLogs";
 import Support from "./pages/user/Support";
 import SelfHelp from "./pages/user/Selfhelp";
+import Profile from "./pages/user/Profile";
 import AdminManagement from "./pages/admin/adminManagement";
 import ServiceRequest from "./pages/admin/ServiceRequest";
 import Antivirus from "./pages/user/Antivirus";
@@ -40,6 +41,7 @@ function App() {
         <Route element={<AdminLayout />}>
           <Route path="/user/dashboard" element={<Dashboard />} />
           <Route path="/admin/users" element={<UserManagement />} />
+          <Route path="/user/Profile" element={<Profile />} />
           <Route path="/admin/subscriptions" element={<Subscriptions />} />
           <Route path="/admin/Systemlogs" element={<Systemlogs />} />
           <Route path="/user/support" element={<Support />} />
