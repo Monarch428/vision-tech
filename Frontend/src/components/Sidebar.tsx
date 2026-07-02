@@ -11,20 +11,20 @@ interface SidebarProps {
 }
 
 const PLATFORM_ITEMS = [
-  { id: 'dashboard',            label: 'Dashboard',             path: '/user/dashboard',            icon: 'dashboard' },
-  { id: 'support',              label: 'Support',               path: '/user/support',              icon: 'support'   },
-  { id: 'antivirus',            label: 'Antivirus',             path: '/user/antivirus',            icon: 'antivirus' },
-  { id: 'selfhelp',             label: 'Self-Help',             path: '/user/selfhelp',             icon: 'selfhelp'  },
-  { id: 'billingsubscriptions', label: 'Billing Subscriptions', path: '/user/billingsubscriptions', icon: 'card'      },
+  { id: 'dashboard', label: 'Dashboard', path: '/user/dashboard', icon: 'dashboard' },
+  { id: 'support', label: 'Support', path: '/user/support', icon: 'support' },
+  { id: 'antivirus', label: 'Antivirus', path: '/user/antivirus', icon: 'antivirus' },
+  { id: 'selfhelp', label: 'Self-Help', path: '/user/selfhelp', icon: 'selfhelp' },
+  { id: 'billingsubscriptions', label: 'Billing Subscriptions', path: '/user/billingsubscriptions', icon: 'card' },
 ];
 
 const ADMIN_ITEMS = [
-  { id: 'admin dashboard', label: 'Admin Dashboard', path: '/admin/adminManagement', icon: 'dashboard'   },
-  { id: 'users',           label: 'User Management', path: '/admin/users',           icon: 'users'       },
-  { id: 'subscriptions',   label: 'Subscriptions',   path: '/admin/subscriptions',  icon: 'card'        },
-  { id: 'servicerequest',  label: 'Service Request', path: '/admin/serviceRequest', icon: 'settings'    },
-  { id: 'supportBookings', label: 'Support Booking', path: '/admin/supportBookings', icon: 'booking'    },
-  { id: 'Systemlogs',      label: 'System Logs',     path: '/admin/Systemlogs',     icon: 'system-logs' },
+  { id: 'admin dashboard', label: 'Admin Dashboard', path: '/admin/adminManagement', icon: 'dashboard' },
+  { id: 'users', label: 'User Management', path: '/admin/users', icon: 'users' },
+  { id: 'subscriptions', label: 'Subscriptions', path: '/admin/subscriptions', icon: 'card' },
+  { id: 'servicerequest', label: 'Service Request', path: '/admin/serviceRequest', icon: 'settings' },
+  { id: 'supportBookings', label: 'Support Booking', path: '/admin/supportBookings', icon: 'booking' },
+  { id: 'Systemlogs', label: 'System Logs', path: '/admin/Systemlogs', icon: 'system-logs' },
 ];
 
 const SYSTEM_ITEMS = [
@@ -38,17 +38,17 @@ function getNavGroups(role: Role) {
     case 'support':
       return [
         { section: 'Platform', items: PLATFORM_ITEMS },
-        { section: 'Admin',    items: ADMIN_ITEMS    },
-        { section: 'System',   items: SYSTEM_ITEMS   },
+        { section: 'Admin', items: ADMIN_ITEMS },
+        { section: 'System', items: SYSTEM_ITEMS },
       ];
     case 'user':
       return [
-        { section: 'Platform', items: PLATFORM_ITEMS.slice(0, 4) },
+        { section: 'Platform', items: PLATFORM_ITEMS },
       ];
     case 'admin':
       return [
         { section: 'Platform', items: PLATFORM_ITEMS },
-        { section: 'Admin',    items: ADMIN_ITEMS    },
+        { section: 'Admin', items: ADMIN_ITEMS },
       ];
     default:
       return [];
@@ -57,15 +57,15 @@ function getNavGroups(role: Role) {
 
 function Icon({ name }: { name: string }) {
   const icons: Record<string, JSX.Element> = {
-    dashboard:    <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.8" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>,
-    support:      <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.8" viewBox="0 0 24 24"><path d="M3 18v-6a9 9 0 0 1 18 0v6"/><path d="M21 19a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3zM3 19a2 2 0 0 0 2 2h1a2 2 0 0 0 2-2v-3a2 2 0 0 0-2-2H3z"/></svg>,
-    antivirus:    <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.8" viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>,
-    selfhelp:     <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.8" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>,
-    users:        <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.8" viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg>,
-    card:         <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.8" viewBox="0 0 24 24"><rect x="1" y="4" width="22" height="16" rx="2"/><path d="M1 10h22"/></svg>,
-    settings:     <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.8" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14M4.93 4.93a10 10 0 0 0 0 14.14"/></svg>,
-    booking:      <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.8" viewBox="0 0 24 24"><path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2"/><rect x="9" y="3" width="6" height="4" rx="1"/><path d="M9 12h6M9 16h4"/></svg>,
-    'system-logs':<svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.8" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V4a2 2 0 0 0-2-2z"/><path d="M8 6h8M8 12h8M8 18h8"/></svg>,
+    dashboard: <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.8" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" /><rect x="14" y="3" width="7" height="7" /><rect x="14" y="14" width="7" height="7" /><rect x="3" y="14" width="7" height="7" /></svg>,
+    support: <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.8" viewBox="0 0 24 24"><path d="M3 18v-6a9 9 0 0 1 18 0v6" /><path d="M21 19a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3zM3 19a2 2 0 0 0 2 2h1a2 2 0 0 0 2-2v-3a2 2 0 0 0-2-2H3z" /></svg>,
+    antivirus: <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.8" viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" /></svg>,
+    selfhelp: <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.8" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" /><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3" /><line x1="12" y1="17" x2="12.01" y2="17" /></svg>,
+    users: <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.8" viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75" /></svg>,
+    card: <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.8" viewBox="0 0 24 24"><rect x="1" y="4" width="22" height="16" rx="2" /><path d="M1 10h22" /></svg>,
+    settings: <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.8" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3" /><path d="M19.07 4.93a10 10 0 0 1 0 14.14M4.93 4.93a10 10 0 0 0 0 14.14" /></svg>,
+    booking: <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.8" viewBox="0 0 24 24"><path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2" /><rect x="9" y="3" width="6" height="4" rx="1" /><path d="M9 12h6M9 16h4" /></svg>,
+    'system-logs': <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.8" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V4a2 2 0 0 0-2-2z" /><path d="M8 6h8M8 12h8M8 18h8" /></svg>,
   };
   return icons[name] || null;
 }
@@ -88,11 +88,11 @@ function ChevronRight() {
 }
 
 export default function Sidebar({ open, onClose }: SidebarProps) {
-  const navigate  = useNavigate();
-  const location  = useLocation();
-  const [role, setRole]           = useState<Role>(null);
+  const navigate = useNavigate();
+  const location = useLocation();
+  const [role, setRole] = useState<Role>(null);
   const [collapsed, setCollapsed] = useState(false);
-  const [isLg, setIsLg]           = useState(false);
+  const [isLg, setIsLg] = useState(false);
 
   // Track whether we're on a large screen
   useEffect(() => {
@@ -259,9 +259,9 @@ export default function Sidebar({ open, onClose }: SidebarProps) {
               `}
             >
               <svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="1.8" viewBox="0 0 24 24">
-                <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
-                <polyline points="16 17 21 12 16 7"/>
-                <line x1="21" y1="12" x2="9" y2="12"/>
+                <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+                <polyline points="16 17 21 12 16 7" />
+                <line x1="21" y1="12" x2="9" y2="12" />
               </svg>
               {!isCollapsed && 'Sign Out'}
             </button>
