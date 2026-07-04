@@ -3,6 +3,7 @@ const jwt = require('jsonwebtoken');
 const crypto = require('crypto');
 const { v4: uuidv4 } = require('uuid');
 const User = require('../../models/auth/User');
+const ManagementUser = require('../../models/user-management/User');
 const Plan = require('../../models/subscription/Plan');
 const systemConfig = require('../../models/system-config/SystemConfig');
 const Subscription = require('../../models/subscription/Subscription');
@@ -43,9 +44,9 @@ const refreshToken = async (req, res) => {
 
 const register = async (req, res) => {
   try {
-    // NOTE: role is intentionally NOT read from req.body.
-    // This is a public endpoint — accepting a client-supplied role
-    // would let anyone self-register as an admin.
+    // NOTE: role is intentionally NOT read from req.body — this is a public
+    // endpoint, and accepting a client-supplied role would let anyone
+    // self-register as an admin.
     const { name, email, password } = req.body;
 
     if (!name || !email || !password) {
@@ -58,49 +59,93 @@ const register = async (req, res) => {
 
     const emailNormalized = email.toLowerCase().trim();
 
-    const config = await systemConfig.findOne();
-    const minPasswordLength = config?.security?.minimumPasswordLength || 6;
+    const existingUser = await ManagementUser.findOne({ email: emailNormalized });
+    if (existingUser) {
+      return res.status(400).json({ message: 'User already exists with this email' });
+    }
 
-    if (password.length < minPasswordLength) {
+    const config = await systemConfig.findOne().lean();
+    const minimumPasswordLength = config?.general?.minimumPasswordLength || 8;
+
+    if (password.length < minimumPasswordLength) {
       return res.status(400).json({
-        message: `Password must be at least ${minPasswordLength} characters.`,
+        message: `Password must be at least ${minimumPasswordLength} characters long`,
       });
     }
 
-    const existingUser = await User.findOne({ email: emailNormalized });
-    if (existingUser) {
-      return res.status(400).json({ message: 'User already exists' });
-    }
+    const hashedPassword = await bcrypt.hash(password, 10);
 
-    const user = await User.create({
+    const user = await ManagementUser.create({
       name: name.trim(),
       email: emailNormalized,
-      password,
-      role: 'user',       // hardcoded — never trust client input here
-      status: 'active',
+      password: hashedPassword,
+      role: 'user',        // hardcoded — never trust client input here
+      isActive: true,
+      avatar: '',
+      plan: 'free',
     });
 
-    try {
-      const freePlan = await Plan.findOne({ name: 'free' });
-      if (freePlan) {
-        const now = new Date();
-        const noExpiry = new Date(now);
-        noExpiry.setFullYear(noExpiry.getFullYear() + 100);
+    // ── Assign free plan, same pattern as admin createUser ──────────────────
+    const freePlan = await Plan.findOne({ name: /free/i });
 
-        await Subscription.create({
-          subscriptionId: uuidv4(),
-          user: user._id,
-          plan: freePlan._id,
-          amount: 0,
-          status: 'active',
-          startDate: now,
-          nextRenewalDate: noExpiry,
+    if (!freePlan) {
+      throw new Error('Free plan not found. Please ensure a Free plan exists in the database.');
+    }
+
+    const lastSub = await Subscription.findOne({ sub_id: { $exists: true, $ne: null } })
+      .sort({ createdAt: -1 });
+
+    let nextSubId = 'SUB-001';
+    if (lastSub && lastSub.sub_id) {
+      const lastNumber = parseInt(lastSub.sub_id.split('-')[1], 10);
+      nextSubId = `SUB-${String(lastNumber + 1).padStart(3, '0')}`;
+    }
+
+    const now = new Date();
+    const nextRenewal = new Date(now);
+    nextRenewal.setFullYear(nextRenewal.getFullYear() + 100); // free plan — effectively no expiry
+
+    await Subscription.create({
+      sub_id: nextSubId,
+      user: user._id,
+      plan: freePlan._id,
+      amount: 0,
+      status: 'active',
+      startDate: now,
+      nextRenewalDate: nextRenewal,
+    });
+
+    user.sub_id = nextSubId;
+    user.plan = freePlan.name;
+    await user.save();
+
+    // ── Notify admins, same as admin createUser ─────────────────────────────
+    if (config?.notifications?.newUserRegistration) {
+      const adminUsers = await ManagementUser.find({ role: 'admin' }).select('email name').lean();
+
+      for (const admin of adminUsers) {
+        await sendEmail({
+          to: admin.email,
+          subject: `New User Registered — ${user.name}`,
+          html: `
+            <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+              <h2 style="color: #16a34a;">New User Registered</h2>
+              <p>Hi <strong>${admin.name}</strong>,</p>
+              <p>A new user has signed up on the platform.</p>
+              <div style="background: #f9fafb; border-radius: 8px; padding: 16px; margin: 16px 0;">
+                <p style="margin: 4px 0;"><strong>Name:</strong> ${user.name}</p>
+                <p style="margin: 4px 0;"><strong>Email:</strong> ${user.email}</p>
+                <p style="margin: 4px 0;"><strong>Role:</strong> ${user.role}</p>
+                <p style="margin: 4px 0;"><strong>Registered At:</strong> ${new Date().toLocaleString()}</p>
+              </div>
+              <p style="color: #6b7280; font-size: 13px;">
+                You can manage this user from the User Management section.
+              </p>
+              <p>Thanks,<br/><strong>SOLO Support Team</strong></p>
+            </div>
+          `,
         });
-      } else {
-        console.warn('⚠️  Free plan not found. Run: node src/seeds/seedPlans.js');
       }
-    } catch (subErr) {
-      console.warn('⚠️  Could not auto-assign free plan:', subErr.message);
     }
 
     const token = await generateToken(user);
