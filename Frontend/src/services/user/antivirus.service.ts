@@ -46,6 +46,26 @@ export interface AntivirusScheduleResponse {
   createdAt: string;
 }
 
+export interface ScanUser {
+  id: string;
+  name: string | null;
+  email: string | null;
+}
+
+export interface UserLastScan {
+  id: string;
+  status: string;
+  progress: number;
+  filesScanned: number;
+  threatsDetected: number;
+  scanStartedAt: string;
+  scanFinishedAt: string | null;
+  // false = Bitdefender no longer has a real file count for this specific
+  // historical scan (it only retains the endpoint's single most recent
+  // scan). Show "Not available" instead of the raw number in this case.
+  filesScannedAvailable: boolean;
+}
+
 export interface ScanReport {
   success: boolean;
   machine: {
@@ -67,10 +87,18 @@ export interface ScanReport {
     isClean: boolean;
     scanDate: string;
     threatsDetected: number;
+    // Who requested the machine's actual latest scan, resolved by joining
+    // the Bitdefender task name back to our own SelfHelpTool records.
+    scannedBy: ScanUser | null;
   };
   scans: Array<{
     id: string;
     name: string;
+    startDate?: string;
+    filesScanned?: number;
+    threatsDetected?: number;
+    status?: string;
+    requestedBy: ScanUser | null;
   }>;
   stats: {
     filesScanned: number;
@@ -78,6 +106,9 @@ export interface ScanReport {
     totalScans: number;
     completedScans: number;
   };
+  // Most recent scan requested by the currently logged-in user, sourced
+  // from their own SelfHelpTool history rather than the shared endpoint.
+  userLastScan: UserLastScan | null;
 }
 
 export const getScanReport = async (): Promise<ScanReport> => {
@@ -95,5 +126,3 @@ export const createAntivirusSchedule = async (
   );
   return response.data;
 };
-
-

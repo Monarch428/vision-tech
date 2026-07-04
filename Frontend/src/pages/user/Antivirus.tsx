@@ -1,4 +1,4 @@
-import { useEffect, useState, type JSX } from "react";
+import { useEffect, useRef, useState, type JSX } from "react";
 import {
   createAntivirusSchedule,
   getScanReport,
@@ -44,7 +44,8 @@ const commonIssues = [
   "Firewall setup and management",
 ];
 
-function formatRelativeTime(isoDate: string): string {
+function formatRelativeTime(isoDate: string | null | undefined): string {
+  if (!isoDate) return "Never";
   const diff = Date.now() - new Date(isoDate).getTime();
   const mins = Math.floor(diff / 60000);
   if (mins < 60) return `${mins} minute${mins !== 1 ? "s" : ""} ago`;
@@ -54,7 +55,8 @@ function formatRelativeTime(isoDate: string): string {
   return `${days} day${days !== 1 ? "s" : ""} ago`;
 }
 
-function formatDate(isoDate: string): string {
+function formatDate(isoDate: string | null | undefined): string {
+  if (!isoDate) return "N/A";
   return new Date(isoDate).toLocaleDateString("en-US", {
     month: "long",
     day: "numeric",
@@ -92,7 +94,12 @@ export default function Antivirus() {
   }, []);
 
   // ── GET: Fetch scan report ──
+  // Guards against React 18 StrictMode double-invoking this effect in dev.
+  const fetchedReportRef = useRef(false);
   useEffect(() => {
+    if (fetchedReportRef.current) return;
+    fetchedReportRef.current = true;
+
     (async () => {
       try {
         setReportLoading(true);
@@ -139,26 +146,56 @@ export default function Antivirus() {
   // ── Derive service statuses from scan report ──
   const serviceStatuses = scanReport
     ? [
-        {
-          name: "Scan",
-          detail: `Last scan: ${formatDate(scanReport.recentScan.scanDate)}`,
-          status: scanReport.recentScan.isClean ? ("completed" as const) : ("in progress" as const),
-        },
-        {
-          name: "Update",
-          detail: `Last update: ${formatDate(scanReport.machine.lastUpdate)}`,
-          status: "in progress" as const,
-        },
-        {
-          name: "Installation",
-          detail: `Agent v${scanReport.machine.agentVersion}`,
-          status: "scheduled" as const,
-        },
-      ]
+      {
+        name: "Scan",
+        detail: `Last scan: ${formatDate(scanReport.recentScan?.scanDate)}`,
+        status: scanReport.recentScan ? ("completed" as const) : ("scheduled" as const),
+      },
+      {
+        name: "Update",
+        detail: `Last update: ${formatDate(scanReport.machine.lastUpdate)}`,
+        status: "in progress" as const,
+      },
+      {
+        name: "Installation",
+        detail: `Agent v${scanReport.machine.agentVersion}`,
+        status: "scheduled" as const,
+      },
+    ]
     : [];
 
   // ── Derived values ──
   const protectionActive = scanReport?.machine.securityStatus === 1;
+
+  // Always surface the most recent scan's filesScanned/threatsDetected by
+  // pulling from the last (most recent, by startDate) entry in scans[],
+  // rather than only trusting userLastScan. The backend's report-matching
+  // fallback patches whichever entry in scans[] it identifies as matching —
+  // that isn't always the same record referenced by userLastScan.
+  const latestScanEntry = scanReport?.scans?.length
+    ? [...scanReport.scans].sort((a, b) => {
+        const aTime = a.startDate ? new Date(a.startDate).getTime() : 0;
+        const bTime = b.startDate ? new Date(b.startDate).getTime() : 0;
+        return bTime - aTime;
+      })[0]
+    : null;
+
+  const displayScan = latestScanEntry
+    ? {
+        status: latestScanEntry.status ?? "unknown",
+        filesScanned: latestScanEntry.filesScanned ?? null,
+        filesScannedAvailable:
+          latestScanEntry.filesScanned != null && latestScanEntry.filesScanned > 0,
+        threatsDetected: latestScanEntry.threatsDetected ?? 0,
+      }
+    : scanReport?.userLastScan
+    ? {
+        status: scanReport.userLastScan.status,
+        filesScanned: scanReport.userLastScan.filesScanned,
+        filesScannedAvailable: scanReport.userLastScan.filesScannedAvailable,
+        threatsDetected: scanReport.userLastScan.threatsDetected,
+      }
+    : null;
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -190,7 +227,7 @@ export default function Antivirus() {
           <div>
             <p className="text-md text-gray-700 mb-1">Last Full Scan</p>
             <p className="text-xl font-bold text-gray-900">
-              {reportLoading ? "—" : scanReport ? formatRelativeTime(scanReport.recentScan.scanDate) : "N/A"}
+              {reportLoading ? "—" : formatRelativeTime(scanReport?.recentScan?.scanDate)}
             </p>
           </div>
           <div className="bg-blue-50 rounded-xl p-3">
@@ -200,17 +237,17 @@ export default function Antivirus() {
           </div>
         </div>
 
-        {/* Threats Blocked */}
+        {/* Total Scans Requested */}
         <div className="bg-white rounded-2xl border border-gray-400 p-4 flex items-center justify-between">
           <div>
-            <p className="text-md text-gray-700 mb-1">Threats Blocked</p>
+            <p className="text-md text-gray-700 mb-1">Total Scans</p>
             <p className="text-2xl font-bold text-gray-900">
-              {reportLoading ? "—" : (scanReport?.stats.threatsBlocked ?? 0)}
+              {reportLoading ? "—" : (scanReport?.stats.totalScans ?? 0)}
             </p>
           </div>
           <div className="bg-purple-50 rounded-xl p-3">
             <svg className="w-7 h-7 text-purple-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
+              <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
             </svg>
           </div>
         </div>
@@ -222,9 +259,8 @@ export default function Antivirus() {
           <button
             key={tab.value}
             onClick={() => setActiveTab(tab.value)}
-            className={`flex-1 sm:flex-none px-3 sm:px-6 py-2 rounded-full text-md sm:text-md font-semibold transition-all ${
-              activeTab === tab.value ? "bg-white text-gray-900 shadow-sm" : "text-gray-500 hover:text-gray-700"
-            }`}
+            className={`flex-1 sm:flex-none px-3 sm:px-6 py-2 rounded-full text-md sm:text-md font-semibold transition-all ${activeTab === tab.value ? "bg-white text-gray-900 shadow-sm" : "text-gray-500 hover:text-gray-700"
+              }`}
           >
             {tab.label}
           </button>
@@ -275,52 +311,45 @@ export default function Antivirus() {
           <div className="bg-white rounded-2xl border border-gray-400 p-5">
             <h2 className="text-lg font-bold text-gray-900 mb-1">Recent Scan Results</h2>
             <p className="text-sm text-gray-500 mb-5">
-              {scanReport
+              {scanReport?.recentScan
                 ? `Last full system scan — ${formatDate(scanReport.recentScan.scanDate)}`
                 : "Last full system scan"}
             </p>
 
             {reportLoading ? (
-              <p className="text-sm text-gray-400 text-center py-4">Loading scan data...</p>
-            ) : scanReport ? (
-              <div className="space-y-4">
-
-                {/* Files scanned */}
-                <div>
-                  <div className="flex justify-between text-sm mb-1">
-                    <span className="text-gray-600">Files scanned</span>
-                    <span className="font-bold text-gray-900">
-                      {(scanReport.recentScan.filesScanned ?? 0).toLocaleString()}
-                    </span>
-                  </div>
-                  <div className="w-full bg-gray-900 rounded-full h-2" />
-                </div>
-
-                {/* Threats detected */}
-                <div className="flex justify-between text-sm border-t border-gray-100 pt-3">
-                  <span className="text-gray-600">Threats detected</span>
-                  <span className={`font-bold ${scanReport.recentScan.threatsDetected > 0 ? "text-red-600" : "text-green-600"}`}>
-                    {scanReport.recentScan.threatsDetected}
+              <p className="text-sm text-gray-400 text-center py-4">Loading...</p>
+            ) : displayScan ? (
+              <div className="space-y-3">
+                <div className="flex justify-between text-sm">
+                  <span className="text-gray-600">Status</span>
+                  <span className="font-bold text-gray-900 capitalize">
+                    {displayScan.status}
                   </span>
                 </div>
-                
-                {/* Clean / threat banner */}
-                <div className={`flex items-center gap-2 rounded-2xl px-4 py-3 mt-2 ${scanReport.recentScan.isClean ? "bg-green-50" : "bg-red-50"}`}>
-                  <svg
-                    className={`w-5 h-5 flex-shrink-0 ${scanReport.recentScan.isClean ? "text-green-600" : "text-red-600"}`}
-                    fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}
+
+                <div className="flex justify-between text-sm border-t border-gray-100 pt-3">
+                  <span className="text-gray-600">Files scanned</span>
+                  <span className="font-bold text-gray-900">
+                    {displayScan.filesScannedAvailable && displayScan.filesScanned != null
+                      ? displayScan.filesScanned.toLocaleString()
+                      : "Not available"}
+                  </span>
+                </div>
+
+                <div className="flex justify-between text-sm border-t border-gray-100 pt-3">
+                  <span className="text-gray-600">Threats detected</span>
+                  <span
+                    className={`font-bold ${(displayScan.threatsDetected ?? 0) > 0 ? "text-red-600" : "text-green-600"
+                      }`}
                   >
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                  </svg>
-                  <span className={`text-sm font-semibold ${scanReport.recentScan.isClean ? "text-green-700" : "text-red-700"}`}>
-                    {scanReport.recentScan.isClean
-                      ? "Your system is clean and secure"
-                      : `${scanReport.recentScan.threatsDetected} threat(s) detected — action required`}
+                    {displayScan.threatsDetected ?? 0}
                   </span>
                 </div>
               </div>
             ) : (
-              <p className="text-sm text-gray-400 text-center py-4">No scan data available.</p>
+              <p className="text-sm text-gray-400 text-center py-4">
+                You haven't requested a scan yet.
+              </p>
             )}
           </div>
         </div>

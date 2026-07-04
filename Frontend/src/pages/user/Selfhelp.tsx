@@ -1,10 +1,10 @@
 import { useState, useEffect, useRef } from "react";
+import { useNavigate } from "react-router-dom";
 import Cookies from "js-cookie";
 import {
   startTool,
   getToolStatus,
-  startBackupJob,
-  getReportDebug
+  startBackupJob
 } from "../../services/user/selfhelp.service";
 import { clearCache } from "../../hooks/useCacheStorage";
 
@@ -205,6 +205,7 @@ function ToolCard({ tool, onNetworkRestartComplete, triggerRun }: ToolCardProps)
   const [toolRecordId, setToolRecordId] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [backupResult, setBackupResult] = useState<any>(null);
+  const navigate = useNavigate();
 
   const simCleanupRef = useRef<(() => void) | null>(null);
 
@@ -297,11 +298,6 @@ function ToolCard({ tool, onNetworkRestartComplete, triggerRun }: ToolCardProps)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [triggerRun]);
 
-  // In your antivirus component / page
-  useEffect(() => {
-    getReportDebug().then((res: { data: any; }) => console.log('BD Debug:', res.data));
-  }, []);
-
   // ── Poll real status (antivirus only) ─────────────────────────────────────
   useEffect(() => {
     if (!usesApi || status !== "running" || !toolRecordId) return;
@@ -370,7 +366,11 @@ function ToolCard({ tool, onNetworkRestartComplete, triggerRun }: ToolCardProps)
       {/* Action buttons */}
       {status === "idle" && (
         <button
-          onClick={handleRun}
+          onClick={
+            tool.id === "network-restart"
+              ? () => navigate("/user/network-restart-guide")
+              : handleRun
+          }
           disabled={loading}
           className="w-full flex items-center justify-center gap-2 bg-green-500 hover:bg-green-600 text-white font-semibold text-sm py-3 rounded-xl transition-colors disabled:opacity-50"
         >

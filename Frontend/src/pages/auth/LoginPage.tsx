@@ -234,12 +234,12 @@ export default function LoginPage() {
               type="submit"
               disabled={loading || locked}
               className="
-                w-full rounded-xl bg-green-500 font-semibold text-white
-                h-7 text-sm xs:h-10 sm:h-10
-                transition-all duration-200
-                hover:bg-green-600 active:scale-[0.98]
-                disabled:cursor-not-allowed disabled:opacity-70
-              "
+    w-full rounded-xl bg-green-500 font-semibold text-white
+    h-7 text-sm xs:h-10 sm:h-10
+    transition-all duration-200
+    hover:bg-green-600 active:scale-[0.98]
+    disabled:cursor-not-allowed disabled:opacity-70
+  "
             >
               {loading
                 ? "Signing In..."
@@ -247,6 +247,17 @@ export default function LoginPage() {
                   ? `Locked (${formatCountdown(lockCountdown)})`
                   : "Sign In"}
             </button>
+
+            <p className="text-center text-[11px] xs:text-xs sm:text-sm text-gray-500 mt-1">
+              Don't have an account?{" "}
+              <button
+                type="button"
+                onClick={() => navigate("/new-user")}
+                className="text-blue-600 underline underline-offset-2 hover:text-blue-800 transition-colors font-medium"
+              >
+                Create one
+              </button>
+            </p>
           </form>
         </div>
       </div>

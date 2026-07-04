@@ -19,6 +19,9 @@ import DataManagement from "./pages/admin/dataManagement";
 import ExternalServiceAccess from "./pages/admin/externalServiceAcess";
 import SupportBookings from "./pages/admin/SupportBookings";
 import OtpVerificationPage from "./pages/auth/OtpVerificationPage";
+import NetworkRestartGuide from "./pages/user/NetworkRestartGuide";
+import RMM from "./pages/user/rmm";
+import CreateAccountPage from "./pages/auth/userAccountPage";
 
 function App() {
   const initialized = useRef(false);
@@ -36,6 +39,7 @@ function App() {
         <Route path="/login" element={<LoginPage />} />
         {/* <Route path="/forgot-password" element={<ForgotPasswordPage />} /> */}
         <Route path="/otpVerify" element={<OtpVerificationPage />} />
+        <Route path="/new-user" element={<CreateAccountPage />} />
 
         {/* Protected — all get sidebar + topbar from AdminLayout */}
         <Route element={<AdminLayout />}>
@@ -45,8 +49,10 @@ function App() {
           <Route path="/admin/subscriptions" element={<Subscriptions />} />
           <Route path="/admin/Systemlogs" element={<Systemlogs />} />
           <Route path="/user/support" element={<Support />} />
+          <Route path="/user/rmm" element={<RMM />} />
           <Route path="/admin/serviceRequest" element={<ServiceRequest />} />
           <Route path="/user/selfhelp" element={<SelfHelp />} />
+          <Route path="/user/network-restart-guide" element={<NetworkRestartGuide />} />
           <Route path="/user/antivirus" element={<Antivirus />} />
           <Route path="/user/billingsubscriptions" element={<BillingSub />} />
           <Route path="/system" element={<SystemConfig />} />

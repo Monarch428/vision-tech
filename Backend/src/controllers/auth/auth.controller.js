@@ -43,13 +43,29 @@ const refreshToken = async (req, res) => {
 
 const register = async (req, res) => {
   try {
-    const { name, email, password, role } = req.body;
+    // NOTE: role is intentionally NOT read from req.body.
+    // This is a public endpoint — accepting a client-supplied role
+    // would let anyone self-register as an admin.
+    const { name, email, password } = req.body;
 
     if (!name || !email || !password) {
       return res.status(400).json({ message: 'Name, email, and password are required' });
     }
 
+    if (name.trim().length < 2) {
+      return res.status(400).json({ message: 'Name must be at least 2 characters.' });
+    }
+
     const emailNormalized = email.toLowerCase().trim();
+
+    const config = await systemConfig.findOne();
+    const minPasswordLength = config?.security?.minimumPasswordLength || 6;
+
+    if (password.length < minPasswordLength) {
+      return res.status(400).json({
+        message: `Password must be at least ${minPasswordLength} characters.`,
+      });
+    }
 
     const existingUser = await User.findOne({ email: emailNormalized });
     if (existingUser) {
@@ -60,7 +76,8 @@ const register = async (req, res) => {
       name: name.trim(),
       email: emailNormalized,
       password,
-      role: role || 'user',
+      role: 'user',       // hardcoded — never trust client input here
+      status: 'active',
     });
 
     try {

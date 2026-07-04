@@ -15,7 +15,7 @@ export interface LoginResponse {
   success: boolean;
   message: string;
   requiresOtp: boolean;
-  token:string;
+  token: string;
   email: string;
   user: {
     id: string;
@@ -55,6 +55,28 @@ export interface ResendOtpPayload {
 export interface ResendOtpResponse {
   message: string;
 }
+
+export interface RegisterPayload {
+  name: string;
+  email: string;
+  password: string;
+}
+
+export interface RegisterResponse {
+  message: string;
+  token: string;
+  user: {
+    id: string;
+    name: string;
+    email: string;
+    role: string;
+  };
+}
+
+export const registerUser = async (payload: RegisterPayload): Promise<RegisterResponse> => {
+  const response = await API.post('/auth/register', payload);
+  return response.data;
+};
 
 export const loginUser = async (payload: LoginPayload): Promise<LoginResponse> => {
   const response = await API.post('/auth/login', payload);
