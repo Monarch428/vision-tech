@@ -129,7 +129,7 @@ const SpinnerIcon = () => (
   </svg>
 );
 
-// ─── Plan Change Wizard ───────────────────────────────────────────────────────
+// ─── Plan Change Wizard (upgrade only) ────────────────────────────────────────
 
 function PlanChangeWizard({
   targetPlan,
@@ -144,9 +144,6 @@ function PlanChangeWizard({
 }) {
   const [step, setStep] = useState<"choose" | "confirm">("choose");
   const [selected, setSelected] = useState<"now" | "later" | null>(null);
-
-  const currentPrice = PLAN_PRICES[currentSub?.planName || "free"];
-  const isDowngrade = targetPlan.price < currentPrice;
 
   const renewalDate = currentSub?.nextRenewalDate
     ? new Date(currentSub.nextRenewalDate).toLocaleDateString("en-US", {
@@ -176,41 +173,22 @@ function PlanChangeWizard({
         {/* Header */}
         <div className="px-5 pt-4 pb-3 border-b border-gray-300 flex items-center justify-between">
           <div className="flex items-center gap-2.5">
-            <div
-              className={`w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0 ${isDowngrade
-                ? "bg-amber-50 text-amber-500"
-                : "bg-green-50 text-green-500"
-                }`}
-            >
-              {isDowngrade ? (
-                <svg
-                  width="14"
-                  height="14"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  viewBox="0 0 24 24"
-                >
-                  <polyline points="23 18 13.5 8.5 8.5 13.5 1 6" />
-                  <polyline points="17 18 23 18 23 12" />
-                </svg>
-              ) : (
-                <svg
-                  width="14"
-                  height="14"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  viewBox="0 0 24 24"
-                >
-                  <polyline points="23 6 13.5 15.5 8.5 10.5 1 18" />
-                  <polyline points="17 6 23 6 23 12" />
-                </svg>
-              )}
+            <div className="w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0 bg-green-50 text-green-500">
+              <svg
+                width="14"
+                height="14"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                viewBox="0 0 24 24"
+              >
+                <polyline points="23 6 13.5 15.5 8.5 10.5 1 18" />
+                <polyline points="17 6 23 6 23 12" />
+              </svg>
             </div>
             <div>
               <p className="text-sm font-semibold text-gray-900 leading-tight">
-                {isDowngrade ? "Downgrade" : "Upgrade"} to {targetPlan.label}
+                Upgrade to {targetPlan.label}
               </p>
               <p className="text-[11px] text-gray-400 leading-tight">
                 {currentSub?.planName
@@ -598,6 +576,7 @@ export default function BillingSub() {
     container.scrollTo({ top: 0, behavior: "smooth" });
   }, []);
 
+  // Only "upgrade" or "same" are valid actions now — downgrades are blocked.
   const getPlanActionType = (targetPlanName: string) => {
     const currentPrice = PLAN_PRICES[sub?.planName || "free"];
     const targetPrice = PLAN_PRICES[targetPlanName];
@@ -607,7 +586,8 @@ export default function BillingSub() {
   };
 
   const handlePlanActionClick = (plan: (typeof PLANS)[0]) => {
-    if (getPlanActionType(plan.name) === "same") return;
+    const actionType = getPlanActionType(plan.name);
+    if (actionType === "same" || actionType === "downgrade") return;
     setWizardPlan(plan);
   };
 
@@ -812,7 +792,7 @@ export default function BillingSub() {
         </div>
 
         {/* Current Plan Summary */}
-        <div className="bg-white border border-gray-700 rounded-2xl p-6">
+        <div className="bg-white border border-gray-300 rounded-2xl p-6">
           {subLoading ? (
             <div className="animate-pulse space-y-4">
               <div className="h-5 bg-gray-100 rounded w-1/4" />
@@ -970,7 +950,7 @@ export default function BillingSub() {
                     ),
                   },
                 ].map((item) => (
-                  <div key={item.label} className="border rounded-lg">
+                  <div key={item.label} className="border border-gray-300 rounded-lg">
                     <div
                       className="flex items-center gap-3 p-4 bg-gray-50 rounded-xl"
                     >
@@ -994,9 +974,6 @@ export default function BillingSub() {
 
               {!isCancelled ? (
                 <div className="flex flex-wrap gap-2">
-                  {/* <button className="px-4 py-2 bg-green-500 hover:bg-green-600 text-white text-sm font-semibold rounded-xl transition-colors">
-                    Update Payment Method
-                  </button> */}
                   <button
                     onClick={handleCancel}
                     disabled={cancelling}
@@ -1036,7 +1013,7 @@ export default function BillingSub() {
         </div>
 
         {/* Available Plans */}
-        <div className="bg-white border border-gray-700 rounded-2xl p-6">
+        <div className="bg-white border border-gray-300 rounded-2xl p-6">
           <h2 className="text-base font-bold text-gray-900">Available Plans</h2>
           <p className="text-md text-gray-700 mb-5 mt-0.5">
             Choose the plan that fits your needs
@@ -1045,11 +1022,12 @@ export default function BillingSub() {
             {PLANS.map((plan) => {
               const isCurrent = sub?.planName === plan.name;
               const isCurrentDeactivated = isCurrent && isWithinCancelledPeriod;
-              const isDisabled =
-                isCurrent &&
-                (sub?.status === "active" || isWithinCancelledPeriod);
               const isDowngrade =
                 PLAN_PRICES[plan.name] < PLAN_PRICES[sub?.planName || "free"];
+              const isDisabled =
+                (isCurrent &&
+                  (sub?.status === "active" || isWithinCancelledPeriod)) ||
+                isDowngrade;
 
               return (
                 <div
@@ -1058,7 +1036,7 @@ export default function BillingSub() {
                     ? "border-green-500 bg-green-50/30"
                     : isCurrent && isCancelled
                       ? "border-amber-300 bg-amber-50/20"
-                      : "border-gray-300 bg-white hover:border-gray-700"
+                      : "border-gray-300 bg-white hover:border-gray-300"
                     }`}
                 >
                   {isCurrent && sub?.status === "active" && (
@@ -1103,30 +1081,31 @@ export default function BillingSub() {
                   </ul>
                   <button
                     disabled={isDisabled || isPausedByAdmin}
-                    title={isPausedByAdmin ? "Disabled by admin" : ""}
+                    title={
+                      isPausedByAdmin
+                        ? "Disabled by admin"
+                        : isDowngrade
+                          ? "Downgrading isn't available"
+                          : ""
+                    }
                     onClick={() => {
                       if (isDisabled || isPausedByAdmin) return;
                       handlePlanActionClick(plan);
                     }}
-                    className={`w-full py-2.5 rounded-xl text-sm font-semibold transition-all ${isPausedByAdmin
-                      ? "bg-gray-200 text-gray-500 cursor-not-allowed"
-                      : isDisabled
-                        ? "bg-gray-100 text-gray-400 cursor-not-allowed"
-                        : isCancelled
-                          ? "bg-green-500 hover:bg-green-600 text-white"
-                          : isDowngrade
-                            ? "border-2 border-gray-300 text-gray-600 hover:bg-gray-50"
-                            : "bg-green-500 hover:bg-green-600 text-white"
+                    className={`w-full py-2.5 rounded-xl text-sm font-semibold transition-all ${isPausedByAdmin || isDisabled
+                      ? "bg-gray-100 text-gray-400 cursor-not-allowed"
+                      : "bg-green-500 hover:bg-green-600 text-white"
                       }`}
                   >
                     {isPausedByAdmin
                       ? "Paused by admin"
-                      : isDisabled
-                        ? "Current Plan"
-                        : isCancelled
-                          ? "Reactivate with PayPal"
-                          : isDowngrade
-                            ? "Downgrade"
+                      : isDowngrade
+                        ? "Downgrade unavailable"
+                        : isCurrent &&
+                          (sub?.status === "active" || isWithinCancelledPeriod)
+                          ? "Current Plan"
+                          : isCancelled
+                            ? "Reactivate with PayPal"
                             : "Upgrade with PayPal"}
                   </button>
                 </div>
@@ -1136,7 +1115,7 @@ export default function BillingSub() {
         </div>
 
         {/* Invoice History */}
-        <div className="bg-white border border-gray-700 rounded-2xl p-6">
+        <div className="bg-white border border-gray-300 rounded-2xl p-6">
           <h2 className="text-base font-bold text-gray-900">Invoice History</h2>
           <p className="text-xs text-gray-400 mb-5 mt-0.5">
             Your past invoices and payments

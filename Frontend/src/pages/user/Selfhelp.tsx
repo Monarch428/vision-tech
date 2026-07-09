@@ -25,7 +25,7 @@ interface Tool {
 // ─── Icons ────────────────────────────────────────────────────────────────────
 
 const ChromeIcon = ({ color = "#16a34a" }: { color?: string }) => (
-  <svg width="28" height="28" viewBox="0 0 24 24" fill="none">
+  <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
     <circle cx="12" cy="12" r="10" stroke={color} strokeWidth="1.8" />
     <circle cx="12" cy="12" r="4" fill={color} />
     <path
@@ -38,7 +38,7 @@ const ChromeIcon = ({ color = "#16a34a" }: { color?: string }) => (
 );
 
 const WifiIcon = ({ color = "#16a34a" }: { color?: string }) => (
-  <svg width="28" height="28" viewBox="0 0 24 24" fill="none">
+  <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
     <path d="M5 12.55a11 11 0 0 1 14 0" stroke={color} strokeWidth="1.8" strokeLinecap="round" />
     <path d="M1.42 9a16 16 0 0 1 21.16 0" stroke={color} strokeWidth="1.8" strokeLinecap="round" />
     <path d="M8.53 16.11a6 6 0 0 1 6.95 0" stroke={color} strokeWidth="1.8" strokeLinecap="round" />
@@ -47,7 +47,7 @@ const WifiIcon = ({ color = "#16a34a" }: { color?: string }) => (
 );
 
 const ShieldIcon = ({ color = "#16a34a" }: { color?: string }) => (
-  <svg width="28" height="28" viewBox="0 0 24 24" fill="none">
+  <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
     <path
       d="M12 2L4 6v6c0 5.25 3.5 10.15 8 11.5C16.5 22.15 20 17.25 20 12V6l-8-4z"
       stroke={color}
@@ -65,7 +65,7 @@ const ShieldIcon = ({ color = "#16a34a" }: { color?: string }) => (
 );
 
 const DriveIcon = ({ color = "#16a34a" }: { color?: string }) => (
-  <svg width="28" height="28" viewBox="0 0 24 24" fill="none">
+  <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
     <rect x="2" y="6" width="20" height="12" rx="2" stroke={color} strokeWidth="1.8" />
     <path d="M2 10h20" stroke={color} strokeWidth="1.8" />
     <circle cx="7" cy="15" r="1" fill={color} />
@@ -74,12 +74,12 @@ const DriveIcon = ({ color = "#16a34a" }: { color?: string }) => (
 );
 
 const PlayIcon = () => (
-  <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+  <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor">
     <polygon points="5,3 19,12 5,21" />
   </svg>
 );
 
-const SpinnerIcon = ({ size = 14 }: { size?: number }) => (
+const SpinnerIcon = ({ size = 12 }: { size?: number }) => (
   <svg
     width={size}
     height={size}
@@ -94,14 +94,14 @@ const SpinnerIcon = ({ size = 14 }: { size?: number }) => (
 );
 
 const RefreshIcon = () => (
-  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
     <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" strokeLinecap="round" strokeLinejoin="round" />
     <path d="M3 3v5h5" strokeLinecap="round" strokeLinejoin="round" />
   </svg>
 );
 
 const TrashIcon = () => (
-  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
     <polyline points="3,6 5,6 21,6" strokeLinecap="round" />
     <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" strokeLinecap="round" />
     <path d="M10 11v6M14 11v6" strokeLinecap="round" />
@@ -323,38 +323,45 @@ function ToolCard({ tool, onNetworkRestartComplete, triggerRun }: ToolCardProps)
 
   // ─── Render ───────────────────────────────────────────────────────────────
   return (
-    <div className="bg-white border border-gray-400 rounded-2xl p-5 flex flex-col gap-4">
+    <div className="bg-white border border-gray-300 rounded-xl p-3.5 flex flex-col gap-4">
 
       {/* Header */}
       <div className="flex items-start justify-between gap-2">
-        <h3 className="text-base font-bold text-gray-900">{tool.name}</h3>
+        <div className="flex items-center gap-2">
+          <div className={`${tool.iconBg} p-1.5 rounded-lg shrink-0`}>{tool.icon}</div>
+          <h3 className="text-sm font-bold text-gray-900 leading-tight">{tool.name}</h3>
+        </div>
         <span
-          className={`flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-full shrink-0 ${status === "idle"
+          className={`flex items-center gap-1 text-[11px] font-medium px-2 py-0.5 rounded-full shrink-0 ${status === "idle"
             ? "bg-gray-100 text-gray-600"
             : status === "running"
               ? "bg-blue-100 text-blue-600"
               : "bg-green-100 text-green-600"
             }`}
         >
-          {status === "running" ? <SpinnerIcon size={12} /> : <PlayIcon />}
+          {status === "running" ? <SpinnerIcon size={10} /> : <PlayIcon />}
           {status}
         </span>
       </div>
 
-      {/* Icon + Description */}
-      <div className="flex items-start gap-3">
-        <div className={`${tool.iconBg} p-2.5 rounded-xl shrink-0`}>{tool.icon}</div>
-        <p className="text-md text-gray-700 mt-2 leading-relaxed">{tool.description}</p>
+      {/* Description */}
+      <p className="text-md text-gray-600 leading-snug">{tool.description}</p>
+
+      {/* Inline instructions */}
+      <div className={`${tool.instructionBg} rounded-lg p-2.5`}>
+        <p className={`text-[14 px] leading-snug ${tool.instructionText}`}>
+          {tool.fullDescription}
+        </p>
       </div>
 
       {/* Progress bar */}
       {status === "running" && (
         <div>
-          <div className="flex justify-between text-sm font-medium text-gray-700 mb-1.5">
+          <div className="flex justify-between text-xs font-medium text-gray-700 mb-1">
             <span>Progress</span>
             <span>{progress}%</span>
           </div>
-          <div className="w-full h-2 bg-gray-200 rounded-full overflow-hidden">
+          <div className="w-full h-1.5 bg-gray-200 rounded-full overflow-hidden">
             <div
               className="h-full bg-gray-800 rounded-full transition-all duration-300"
               style={{ width: `${progress}%` }}
@@ -372,7 +379,7 @@ function ToolCard({ tool, onNetworkRestartComplete, triggerRun }: ToolCardProps)
               : handleRun
           }
           disabled={loading}
-          className="w-full flex items-center justify-center gap-2 bg-green-500 hover:bg-green-600 text-white font-semibold text-sm py-3 rounded-xl transition-colors disabled:opacity-50"
+          className="w-full flex items-center justify-center gap-1.5 bg-green-500 hover:bg-green-600 text-white font-semibold text-xs py-2 rounded-lg transition-colors disabled:opacity-50"
         >
           {loading ? <SpinnerIcon /> : <PlayIcon />}
           {loading ? "Starting..." : "Run Tool"}
@@ -382,7 +389,7 @@ function ToolCard({ tool, onNetworkRestartComplete, triggerRun }: ToolCardProps)
       {status === "running" && (
         <button
           disabled
-          className="w-full flex items-center justify-center gap-2 bg-gray-500 text-white font-semibold text-sm py-3 rounded-xl cursor-not-allowed"
+          className="w-full flex items-center justify-center gap-1.5 bg-gray-500 text-white font-semibold text-xs py-2 rounded-lg cursor-not-allowed"
         >
           <SpinnerIcon />
           Running...
@@ -393,14 +400,14 @@ function ToolCard({ tool, onNetworkRestartComplete, triggerRun }: ToolCardProps)
         <div className="flex gap-2">
           <button
             onClick={handleRun}
-            className="flex-1 flex items-center justify-center gap-2 border border-gray-300 text-gray-800 font-medium text-sm py-3 rounded-xl hover:bg-gray-50 transition-colors"
+            className="flex-1 flex items-center justify-center gap-1.5 border border-gray-300 text-gray-800 font-medium text-xs py-2 rounded-lg hover:bg-gray-50 transition-colors"
           >
             <RefreshIcon />
             Run Again
           </button>
           <button
             onClick={handleReset}
-            className="flex items-center justify-center px-4 border border-gray-300 text-gray-600 rounded-xl hover:bg-gray-50 transition-colors"
+            className="flex items-center justify-center px-3 border border-gray-300 text-gray-600 rounded-lg hover:bg-gray-50 transition-colors"
           >
             <TrashIcon />
           </button>
@@ -409,26 +416,26 @@ function ToolCard({ tool, onNetworkRestartComplete, triggerRun }: ToolCardProps)
 
       {/* Backup report */}
       {tool.id === "start-backup" && status === "completed" && backupResult && (
-        <div className="mt-3 border-t border-gray-400 pt-3 flex flex-col gap-2">
-          <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Backup Report</p>
-          <div className="bg-green-50 rounded-xl p-3">
-            <p className="text-sm font-semibold text-green-700">
+        <div className="mt-1 border-t border-gray-300 pt-2.5 flex flex-col gap-1.5">
+          <p className="text-[10px] font-semibold text-gray-500 uppercase tracking-wide">Backup Report</p>
+          <div className="bg-green-50 rounded-lg p-2.5">
+            <p className="text-xs font-semibold text-green-700">
               ✓{" "}
               {Array.isArray(backupResult.collections)
                 ? `${backupResult.collections.length} collections backed up`
                 : "Backup completed successfully"}
             </p>
-            <p className="text-xs text-green-600 mt-1 break-all">
+            <p className="text-[11px] text-green-600 mt-1 break-all">
               {typeof backupResult.backupPath === "string"
                 ? backupResult.backupPath
                 : backupResult.message || "Backup saved"}
             </p>
             {Array.isArray(backupResult.collections) && (
-              <div className="mt-2 flex flex-wrap gap-1">
+              <div className="mt-1.5 flex flex-wrap gap-1">
                 {backupResult.collections.map((col: string) => (
                   <span
                     key={col}
-                    className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full"
+                    className="text-[10px] bg-green-100 text-green-700 px-1.5 py-0.5 rounded-full"
                   >
                     {col}
                   </span>
@@ -438,33 +445,6 @@ function ToolCard({ tool, onNetworkRestartComplete, triggerRun }: ToolCardProps)
           </div>
         </div>
       )}
-    </div>
-  );
-}
-
-// ─── InstructionCard ──────────────────────────────────────────────────────────
-
-function InstructionCard({ tool }: { tool: Tool }) {
-  const iconColor = tool.instructionIconColor;
-  return (
-    <div className={`${tool.instructionBg} rounded-2xl p-4 flex flex-col gap-2`}>
-      <div className="flex items-center gap-2">
-        <span style={{ color: iconColor }}>
-          {tool.id === "browser-cleanup" ? (
-            <ChromeIcon color={iconColor} />
-          ) : tool.id === "network-restart" ? (
-            <WifiIcon color={iconColor} />
-          ) : tool.id === "antivirus-scan" ? (
-            <ShieldIcon color={iconColor} />
-          ) : (
-            <DriveIcon color={iconColor} />
-          )}
-        </span>
-        <h4 className={`font-bold text-base ${tool.instructionText}`}>{tool.name}</h4>
-      </div>
-      <p className={`text-sm leading-relaxed ${tool.instructionText}`}>
-        {tool.fullDescription}
-      </p>
     </div>
   );
 }
@@ -505,19 +485,6 @@ export default function SelfHelp() {
           }
           return <ToolCard key={tool.id} tool={tool} />;
         })}
-      </div>
-
-      {/* Tool Instructions */}
-      <div className="mt-10">
-        <h2 className="text-xl font-bold text-gray-900">Tool Instructions</h2>
-        <p className="text-gray-700 mt-1 text-md">
-          Learn how to use these self-help tools effectively
-        </p>
-        <div className="flex flex-col gap-4 mt-6">
-          {TOOLS.map((tool) => (
-            <InstructionCard key={tool.id} tool={tool} />
-          ))}
-        </div>
       </div>
     </div>
   );

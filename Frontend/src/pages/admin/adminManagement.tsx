@@ -18,10 +18,9 @@ import { getAllUsers } from "../../services/admin/userManagement.service";
 import { getAllSubscriptions } from "../../services/admin/subscriptions.service";
 import {
   getAllServiceRequests,
+  getRecentSupportRequests,
+  type ServiceRequest,
 } from "../../services/admin/serviceRequest.service.ts";
-import {
-  getAllSupportBookings,
-} from "../../services/admin/supportBookings.service.ts";
 import { getSystemLogs } from "../../services/admin/systemLogs.service";
 
 Chart.register(
@@ -34,36 +33,6 @@ Chart.register(
   Legend,
   Filler
 );
-
-interface SupportRequest {
-  _id: string;
-  user: { _id: string; name: string; email: string };
-  ticketNumber: number;
-  assigned_user_id: { _id: string; name: string } | null;
-  duration: number;
-  category: string;
-  priority: string;
-  status: string;
-  description: string;
-  createdBy: string;
-  createdAt: string;
-  updatedAt: string;
-}
-
-interface SupportBooking {
-  _id: string;
-  user: { _id: string; name: string; email: string };
-  ticket_no: number;
-  assigned_user_id: { _id: string; name: string } | null;
-  duration: 30 | 60 | 120;
-  category: "technical_issue" | "billing" | "antivirus" | "rmm" | "general";
-  priority: "low" | "medium" | "high";
-  status: "open" | "in_progress" | "resolved" | "closed";
-  description: string;
-  createdBy: string;
-  createdAt: string;
-  updatedAt: string;
-}
 
 const months = [
   "Jan", "Feb", "Mar", "Apr", "May", "Jun",
@@ -111,8 +80,7 @@ const statusClass = (status: string) => {
 
 export default function AdminDashboard() {
   const navigate = useNavigate();
-  const [recentRequests, setRecentRequests] = useState<SupportRequest[]>([]);
-  const [recentSupportBookings, setRecentSupportBookings] = useState<SupportBooking[]>([]);
+  const [recentRequests, setRecentRequests] = useState<ServiceRequest[]>([]);
   const [loading, setLoading] = useState(true);
   const [totalClients, setTotalClients] = useState<number | null>(null);
   const [totalSubscription, setTotalSubscription] = useState<number | null>(null);
@@ -208,33 +176,15 @@ export default function AdminDashboard() {
   useEffect(() => {
     const fetchRequests = async () => {
       try {
-        const res = await getAllServiceRequests();
-        if (res.data.success) setRecentRequests(res.data.data.slice(0, 5));
+        const res = await getRecentSupportRequests();
+        if (res.data.success) setRecentRequests(res.data.data);
       } catch (err) {
         console.error("Failed to fetch support requests:", err);
-      }
-    };
-    fetchRequests();
-  }, []);
-
-  // Last 5 support bookings
-  useEffect(() => {
-    const fetchBookings = async () => {
-      try {
-        const res = await getAllSupportBookings();
-        if (res.data.success) {
-          const sorted = [...res.data.data].sort(
-            (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
-          );
-          setRecentSupportBookings(sorted.slice(0, 5));
-        }
-      } catch (err) {
-        console.error("Failed to fetch support bookings:", err);
       } finally {
         setLoading(false);
       }
     };
-    fetchBookings();
+    fetchRequests();
   }, []);
 
   useEffect(() => {
@@ -376,7 +326,7 @@ export default function AdminDashboard() {
             ),
           },
         ].map((card) => (
-          <div key={card.label} className="bg-gray-50 rounded-xl p-4 border border-gray-700">
+          <div key={card.label} className="bg-gray-50 rounded-xl p-4 border border-gray-300">
             <div className={`w-9 h-9 rounded-lg flex items-center justify-center mb-3 ${card.iconBg} ${card.iconColor}`}>
               {card.icon}
             </div>
@@ -389,7 +339,7 @@ export default function AdminDashboard() {
 
       {/* Charts */}
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-5">
-        <div className="bg-white border border-gray-700 rounded-2xl p-5">
+        <div className="bg-white border border-gray-300 rounded-2xl p-5">
           <div className="flex items-start justify-between mb-4">
             <div>
               <h2 className="text-lg font-semibold text-gray-900">Total Clients</h2>
@@ -404,7 +354,7 @@ export default function AdminDashboard() {
           </div>
         </div>
 
-        <div className="bg-white border border-gray-700 rounded-2xl p-5">
+        <div className="bg-white border border-gray-300 rounded-2xl p-5">
           <div className="flex items-start justify-between mb-2">
             <div>
               <h2 className="text-lg font-semibold text-gray-900">Active Subscriptions</h2>
@@ -461,18 +411,6 @@ export default function AdminDashboard() {
               ),
             },
             {
-              title: "Service Fulfillment",
-              desc: "Manage support bookings, installations, and active service tickets.",
-              iconBg: "bg-orange-50", iconColor: "text-orange-500",
-              action: () => navigate("/admin/supportBookings"),
-              icon: (
-                <svg width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.8" viewBox="0 0 24 24">
-                  <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-                  <polyline points="14 2 14 8 20 8" />
-                </svg>
-              ),
-            },
-            {
               title: "External Access",
               desc: "Quick-access links to external portals and secure technician credentials.",
               iconBg: "bg-blue-50", iconColor: "text-blue-500",
@@ -512,7 +450,7 @@ export default function AdminDashboard() {
             <button
               key={cap.title}
               onClick={cap.action}
-              className="flex items-start gap-3 p-4 bg-white border border-gray-700 rounded-2xl hover:border-gray-200 hover:bg-gray-50 transition-all text-left group"
+              className="flex items-start gap-3 p-4 bg-white border border-gray-300 rounded-2xl hover:border-gray-200 hover:bg-gray-50 transition-all text-left group"
             >
               <div className={`w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0 ${cap.iconBg} ${cap.iconColor}`}>
                 {cap.icon}
@@ -530,7 +468,7 @@ export default function AdminDashboard() {
 
       {/* Needs Attention + Recent Activity */}
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-5">
-        <div className="bg-white border border-gray-700 rounded-2xl p-5">
+        <div className="bg-white border border-gray-300 rounded-2xl p-5">
           <div className="flex items-start justify-between mb-4">
             <div>
               <div className="flex items-center gap-2 mb-0.5">
@@ -563,7 +501,7 @@ export default function AdminDashboard() {
           </div>
         </div>
 
-        <div className="bg-white border border-gray-700 rounded-2xl p-5">
+        <div className="bg-white border border-gray-300 rounded-2xl p-5">
           <div className="flex items-start justify-between mb-4">
             <div>
               <h2 className="text-sm font-semibold text-gray-900">Recent Activity</h2>
@@ -600,11 +538,11 @@ export default function AdminDashboard() {
       </div>
 
       {/* Recent Service Requests */}
-      <div className="bg-white border border-gray-700 rounded-2xl p-5">
+      <div className="bg-white border border-gray-300 rounded-2xl p-5">
         <div className="flex items-center justify-between mb-5">
           <div>
-            <h2 className="text-lg font-semibold text-gray-900">Recent Service Requests</h2>
-            <p className="text-md text-gray-700 mt-0.5">Last 5 service requests from users</p>
+            <h2 className="text-lg font-semibold text-gray-900">Recent Support Requests</h2>
+            <p className="text-md text-gray-700 mt-0.5">Last 5 support requests from users</p>
           </div>
           <button
             onClick={() => navigate("/admin/serviceRequest")}
@@ -616,7 +554,7 @@ export default function AdminDashboard() {
         <div className="overflow-x-auto">
           <table className="w-full min-w-[600px]">
             <thead>
-              <tr className="border-b border-gray-700">
+              <tr className="border-b border-gray-300">
                 {["User Name", "Ticket", "Category", "Priority", "Assigned To", "Status"].map((col) => (
                   <th key={col} className="text-left pb-3 text-xs uppercase tracking-wide text-gray-700 font-semibold">
                     {col}
@@ -644,59 +582,6 @@ export default function AdminDashboard() {
                     <td className="py-3.5">
                       <span className={`text-xs font-medium px-2.5 py-1 rounded-full capitalize ${statusClass(request.status)}`}>
                         {request.status.replace("_", " ")}
-                      </span>
-                    </td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
-      </div>
-
-      {/* Recent Support Bookings */}
-      <div className="bg-white border border-gray-700 rounded-2xl p-5">
-        <div className="flex items-center justify-between mb-5">
-          <div>
-            <h2 className="text-lg font-semibold text-gray-900">Recent Support Bookings</h2>
-            <p className="text-md text-gray-700 mt-0.5">Last 5 support bookings from users</p>
-          </div>
-          <button
-            onClick={() => navigate("/user/support")}
-            className="text-xs font-medium text-green-600 hover:underline"
-          >
-            View All
-          </button>
-        </div>
-        <div className="overflow-x-auto">
-          <table className="w-full min-w-[600px]">
-            <thead>
-              <tr className="border-b border-gray-700">
-                {["User Name", "Date", "Duration", "Reason", "Assigned To", "Status"].map((col) => (
-                  <th key={col} className="text-left pb-3 text-xs uppercase tracking-wide text-gray-700 font-semibold">
-                    {col}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {loading ? (
-                <tr><td colSpan={6} className="py-8 text-center text-md text-gray-400">Loading...</td></tr>
-              ) : recentSupportBookings.length === 0 ? (
-                <tr><td colSpan={6} className="py-8 text-center text-md text-gray-400">No bookings found.</td></tr>
-              ) : (
-                recentSupportBookings.map((booking) => (
-                  <tr key={booking._id} className="border-b border-gray-50 hover:bg-gray-50 transition">
-                    <td className="py-3.5 text-md font-medium text-gray-900">{booking.user?.name || "—"}</td>
-                    <td className="py-3.5 text-md text-gray-700">
-                      {new Date(booking.createdAt).toLocaleDateString("en-GB").replace(/\//g, "-")}
-                    </td>
-                    <td className="py-3.5 text-md text-gray-500">{booking.duration} min</td>
-                    <td className="py-3.5 text-md text-gray-500 max-w-[160px] truncate">{booking.description}</td>
-                    <td className="py-3.5 text-md text-gray-700">{booking.assigned_user_id?.name || "Unassigned"}</td>
-                    <td className="py-3.5">
-                      <span className={`text-xs font-medium px-2.5 py-1 rounded-full capitalize ${statusClass(booking.status)}`}>
-                        {booking.status.replace("_", " ")}
                       </span>
                     </td>
                   </tr>

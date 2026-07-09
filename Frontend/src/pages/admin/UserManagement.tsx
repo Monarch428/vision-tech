@@ -47,6 +47,9 @@ interface ImportedUser {
 
 type FieldErrors = Partial<Record<keyof FormState, string>>;
 
+// Underlying data model still stores one of admin | user | support.
+// For display purposes (table badges, filter, stats) these collapse into
+// just two groups: "User" (role === "user") and "Client" (admin + support).
 const ROLES = [
   { value: "admin", label: "Admin" },
   { value: "user", label: "User" },
@@ -57,6 +60,14 @@ const STATUSES = [
   { value: "inactive", label: "Inactive" },
   { value: "suspended", label: "Suspended" },
 ];
+
+// Simplified role groups shown in the table filter dropdown.
+const ROLE_GROUPS = [
+  { value: "user", label: "User" },
+  { value: "client", label: "Client" },
+];
+
+const isClientRole = (role: string) => role === "admin" || role === "support";
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const STEPS = ["Basic Info", "Role & Status", "Review"];
@@ -180,18 +191,20 @@ function Field({ label, error, children }: { label: string; error?: string; chil
   );
 }
 
+// Displays only two groups regardless of the underlying stored role:
+// "user" -> User, "admin" | "support" -> Client
 function RoleBadge({ role }: { role: string }) {
-  const styles: Record<string, string> = {
-    admin: "bg-blue-50 text-blue-600 border-blue-200",
-    user: "bg-green-50 text-green-700 border-green-200",
-    support: "bg-green-50 text-green-700 border-green-200",
-  };
+  const client = isClientRole(role);
+  const label = client ? "Client" : "User";
+  const style = client
+    ? "bg-blue-50 text-blue-600 border-blue-200"
+    : "bg-green-50 text-green-700 border-green-200";
   return (
-    <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold border ${styles[role] || "bg-gray-50 text-gray-600 border-gray-200"}`}>
+    <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold border ${style}`}>
       <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
         <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
       </svg>
-      {role.charAt(0).toUpperCase() + role.slice(1)}
+      {label}
     </span>
   );
 }
@@ -330,7 +343,9 @@ function ImportPreviewTable({ users, onRemove }: { users: ImportedUser[]; onRemo
                 </td>
                 <td className="px-3 py-2 text-gray-600 truncate max-w-[120px]">{u.email || "—"}</td>
                 <td className="px-3 py-2">
-                  <span className="px-1.5 py-0.5 rounded bg-gray-100 text-gray-600 capitalize">{u.role || "—"}</span>
+                  <span className="px-1.5 py-0.5 rounded bg-gray-100 text-gray-600 capitalize">
+                    {isClientRole(u.role) ? "Client" : "User"}
+                  </span>
                 </td>
                 <td className="px-3 py-2">
                   <span className={`px-1.5 py-0.5 rounded capitalize font-semibold ${u.status === "active" ? "bg-green-100 text-green-700" : "bg-gray-100 text-gray-500"}`}>
@@ -384,6 +399,7 @@ export default function UserManagement() {
   const [error, setError] = useState("");
   const [search, setSearch] = useState("");
   const [minPasswordLength, setMinPasswordLength] = useState<number>(6);
+  // Filter is now the simplified group ("user" | "client"), not the raw role.
   const [roleFilter, setRoleFilter] = useState("");
   const [currentPage, setCurrentPage] = useState(0); // MUI is 0-indexed
   const [itemsPerPage, setItemsPerPage] = useState(10);
@@ -437,7 +453,10 @@ export default function UserManagement() {
     const matchSearch =
       u.name.toLowerCase().includes(search.toLowerCase()) ||
       u.email.toLowerCase().includes(search.toLowerCase());
-    return matchSearch && (!roleFilter || u.role === roleFilter);
+    const matchRole =
+      !roleFilter ||
+      (roleFilter === "client" ? isClientRole(u.role) : u.role === roleFilter);
+    return matchSearch && matchRole;
   });
 
   const paginated = filtered.slice(
@@ -445,11 +464,11 @@ export default function UserManagement() {
     currentPage * itemsPerPage + itemsPerPage,
   );
 
+  // Only three stat cards now: Total Users, Active Users, Client (admin + support).
   const stats = [
     { label: "Total Users", value: users.length, color: "text-blue-600" },
-    { label: "Active", value: users.filter((u) => u.status === "active").length, color: "text-green-600" },
-    { label: "Admins", value: users.filter((u) => u.role === "admin").length, color: "text-purple-600" },
-    { label: "Pro Users", value: users.filter((u) => u.subscription?.toLowerCase().includes("pro")).length, color: "text-orange-500" },
+    { label: "Active Users", value: users.filter((u) => u.status === "active").length, color: "text-green-600" },
+    { label: "Client", value: users.filter((u) => isClientRole(u.role)).length, color: "text-purple-600" },
   ];
 
   const openAddModal = () => {
@@ -632,10 +651,10 @@ export default function UserManagement() {
         </button>
       </div>
 
-      {/* Stats */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
+      {/* Stats: Total Users / Active Users / Client */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-6">
         {stats.map((s) => (
-          <div key={s.label} className="bg-white border border-gray-700 rounded-xl p-4">
+          <div key={s.label} className="bg-white border border-gray-300 rounded-xl p-4">
             <p className="text-md text-gray-700 font-medium mb-1">{s.label}</p>
             <p className={`text-3xl font-bold ${s.color}`}>{loading ? "—" : s.value}</p>
           </div>
@@ -643,8 +662,8 @@ export default function UserManagement() {
       </div>
 
       {/* Toolbar */}
-      <div className="flex flex-col sm:flex-row gap-3 p-4 border border-gray-700 border-b-0 bg-white rounded-t-xl">
-        <div className="flex-1 flex items-center gap-2 border border-gray-700 rounded-xl px-3 py-2.5 bg-gray-100 focus-within:border-green-400 focus-within:bg-white transition-all">
+      <div className="flex flex-col sm:flex-row gap-3 p-4 border border-gray-300 border-b-0 bg-white rounded-t-xl">
+        <div className="flex-1 flex items-center gap-2 border border-gray-300 rounded-xl px-3 py-2.5 bg-gray-100 focus-within:border-green-400 focus-within:bg-white transition-all">
           <svg width="15" height="15" fill="none" stroke="#9ca3af" strokeWidth="2" viewBox="0 0 24 24">
             <circle cx="11" cy="11" r="8" />
             <path d="m21 21-4.35-4.35" />
@@ -668,10 +687,10 @@ export default function UserManagement() {
           <select
             value={roleFilter}
             onChange={(e) => setRoleFilter(e.target.value)}
-            className="w-full sm:w-auto appearance-none border border-gray-700 rounded-xl pl-4 pr-9 py-2.5 text-sm text-gray-600 bg-gray-100 outline-none cursor-pointer focus:border-green-400 focus:bg-white transition-all"
+            className="w-full sm:w-auto appearance-none border border-gray-300 rounded-xl pl-4 pr-9 py-2.5 text-sm text-gray-600 bg-gray-100 outline-none cursor-pointer focus:border-green-400 focus:bg-white transition-all"
           >
             <option value="">All Roles</option>
-            {ROLES.map((r) => (
+            {ROLE_GROUPS.map((r) => (
               <option key={r.value} value={r.value}>{r.label}</option>
             ))}
           </select>
@@ -715,7 +734,7 @@ export default function UserManagement() {
             width: "100%",
             overflow: "hidden",
             borderRadius: "0 0 12px 12px",
-            border: "1px solid #374151",
+            border: "1px solid #d1d5db",
             borderTop: "none",
           }}
         >
@@ -789,7 +808,7 @@ export default function UserManagement() {
                         fontSize: "0.875rem",
                         color: "#6b7280",
                         letterSpacing: "0.05em",
-                        borderBottom: "1px solid #374151",
+                        borderBottom: "1px solid #d1d5db",
                         py: 1.75,
                         px: 2.5,
                         fontFamily: "inherit",
@@ -827,7 +846,7 @@ export default function UserManagement() {
                       hover
                       sx={{
                         "&:hover": { backgroundColor: "rgba(249,250,251,0.8)" },
-                        "& td": { borderBottom: "1px solid #374151", py: 1.5, px: 2.5, fontFamily: "inherit" },
+                        "& td": { borderBottom: "1px solid #d1d5db", py: 1.5, px: 2.5, fontFamily: "inherit" },
                         cursor: "default",
                       }}
                     >
@@ -878,7 +897,7 @@ export default function UserManagement() {
               setCurrentPage(0);
             }}
             sx={{
-              borderTop: "1px solid #374151",
+              borderTop: "1px solid #d1d5db",
               fontSize: "0.875rem",
               color: "#6b7280",
               fontFamily: "inherit",

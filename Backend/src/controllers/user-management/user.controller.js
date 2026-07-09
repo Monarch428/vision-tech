@@ -194,6 +194,7 @@ const getAllUsers = async (req, res) => {
     });
   }
 };
+
 // Get User By ID
 const getUserById = async (req, res) => {
   try {

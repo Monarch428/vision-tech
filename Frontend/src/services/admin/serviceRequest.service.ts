@@ -77,3 +77,11 @@ export const assignTicket = (ticketId: string, payload: AssignTicketPayload) =>
     `/support-requests/assign/${ticketId}`,
     payload
   );
+
+// GET /support-requests/recent — last 5, newest first
+export const getRecentSupportRequests = () =>
+  API.get<{
+    success: boolean;
+    message?: string;
+    data: ServiceRequest[];
+  }>('/support-requests/recent');

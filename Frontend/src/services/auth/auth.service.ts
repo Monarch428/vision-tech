@@ -60,19 +60,21 @@ export interface RegisterPayload {
   name: string;
   email: string;
   password: string;
+  source?: 'usercreated';
 }
 
 export interface RegisterResponse {
   message: string;
-  token: string;
-  user: {
+  requiresOtp?: boolean;
+  token?: string;
+  email?: string;
+  user?: {
     id: string;
     name: string;
     email: string;
     role: string;
   };
 }
-
 export const registerUser = async (payload: RegisterPayload): Promise<RegisterResponse> => {
   const response = await API.post('/auth/register', payload);
   return response.data;

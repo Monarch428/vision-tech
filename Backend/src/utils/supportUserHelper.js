@@ -1,4 +1,4 @@
-const SupportBooking = require('../models/support/SupportBooking');
+const SupportRequest = require('../models/support/SupportRequest'); // ⚠️ CONFIRM this matches your actual model path
 
 /**
  * Returns support usage stats for a user in the current billing cycle.
@@ -13,8 +13,8 @@ const getSupportUsage = async (userId, subscription) => {
   let allowedMinutes;
   switch (planName) {
     case 'free':       allowedMinutes = 60;       break;
-    case 'pro':        allowedMinutes = 600;       break;
-    case 'enterprise': allowedMinutes = Infinity;  break;
+    case 'pro':        allowedMinutes = 600;      break;
+    case 'enterprise': allowedMinutes = Infinity; break;
     default:           allowedMinutes = 0;
   }
 
@@ -23,13 +23,16 @@ const getSupportUsage = async (userId, subscription) => {
     subscription.startDate ||
     new Date(0);
 
-  const bookings = await SupportBooking.find({
+  // Sum the duration (minutes) of every ticket/session this user has had
+  // in the current billing cycle. Tickets filed without a call attached
+  // default to duration: 0 and simply don't add to the total.
+  const requests = await SupportRequest.find({
     user: userId,
     createdAt: { $gte: cycleStart },
-  });
+  }).select('duration');
 
-  const usedMinutes = bookings.reduce(
-    (total, b) => total + Number(b.duration || 0),
+  const usedMinutes = requests.reduce(
+    (total, r) => total + Number(r.duration || 0),
     0
   );
 

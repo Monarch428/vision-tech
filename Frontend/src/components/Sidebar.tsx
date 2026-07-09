@@ -12,9 +12,9 @@ interface SidebarProps {
 
 const PLATFORM_ITEMS = [
   { id: 'dashboard', label: 'Dashboard', path: '/user/dashboard', icon: 'dashboard' },
+  { id: 'selfhelp', label: 'Self-Help', path: '/user/selfhelp', icon: 'selfhelp' },
   { id: 'support', label: 'Support', path: '/user/support', icon: 'support' },
   { id: 'antivirus', label: 'Antivirus', path: '/user/antivirus', icon: 'antivirus' },
-  { id: 'selfhelp', label: 'Self-Help', path: '/user/selfhelp', icon: 'selfhelp' },
   // { id: 'rmm', label: 'RMM', path: '/user/rmm', icon: 'monitor-check' },
   { id: 'billingsubscriptions', label: 'Billing Subscriptions', path: '/user/billingsubscriptions', icon: 'card' }
 ];
@@ -23,8 +23,8 @@ const ADMIN_ITEMS = [
   { id: 'admin dashboard', label: 'Admin Dashboard', path: '/admin/adminManagement', icon: 'dashboard' },
   { id: 'users', label: 'User Management', path: '/admin/users', icon: 'users' },
   { id: 'subscriptions', label: 'Subscriptions', path: '/admin/subscriptions', icon: 'card' },
-  { id: 'servicerequest', label: 'Service Request', path: '/admin/serviceRequest', icon: 'settings' },
-  { id: 'supportBookings', label: 'Support Booking', path: '/admin/supportBookings', icon: 'booking' },
+  { id: 'servicerequest', label: 'Support Request', path: '/admin/serviceRequest', icon: 'settings' },
+  // { id: 'supportBookings', label: 'Support Booking', path: '/admin/supportBookings', icon: 'booking' },
   { id: 'Systemlogs', label: 'System Logs', path: '/admin/Systemlogs', icon: 'system-logs' },
 ];
 
@@ -38,8 +38,8 @@ function getNavGroups(role: Role) {
   switch (role) {
     case 'support':
       return [
-        { section: 'Platform', items: PLATFORM_ITEMS },
         { section: 'Admin', items: ADMIN_ITEMS },
+        { section: 'Platform', items: PLATFORM_ITEMS },
         { section: 'System', items: SYSTEM_ITEMS },
       ];
     case 'user':
@@ -48,8 +48,8 @@ function getNavGroups(role: Role) {
       ];
     case 'admin':
       return [
-        { section: 'Platform', items: PLATFORM_ITEMS },
         { section: 'Admin', items: ADMIN_ITEMS },
+        { section: 'Platform', items: PLATFORM_ITEMS },
       ];
     default:
       return [];

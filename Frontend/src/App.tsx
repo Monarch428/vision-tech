@@ -17,7 +17,7 @@ import SystemConfig from "./pages/system/systemConfig";
 import { useEffect, useRef } from "react";
 import DataManagement from "./pages/admin/dataManagement";
 import ExternalServiceAccess from "./pages/admin/externalServiceAcess";
-import SupportBookings from "./pages/admin/SupportBookings";
+// import SupportBookings from "./pages/admin/SupportBookings";
 import OtpVerificationPage from "./pages/auth/OtpVerificationPage";
 import NetworkRestartGuide from "./pages/user/NetworkRestartGuide";
 import RMM from "./pages/user/rmm";
@@ -59,7 +59,7 @@ function App() {
           <Route path="/admin/adminManagement" element={<AdminManagement />} />
           <Route path="/admin/dataManagement" element={<DataManagement />} />
           <Route path="/admin/external" element={<ExternalServiceAccess />} />
-          <Route path="/admin/supportBookings" element={<SupportBookings />} />
+          {/* <Route path="/admin/supportBookings" element={<SupportBookings />} /> */}
         </Route>
 
         {/* Redirects */}

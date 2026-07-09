@@ -1,109 +1,63 @@
-import axios from 'axios';
-import Cookies from "js-cookie";
-import { clearCache } from "../../hooks/useCacheStorage";
+import axios from "axios";
 
+// ⚠️ CONFIRM: same axios pattern as dashboard.service.ts / self-help service.
+// If you have this exported as a shared instance elsewhere, use that import
+// instead of duplicating it here.
 const API = axios.create({
   baseURL: import.meta.env.VITE_API_BASE_URL,
-  headers: {
-    'Content-Type': 'application/json',
-  },
 });
 
 API.interceptors.request.use((config) => {
-  const token = localStorage.getItem('token');
+  const token = localStorage.getItem("token");
   if (token) config.headers.Authorization = `Bearer ${token}`;
   return config;
 });
 
-API.interceptors.response.use(
-  (response) => response,
-  (error) => {
-    if (error.response?.status === 401) {
-      localStorage.removeItem('token');
-      Cookies.remove('token');
-      localStorage.removeItem('user');
-      clearCache();
-      window.location.replace('/login');
-    }
-    return Promise.reject(error);
-  }
-);
-
-export type Priority = 'low' | 'medium' | 'high';
-export type Status = "in-progress" | "open" | "resolved" | "closed";
+export type Priority = "low" | "medium" | "high";
+export type Status = "open" | "in-progress" | "resolved" | "closed";
 
 export interface Ticket {
   _id: string;
   ticket_no: string;
   description: string;
   status: Status;
-  priority: Priority;
-  category: string;
+  priority?: Priority;
+  category?: string;
   createdAt: string;
 }
 
-export interface Agent {
-  _id: string;
-  name: string;
-}
-
-export interface BookSupportPayload {
-  duration: number;
-  category: string;
-  priority: Priority;
-  description: string;
-}
-
-export interface NewRequestPayload {
+// duration is now part of the same request — no separate booking call.
+// Optional: omit or send 0 for tickets filed without a one-on-one session.
+export interface CreateSupportRequestPayload {
   subject: string;
   description: string;
   priority: Priority;
   category: string;
-  attachments: string[];
+  attachments: unknown[];
+  duration?: number;
 }
 
-export interface AssignTicketPayload {
-  assigned_user_id: string;
-  status?: Status;
+// ⚠️ RECONSTRUCTED — I never saw this file directly, only its exports as used
+// in Support.tsx. Confirm these still match your real implementation.
+
+export async function getSupportTickets(): Promise<Ticket[]> {
+  const res = await API.get("/support-requests");
+  return res.data.data;
 }
 
-export const getSupportTickets = async (): Promise<Ticket[]> => {
-  const response = await API.get<{ success: boolean; data: Ticket[] }>(
-    '/support-booking/'
-  );
-  return response.data.data;
-};
+export async function createSupportRequest(
+  payload: CreateSupportRequestPayload
+): Promise<Ticket> {
+  const res = await API.post("/support-requests", payload);
+  return res.data.data;
+}
 
-export const bookSupportSession = async (
-  payload: BookSupportPayload
-): Promise<Ticket> => {
-  const response = await API.post<{ success: boolean; data: Ticket }>(
-    '/support-booking',
-    payload
-  );
-  return response.data.data;
-};
+// NOTE: bookSupportSession() removed — booking and ticket filing are now the
+// same SupportRequest document; pass `duration` directly to
+// createSupportRequest() instead of making a second call.
 
-export const assignTicket = async (
-  ticketId: string,
-  payload: AssignTicketPayload
-): Promise<Ticket> => {
-  const response = await API.post<{ success: boolean; data: Ticket }>(
-    `/support-booking/assign/${ticketId}`,
-    payload
-  );
-  return response.data.data;
-};
-
-export const createSupportRequest = async (
-  payload: NewRequestPayload
-): Promise<void> => {
-  await API.post('/support-requests', payload);
-};
-
-export const getAgents = async (): Promise<Agent[]> => {
-  const response = await API.get<{ success: boolean; data: Agent[] }>(
-    '/v1/users/userRole'
-  );
-  return response.data.data;
-};
+// NOTE: support usage (used/allowed/remaining minutes) is intentionally NOT
+// fetched here. It already lives on the Subscription object returned by
+// getMySubscription() in dashboard.service.ts — that's the single source of
+// truth the Dashboard page uses, and Support.tsx now reads from the same
+// place instead of duplicating the call.

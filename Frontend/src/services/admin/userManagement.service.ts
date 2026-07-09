@@ -29,6 +29,7 @@ API.interceptors.response.use(
 );
 
 export const getAllUsers = () => API.get('/v1/users');
+export const getAllClients = () => API.get('/v1/users/clients');
 export const getSystemConfig = () => API.get('/system-config/me');
 export const getUserById = (id: string) => API.get(`/v1/users/${id}`);
 export const createUser = (data: {

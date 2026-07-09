@@ -35,15 +35,6 @@ const statusIcons: Record<string, JSX.Element> = {
   ),
 };
 
-const commonIssues = [
-  "Antivirus installation and setup",
-  "Virus or malware removal",
-  "Security software configuration",
-  "System performance optimization",
-  "Real-time protection issues",
-  "Firewall setup and management",
-];
-
 function formatRelativeTime(isoDate: string | null | undefined): string {
   if (!isoDate) return "Never";
   const diff = Date.now() - new Date(isoDate).getTime();
@@ -70,14 +61,18 @@ export default function Antivirus() {
   const [reportLoading, setReportLoading] = useState(true);
   const [reportError, setReportError] = useState("");
 
-  // Schedule form state
-  const [serviceType, setServiceType] = useState("");
+  // Schedule form state (scan-only)
   const [preferredDate, setPreferredDate] = useState("");
   const [preferredTime, setPreferredTime] = useState("");
   const [numDevices, setNumDevices] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [submitSuccess, setSubmitSuccess] = useState("");
   const [submitError, setSubmitError] = useState("");
+
+  // Assistance request state
+  const [assistanceSubmitting, setAssistanceSubmitting] = useState(false);
+  const [assistanceSuccess, setAssistanceSuccess] = useState("");
+  const [assistanceError, setAssistanceError] = useState("");
 
   const tabs: { label: string; value: TabType }[] = [
     { label: "Status", value: "status" },
@@ -113,12 +108,12 @@ export default function Antivirus() {
     })();
   }, []);
 
-  // ── POST: Create antivirus schedule ──
+  // ── POST: Schedule a scan ──
   const handleScheduleSubmit = async () => {
     setSubmitError("");
     setSubmitSuccess("");
 
-    if (!serviceType || !preferredDate || !preferredTime || !numDevices) {
+    if (!preferredDate || !preferredTime || !numDevices) {
       setSubmitError("Please fill in all fields before submitting.");
       return;
     }
@@ -126,13 +121,12 @@ export default function Antivirus() {
     try {
       setSubmitting(true);
       await createAntivirusSchedule({
-        serviceType,
+        serviceType: "scan",
         preferredDate,
         preferredTime,
         numberOfDevices: numDevices,
       });
-      setSubmitSuccess("Service scheduled successfully!");
-      setServiceType("");
+      setSubmitSuccess("Scan scheduled successfully!");
       setPreferredDate("");
       setPreferredTime("");
       setNumDevices("");
@@ -140,6 +134,21 @@ export default function Antivirus() {
       setSubmitError("Server error. Please try again.");
     } finally {
       setSubmitting(false);
+    }
+  };
+
+  // ── Request security assistance ──
+  const handleRequestAssistance = async () => {
+    setAssistanceError("");
+    setAssistanceSuccess("");
+    try {
+      setAssistanceSubmitting(true);
+      // Hook this up to your support/ticketing service as needed.
+      setAssistanceSuccess("Your support request has been submitted. Our team will reach out shortly.");
+    } catch {
+      setAssistanceError("Something went wrong. Please try again.");
+    } finally {
+      setAssistanceSubmitting(false);
     }
   };
 
@@ -208,7 +217,7 @@ export default function Antivirus() {
       {/* Stat Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
         {/* Protection Status */}
-        <div className="bg-white rounded-2xl border border-gray-400 p-4 flex items-center justify-between">
+        <div className="bg-white rounded-2xl border border-gray-300 p-4 flex items-center justify-between">
           <div>
             <p className="text-md text-gray-700 mb-1">Protection Status</p>
             <p className={`text-2xl font-bold ${protectionActive ? "text-green-600" : "text-red-500"}`}>
@@ -223,7 +232,7 @@ export default function Antivirus() {
         </div>
 
         {/* Last Full Scan */}
-        <div className="bg-white rounded-2xl border border-gray-400 p-4 flex items-center justify-between">
+        <div className="bg-white rounded-2xl border border-gray-300 p-4 flex items-center justify-between">
           <div>
             <p className="text-md text-gray-700 mb-1">Last Full Scan</p>
             <p className="text-xl font-bold text-gray-900">
@@ -238,7 +247,7 @@ export default function Antivirus() {
         </div>
 
         {/* Total Scans Requested */}
-        <div className="bg-white rounded-2xl border border-gray-400 p-4 flex items-center justify-between">
+        <div className="bg-white rounded-2xl border border-gray-300 p-4 flex items-center justify-between">
           <div>
             <p className="text-md text-gray-700 mb-1">Total Scans</p>
             <p className="text-2xl font-bold text-gray-900">
@@ -277,7 +286,7 @@ export default function Antivirus() {
           )}
 
           {/* Service Status */}
-          <div className="bg-white rounded-2xl border border-gray-400 p-5">
+          <div className="bg-white rounded-2xl border border-gray-300 p-5">
             <h2 className="text-lg font-bold text-gray-900 mb-1">Service Status</h2>
             <p className="text-md text-gray-700 mb-5">Track your antivirus services</p>
             <div className="space-y-3">
@@ -308,7 +317,7 @@ export default function Antivirus() {
           </div>
 
           {/* Recent Scan Results */}
-          <div className="bg-white rounded-2xl border border-gray-400 p-5">
+          <div className="bg-white rounded-2xl border border-gray-300 p-5">
             <h2 className="text-lg font-bold text-gray-900 mb-1">Recent Scan Results</h2>
             <p className="text-sm text-gray-500 mb-5">
               {scanReport?.recentScan
@@ -355,28 +364,13 @@ export default function Antivirus() {
         </div>
       )}
 
-      {/* ── SCHEDULE TAB ── */}
+      {/* ── SCHEDULE TAB (scan only) ── */}
       {activeTab === "schedule" && (
-        <div className="bg-white rounded-2xl border border-gray-400 p-5">
-          <h2 className="text-lg font-bold text-gray-900 mb-1">Schedule Antivirus Service</h2>
-          <p className="text-md text-gray-700 mb-6">Book installation, setup, or maintenance</p>
+        <div className="bg-white rounded-2xl border border-gray-300 p-5">
+          <h2 className="text-lg font-bold text-gray-900 mb-1">Schedule a Scan</h2>
+          <p className="text-md text-gray-700 mb-6">Book a full antivirus scan for your devices</p>
 
           <div className="space-y-5">
-            <div>
-              <label className="block text-sm font-bold text-gray-900 mb-2">Service Type</label>
-              <select
-                value={serviceType}
-                onChange={(e) => setServiceType(e.target.value)}
-                className="w-full px-4 py-3 rounded-xl bg-gray-100 text-md text-gray-600 focus:outline-none focus:ring-2 focus:ring-green-400 appearance-none cursor-pointer"
-              >
-                <option value="" disabled>Select service type</option>
-                <option value="installation">Installation</option>
-                <option value="setup">Setup</option>
-                <option value="maintenance">Maintenance</option>
-                <option value="scan">Full Scan</option>
-              </select>
-            </div>
-
             <div>
               <label className="block text-md font-bold text-gray-900 mb-2">Preferred Date</label>
               <div className="relative">
@@ -451,58 +445,48 @@ export default function Antivirus() {
               disabled={submitting}
               className="w-full bg-green-500 hover:bg-green-600 active:bg-green-700 disabled:opacity-60 disabled:cursor-not-allowed text-white font-semibold py-3.5 rounded-xl transition-colors text-sm"
             >
-              {submitting ? "Scheduling..." : "Schedule Service"}
+              {submitting ? "Scheduling..." : "Schedule Scan"}
             </button>
           </div>
         </div>
       )}
 
-      {/* ── ASSISTANCE TAB ── */}
+      {/* ── ASSISTANCE TAB (request support only) ── */}
       {activeTab === "assistance" && (
-        <div className="space-y-4">
-          <div className="bg-white rounded-2xl border border-gray-400 p-5">
-            <h2 className="text-lg font-bold text-gray-900 mb-1">Security Assistance</h2>
-            <p className="text-md text-gray-700 mb-5">Get help from our security experts</p>
+        <div className="bg-white rounded-2xl border border-gray-300 p-5">
+          <h2 className="text-lg font-bold text-gray-900 mb-1">Security Assistance</h2>
+          <p className="text-md text-gray-700 mb-5">Get help from our security experts</p>
 
-            <div className="bg-blue-50 rounded-2xl p-5 mb-6">
-              <h3 className="text-base font-bold text-blue-800 mb-2">Need immediate help?</h3>
-              <p className="text-sm text-blue-700 mb-4">
-                Our security team is available to assist you with antivirus installation, configuration, and troubleshooting.
-              </p>
-              <button className="border border-blue-600 text-blue-700 text-sm font-semibold px-5 py-2.5 rounded-xl hover:bg-blue-100 transition-colors">
-                Request Security Assistance
-              </button>
-            </div>
+          <div className="bg-blue-50 rounded-2xl p-5">
+            <h3 className="text-base font-bold text-blue-800 mb-2">Need immediate help?</h3>
+            <p className="text-sm text-blue-700 mb-4">
+              Our security team is available to assist you with antivirus installation, configuration, and troubleshooting.
+            </p>
 
-            <div>
-              <h3 className="text-base font-bold text-gray-900 mb-4">Common Issues We Can Help With:</h3>
-              <ul className="space-y-3">
-                {commonIssues.map((issue) => (
-                  <li key={issue} className="flex items-center gap-3 text-md text-gray-700">
-                    <svg className="w-5 h-5 text-green-500 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                    </svg>
-                    {issue}
-                  </li>
-                ))}
-              </ul>
-            </div>
-          </div>
+            {assistanceSuccess && (
+              <div className="flex items-center gap-2 bg-green-50 border border-green-200 text-green-700 text-sm font-medium px-4 py-3 rounded-xl mb-4">
+                <svg className="w-4 h-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                {assistanceSuccess}
+              </div>
+            )}
+            {assistanceError && (
+              <div className="flex items-center gap-2 bg-red-50 border border-red-200 text-red-700 text-sm font-medium px-4 py-3 rounded-xl mb-4">
+                <svg className="w-4 h-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
+                </svg>
+                {assistanceError}
+              </div>
+            )}
 
-          <div className="bg-white rounded-2xl border border-gray-400 p-5">
-            <h3 className="text-base font-bold text-gray-900 mb-4">Response Time</h3>
-            <div className="space-y-3">
-              {[
-                { label: "High Priority:", value: "Within 2 hours" },
-                { label: "Medium Priority:", value: "Within 24 hours" },
-                { label: "Low Priority:", value: "Within 48 hours" },
-              ].map((row) => (
-                <div key={row.label} className="flex justify-between items-center text-sm border-b border-gray-50 pb-3 last:border-0 last:pb-0">
-                  <span className="text-md text-gray-700">{row.label}</span>
-                  <span className="font-bold text-gray-900">{row.value}</span>
-                </div>
-              ))}
-            </div>
+            <button
+              onClick={handleRequestAssistance}
+              disabled={assistanceSubmitting}
+              className="border border-blue-600 text-blue-700 text-sm font-semibold px-5 py-2.5 rounded-xl hover:bg-blue-100 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+            >
+              {assistanceSubmitting ? "Submitting..." : "Request Security Assistance"}
+            </button>
           </div>
         </div>
       )}

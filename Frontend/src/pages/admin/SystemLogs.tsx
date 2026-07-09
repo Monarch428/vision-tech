@@ -261,7 +261,7 @@ export default function SystemLogs() {
           <button
             type="button"
             onClick={handleExport}
-            className="flex items-center gap-2 px-3 sm:px-4 py-2 sm:py-2.5 border border-gray-700 bg-white rounded-xl text-xs sm:text-sm font-semibold text-gray-700 hover:bg-gray-50 hover:border-gray-300 transition-all shadow-sm flex-shrink-0"
+            className="flex items-center gap-2 px-3 sm:px-4 py-2 sm:py-2.5 border border-gray-300 bg-white rounded-xl text-xs sm:text-sm font-semibold text-gray-700 hover:bg-gray-50 hover:border-gray-300 transition-all shadow-sm flex-shrink-0"
           >
             <Download size={14} />
             <span className="hidden sm:inline">Export Logs</span>
@@ -274,7 +274,7 @@ export default function SystemLogs() {
           {stats.map((s) => (
             <div
               key={s.label}
-              className="bg-white border border-gray-700 rounded-xl p-3 sm:p-5 shadow-sm flex items-center justify-between gap-3"
+              className="bg-white border border-gray-300 rounded-xl p-3 sm:p-5 shadow-sm flex items-center justify-between gap-3"
             >
               <div>
                 <p className="text-xs sm:text-md text-gray-700 mb-1">{s.label}</p>
@@ -288,8 +288,8 @@ export default function SystemLogs() {
         </div>
 
         {/* Filters */}
-        <div className="flex flex-col sm:flex-row gap-2 p-3 sm:p-4 bg-white border border-gray-700 border-b-0 rounded-t-xl">
-          <div className="flex items-center gap-2 flex-1 border border-gray-700 rounded-lg px-3 py-2 bg-gray-100 focus-within:border-gray-400 focus-within:bg-white transition-all">
+        <div className="flex flex-col sm:flex-row gap-2 p-3 sm:p-4 bg-white border border-gray-300 border-b-0 rounded-t-xl">
+          <div className="flex items-center gap-2 flex-1 border border-gray-300 rounded-lg px-3 py-2 bg-gray-100 focus-within:border-gray-400 focus-within:bg-white transition-all">
             <Search size={14} className="text-gray-400 flex-shrink-0" />
             <input
               type="text"
@@ -311,7 +311,7 @@ export default function SystemLogs() {
             <button
               type="button"
               onClick={() => setTypeDropdownOpen((o) => !o)}
-              className="w-full flex items-center justify-between gap-2 border border-gray-700 rounded-lg px-3 py-2 text-xs sm:text-sm text-gray-600 bg-gray-100 hover:bg-white hover:border-gray-300 transition-all"
+              className="w-full flex items-center justify-between gap-2 border border-gray-300 rounded-lg px-3 py-2 text-xs sm:text-sm text-gray-600 bg-gray-100 hover:bg-white hover:border-gray-300 transition-all"
             >
               <span className="capitalize">{typeFilter}</span>
               <ChevronDown
@@ -320,7 +320,7 @@ export default function SystemLogs() {
               />
             </button>
             {typeDropdownOpen && (
-              <div className="absolute top-full mt-1 left-0 w-full bg-white border border-gray-700 rounded-xl shadow-lg overflow-hidden">
+              <div className="absolute top-full mt-1 left-0 w-full bg-white border border-gray-300 rounded-xl shadow-lg overflow-hidden">
                 {typeOptions.map((opt) => (
                   <button
                     key={opt}
@@ -346,7 +346,7 @@ export default function SystemLogs() {
         </div>
 
         {/* ── Mobile Cards (below sm) ── */}
-        <div className="sm:hidden bg-white border border-gray-700 border-t-0 rounded-b-xl divide-y divide-gray-100">
+        <div className="sm:hidden bg-white border border-gray-300 border-t-0 rounded-b-xl divide-y divide-gray-100">
           {loading && (
             <div className="py-16 text-center text-gray-400 text-sm">Loading system logs...</div>
           )}
@@ -433,7 +433,7 @@ export default function SystemLogs() {
             width: "100%",
             overflow: "hidden",
             borderRadius: "0 0 12px 12px",
-            border: "1px solid #374151",
+            border: "1px solid #d1d5db",
             borderTop: "none",
           }}
         >
@@ -460,7 +460,7 @@ export default function SystemLogs() {
                             color: "#000000",
                             letterSpacing: "0.07em",
                             textTransform: "uppercase",
-                            borderBottom: "1px solid #374151",
+                            borderBottom: "1px solid #d1d5db",
                             py: 1.75,
                             px: 2,
                             fontFamily: "inherit",
@@ -492,7 +492,7 @@ export default function SystemLogs() {
                           sx={{
                             "&:hover": { backgroundColor: "#f9fafb", cursor: "pointer" },
                             "& td": {
-                              borderBottom: "1px solid #374151",
+                              borderBottom: "1px solid #d1d5db",
                               py: 1.5,
                               px: 2,
                               fontFamily: "inherit",
@@ -542,7 +542,7 @@ export default function SystemLogs() {
                   setPage(0);
                 }}
                 sx={{
-                  borderTop: "1px solid #374151",
+                  borderTop: "1px solid #d1d5db",
                   fontSize: "0.875rem",
                   color: "#6b7280",
                   fontFamily: "inherit",
@@ -561,7 +561,7 @@ export default function SystemLogs() {
         </Paper>
 
         {/* Recent Activity Timeline */}
-        <div className="bg-white border border-gray-700 rounded-xl shadow-sm overflow-hidden mt-6">
+        <div className="bg-white border border-gray-300 rounded-xl shadow-sm overflow-hidden mt-6">
           <div className="px-4 sm:px-6 py-4 sm:py-5 border-b border-gray-100">
             <h2 className="text-base font-bold text-gray-900">Recent Activity Timeline</h2>
             <p className="text-xs sm:text-md text-gray-700 mt-0.5">

@@ -453,10 +453,10 @@ export default function ServiceRequests() {
         {/* Header */}
         <div className="mb-6">
           <h1 className="text-xl sm:text-2xl font-semibold text-gray-900">
-            Service Requests
+            Support Requests
           </h1>
           <p className="text-md text-gray-700 mt-1">
-            Manage and track all service requests
+            Manage and track all support requests
           </p>
         </div>
 
@@ -469,7 +469,7 @@ export default function ServiceRequests() {
             { label: "Closed", value: counts.closed, color: "text-gray-500" },
             { label: "High Priority", value: counts.high, color: "text-red-600" },
           ].map((stat) => (
-            <div key={stat.label} className="bg-white border border-gray-700 rounded-2xl p-4">
+            <div key={stat.label} className="bg-white border border-gray-300 rounded-2xl p-4">
               <p className="text-xs sm:text-sm text-gray-500 mb-2">{stat.label}</p>
               <p className={`text-2xl sm:text-3xl font-semibold ${stat.color}`}>{stat.value}</p>
             </div>
@@ -496,7 +496,7 @@ export default function ServiceRequests() {
         </div>
 
         {/* Filters */}
-        <div className="flex flex-col sm:flex-row gap-3 p-3 sm:p-5 bg-white border border-gray-700 border-b-0 rounded-t-2xl">
+        <div className="flex flex-col sm:flex-row gap-3 p-3 sm:p-5 bg-white border border-gray-300 border-b-0 rounded-t-2xl">
           <div className="relative flex-1">
             <svg
               className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400"
@@ -512,13 +512,13 @@ export default function ServiceRequests() {
               placeholder="Search by name, description, ticket no..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="w-full pl-9 pr-4 py-2 rounded-xl bg-gray-100 border border-gray-700 text-sm text-gray-700 placeholder-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-400"
+              className="w-full pl-9 pr-4 py-2 rounded-xl bg-gray-100 border border-gray-300 text-sm text-gray-700 placeholder-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-400"
             />
           </div>
           <select
             value={typeFilter}
             onChange={(e) => setTypeFilter(e.target.value)}
-            className="w-full sm:w-40 px-3 py-2 rounded-xl bg-gray-100 border border-gray-700 text-sm text-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-400 appearance-none cursor-pointer"
+            className="w-full sm:w-40 px-3 py-2 rounded-xl bg-gray-100 border border-gray-300 text-sm text-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-400 appearance-none cursor-pointer"
           >
             {CATEGORIES.map((t) => (
               <option key={t}>{t}</option>
@@ -527,7 +527,7 @@ export default function ServiceRequests() {
         </div>
 
         {/* ── Mobile Cards (below sm) ── */}
-        <div className="sm:hidden bg-white border border-gray-700 border-t-0 rounded-b-2xl divide-y divide-gray-100">
+        <div className="sm:hidden bg-white border border-gray-300 border-t-0 rounded-b-2xl divide-y divide-gray-100">
           {filtered.length === 0 ? (
             <div className="py-16 text-center text-gray-400 text-sm">
               No results found.
@@ -628,7 +628,7 @@ export default function ServiceRequests() {
             width: "100%",
             overflow: "hidden",
             borderRadius: "0 0 16px 16px",
-            border: "1px solid #374151",
+            border: "1px solid #d1d5db",
             borderTop: "none",
           }}
         >
@@ -644,7 +644,7 @@ export default function ServiceRequests() {
                         fontWeight: 600,
                         fontSize: "0.875rem",
                         color: "#6b7280",
-                        borderBottom: "1px solid #374151",
+                        borderBottom: "1px solid #d1d5db",
                         py: 1.75,
                         px: 2.5,
                         fontFamily: "inherit",
@@ -675,7 +675,7 @@ export default function ServiceRequests() {
                       sx={{
                         "&:hover": { backgroundColor: "rgba(249,250,251,0.8)" },
                         "& td": {
-                          borderBottom: "1px solid #374151",
+                          borderBottom: "1px solid #d1d5db",
                           py: 1.5,
                           px: 2.5,
                           fontFamily: "inherit",
@@ -748,7 +748,7 @@ export default function ServiceRequests() {
               setPage(0);
             }}
             sx={{
-              borderTop: "1px solid #374151",
+              borderTop: "1px solid #d1d5db",
               fontSize: "0.875rem",
               color: "#64748b",
               fontFamily: "inherit",

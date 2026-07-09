@@ -15,7 +15,7 @@ const createSupportRequest = async (req, res) => {
       });
     }
 
-    const { subject, description, priority, category, attachments } = req.body;
+    const { subject, description, priority, category, attachments, duration } = req.body;
 
     const lastRequest = await SupportRequest.findOne({
       ticketNumber: { $exists: true, $ne: null },
@@ -38,6 +38,7 @@ const createSupportRequest = async (req, res) => {
       priority,
       category,
       attachments,
+      duration: Number(duration) || 0,
       createdBy: user,
     });
 
@@ -111,12 +112,21 @@ const getSupportRequests = async (req, res) => {
 
     const bookings = await SupportRequest
       .find({ user })
-      .populate("user", "name email");
+      .populate("user", "name email")
+      .populate("assigned_user_id", "name email")
+      .lean();
+
+    // Flatten assigned_user_id → assignedTo (display name) so the frontend
+    // ticket detail modal can show it directly without a nested lookup.
+    const data = bookings.map((b) => ({
+      ...b,
+      assignedTo: b.assigned_user_id?.name || b.assigned_user_id?.email || null,
+    }));
 
     res.status(200).json({
       success: true,
       message: "Support requests retrieved successfully",
-      data: bookings,
+      data,
     });
   } catch (error) {
     await systemLogger({
@@ -142,9 +152,46 @@ const assignTicket = async (req, res) => {
     const { ticketId } = req.params;
     const { assigned_user_id, status } = req.body;
 
+    // Fetch the previous state first so we can build a meaningful activity
+    // message (what actually changed) before overwriting it.
+    const previous = await SupportRequest.findById(ticketId);
+    if (!previous) {
+      return res.status(404).json({ success: false, message: "Ticket not found" });
+    }
+
+    const actorName = req.user?.name || req.user?.email || "System";
+
+    let assigneeName = null;
+    if (assigned_user_id && assigned_user_id !== String(previous.assigned_user_id || "")) {
+      const assignee = await User.findById(assigned_user_id).select("name email");
+      assigneeName = assignee?.name || assignee?.email || "a team member";
+    }
+
+    // "Ticket assigned by <actor> to <assignee>" instead of "assigned to X by actor"
+    const changeMessages = [];
+    if (assigneeName) changeMessages.push(`assigned by ${actorName} to ${assigneeName}`);
+    if (status && status !== previous.status) changeMessages.push(`status changed to "${status}" by ${actorName}`);
+
+    const activityEntry = changeMessages.length
+      ? {
+        message: `Ticket ${changeMessages.join(" and ")}`,
+        by: actorName,
+        status: status || previous.status,
+        createdAt: new Date(),
+      }
+      : null;
+
+    const update = { assigned_user_id, status };
+    if (status === "resolved" || status === "closed") {
+      update.resolvedAt = new Date();
+    }
+    if (activityEntry) {
+      update.$push = { activity: activityEntry };
+    }
+
     const ticket = await SupportRequest.findByIdAndUpdate(
       ticketId,
-      { assigned_user_id, status },
+      update,
       { new: true }
     )
       .populate("assigned_user_id", "name email")
@@ -168,7 +215,7 @@ const assignTicket = async (req, res) => {
     try {
       if (ticket.assigned_user_id?.email) {
         await sendEmail({
-          to: ticket.assigned_user_id.email,   // vijayabhinesh07@gmail.com
+          to: ticket.assigned_user_id.email,
           subject: `You've been assigned Ticket ${ticket.ticketNumber}`,
           html: `
             <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
@@ -256,9 +303,43 @@ const getAllSupportRequests = async (req, res) => {
   }
 };
 
+const getRecentSupportRequests = async (req, res) => {
+  try {
+    const bookings = await SupportRequest.find()
+      .sort({ createdAt: -1 })
+      .limit(5)
+      .populate("user", "name email")
+      .populate("assigned_user_id", "name")
+      .lean();
+
+    res.status(200).json({
+      success: true,
+      message: "Recent support requests retrieved successfully",
+      data: bookings,
+    });
+  } catch (error) {
+    await systemLogger({
+      type: "error",
+      action: "RECENT_SUPPORT_REQUESTS_FETCH_ERROR",
+      user: req.user?._id,
+      userEmail: req.user?.email,
+      details: `Failed to fetch recent support requests: ${error.message}`,
+      module: "support-requests",
+      ipAddress: req.ip,
+    });
+
+    res.status(500).json({
+      success: false,
+      message: "Error retrieving recent support requests",
+      error: error.message,
+    });
+  }
+};
+
 module.exports = {
   createSupportRequest,
   getSupportRequests,
   assignTicket,
   getAllSupportRequests,
+  getRecentSupportRequests
 };

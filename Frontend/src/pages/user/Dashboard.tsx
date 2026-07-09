@@ -413,7 +413,7 @@ export default function Dashboard() {
           ].map((s) => (
             <div
               key={s.label}
-              className="bg-white border border-gray-700 rounded-2xl p-3 sm:p-5 flex items-center justify-between gap-2 sm:gap-4"
+              className="bg-white border border-gray-300 rounded-2xl p-3 sm:p-5 flex items-center justify-between gap-2 sm:gap-4"
             >
               <div className="min-w-0">
                 <p className="text-xs sm:text-md text-gray-900 font-medium mb-1 leading-tight">
@@ -433,7 +433,7 @@ export default function Dashboard() {
         </div>
 
         {/* Quick Actions */}
-        <div className="bg-white border border-gray-700 rounded-2xl p-4 sm:p-5">
+        <div className="bg-white border border-gray-300 rounded-2xl p-4 sm:p-5">
           <h2 className="text-base font-bold text-gray-900">Quick Actions</h2>
           <p className="text-md text-gray-900 mb-4 mt-0.5">
             Common tasks you can perform
@@ -499,7 +499,7 @@ export default function Dashboard() {
               <button
                 key={a.title}
                 onClick={a.action}
-                className="flex items-center gap-3 p-4 border border-gray-700 rounded-xl hover:bg-gray-50 hover:border-gray-200 transition-all text-left w-full group"
+                className="flex items-center gap-3 p-4 border border-gray-300 rounded-xl hover:bg-gray-50 hover:border-gray-200 transition-all text-left w-full group"
               >
                 <div
                   className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${a.bg}`}
@@ -520,7 +520,7 @@ export default function Dashboard() {
         {/* Subscription + Recent Payments */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {/* Subscription Summary */}
-          <div className="bg-white border border-gray-700 rounded-2xl p-4 sm:p-5">
+          <div className="bg-white border border-gray-300 rounded-2xl p-4 sm:p-5">
             <h2 className="text-base font-bold text-gray-900">Subscription</h2>
             <p className="text-md text-gray-900 mb-4 mt-0.5">
               Your current plan and usage
@@ -616,7 +616,7 @@ export default function Dashboard() {
           </div>
 
           {/* Recent Payments */}
-          <div className="bg-white border border-gray-700 rounded-2xl p-4 sm:p-5">
+          <div className="bg-white border border-gray-300 rounded-2xl p-4 sm:p-5">
             <h2 className="text-base font-bold text-gray-900">
               Recent Payments
             </h2>

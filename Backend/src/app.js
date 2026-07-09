@@ -5,7 +5,7 @@ require("dotenv").config();
 const { v2: cloudinary } = require("cloudinary");
 
 const authRoutes = require('./routes/auth/auth.routes');
-const supportBookingRoutes  = require('./routes/support/supportBooking.routes');
+// const supportBookingRoutes  = require('./routes/support/supportBooking.routes');
 const supportRequestRoutes  = require('./routes/support/supportRequest.routes');
 const userRoutes = require('./routes/user-management/user.routes');
 const userSubscriptionRoutes = require('./routes/subscription/userSubscription.routes');
@@ -138,7 +138,6 @@ app.get("/api/system-logs/stats", async (req, res) => {
 
 // ✅ All other routes
 app.use('/api/auth',               authRoutes);
-app.use('/api/support-booking', supportBookingRoutes);
 app.use('/api/support-requests', supportRequestRoutes);
 app.use('/api/v1/users',           userRoutes);
 app.use('/api/user-subscriptions', userSubscriptionRoutes);
@@ -148,7 +147,6 @@ app.use('/api/antivirus-schedules', antivirusScheduleRoutes);
 app.use('/api/self-help',          selfHelpRoutes);
 app.use('/api/system-config',          systemConfig);
 app.use('/api/data-management',          dataManagementRoutes);
-// app.use("/api/system-health", systemHealthRoutes);
 
 
 startSubscriptionReminder();

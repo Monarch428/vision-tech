@@ -233,7 +233,7 @@ export default function Subscriptions() {
           {stats.map((s) => (
             <div
               key={s.label}
-              className="bg-white border border-gray-700 rounded-xl p-3 sm:p-4 flex items-center justify-between shadow-sm"
+              className="bg-white border border-gray-300 rounded-xl p-3 sm:p-4 flex items-center justify-between shadow-sm"
             >
               <div className="min-w-0 flex-1">
                 <p className="text-xs text-gray-700 leading-tight truncate">
@@ -253,8 +253,8 @@ export default function Subscriptions() {
         </div>
 
         {/* Filters */}
-        <div className="flex flex-col sm:flex-row gap-2 p-3 sm:p-4 bg-white border border-gray-700 border-b-0 rounded-t-xl">
-          <div className="flex items-center gap-2 flex-1 border border-gray-700 rounded-lg px-3 py-2 bg-gray-100 focus-within:border-green-400 focus-within:bg-white transition-all">
+        <div className="flex flex-col sm:flex-row gap-2 p-3 sm:p-4 bg-white border border-gray-300 border-b-0 rounded-t-xl">
+          <div className="flex items-center gap-2 flex-1 border border-gray-300 rounded-lg px-3 py-2 bg-gray-100 focus-within:border-green-400 focus-within:bg-white transition-all">
             <Search size={14} className="text-slate-400 flex-shrink-0" />
             <input
               type="text"
@@ -277,7 +277,7 @@ export default function Subscriptions() {
           <select
             value={statusFilter}
             onChange={(e) => setStatusFilter(e.target.value)}
-            className="border border-gray-700 rounded-lg px-3 py-2 text-xs sm:text-sm text-slate-600 bg-gray-100 outline-none cursor-pointer focus:border-green-400 sm:w-36"
+            className="border border-gray-300 rounded-lg px-3 py-2 text-xs sm:text-sm text-slate-600 bg-gray-100 outline-none cursor-pointer focus:border-green-400 sm:w-36"
           >
             {["All Status", "Active", "Paused", "Cancelled", "Expired"].map(
               (o) => <option key={o}>{o}</option>,
@@ -286,7 +286,7 @@ export default function Subscriptions() {
         </div>
 
         {/* ── Mobile Cards (sm and below) ── */}
-        <div className="sm:hidden bg-white border border-gray-700 border-t-0 rounded-b-xl divide-y divide-slate-100">
+        <div className="sm:hidden bg-white border border-gray-300 border-t-0 rounded-b-xl divide-y divide-slate-100">
           {loading && (
             <div className="py-16 text-center text-slate-400 text-sm">
               Loading subscriptions...
@@ -353,12 +353,28 @@ export default function Subscriptions() {
                       <button
                         type="button"
                         onClick={() => togglePause(s._id, s.status)}
-                        className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium border border-slate-200 rounded-lg hover:bg-slate-100 transition-all"
+                        className={`group inline-flex items-center gap-2 rounded-lg px-3 py-2 text-xs font-semibold transition-all duration-300 active:scale-95 hover:scale-105 shadow-sm
+    ${s.status === "active"
+                            ? "bg-orange-50 text-orange-600 border border-orange-200 hover:bg-orange-500 hover:text-white hover:border-orange-500 hover:shadow-md"
+                            : "bg-green-50 text-green-600 border border-green-200 hover:bg-green-500 hover:text-white hover:border-green-500 hover:shadow-md"
+                          }`}
                       >
                         {s.status === "active" ? (
-                          <><Pause size={11} /> Pause</>
+                          <>
+                            <Pause
+                              size={13}
+                              className="transition-transform duration-300 group-hover:rotate-12"
+                            />
+                            Pause
+                          </>
                         ) : (
-                          <><Play size={11} /> Resume</>
+                          <>
+                            <Play
+                              size={13}
+                              className="transition-transform duration-300 group-hover:translate-x-0.5"
+                            />
+                            Resume
+                          </>
                         )}
                       </button>
                     )}
@@ -404,7 +420,7 @@ export default function Subscriptions() {
             width: "100%",
             overflow: "hidden",
             borderRadius: "0 0 12px 12px",
-            border: "1px solid #374151",
+            border: "1px solid #d1d5db",
             borderTop: "none",
           }}
         >
@@ -432,7 +448,7 @@ export default function Subscriptions() {
                             fontSize: "0.875rem",
                             color: "#6b7280",
                             letterSpacing: "0.05em",
-                            borderBottom: "1px solid #374151",
+                            borderBottom: "1px solid #d1d5db",
                             py: 1.75,
                             px: 2.5,
                             fontFamily: "inherit",
@@ -467,7 +483,7 @@ export default function Subscriptions() {
                               backgroundColor: "rgba(249,250,251,0.8)",
                             },
                             "& td": {
-                              borderBottom: "1px solid #374151",
+                              borderBottom: "1px solid #d1d5db",
                               py: 1.5,
                               px: 2.5,
                               fontFamily: "inherit",
@@ -519,12 +535,22 @@ export default function Subscriptions() {
                               <button
                                 type="button"
                                 onClick={() => togglePause(s._id, s.status)}
-                                className="flex items-center gap-1 px-2 py-1 text-[10px] font-medium border border-slate-200 rounded-md hover:bg-slate-100 transition-all whitespace-nowrap"
+                                className={`group flex items-center gap-1 px-2.5 py-1.5 text-[10px] font-semibold rounded-md border transition-all duration-300 active:scale-95 hover:scale-105 shadow-sm whitespace-nowrap
+      ${s.status === "active"
+                                    ? "bg-orange-50 text-orange-600 border-orange-200 hover:bg-orange-500 hover:text-white hover:border-orange-500 hover:shadow-md"
+                                    : "bg-green-50 text-green-600 border-green-200 hover:bg-green-500 hover:text-white hover:border-green-500 hover:shadow-md"
+                                  }`}
                               >
                                 {s.status === "active" ? (
-                                  <><Pause size={10} /> Pause</>
+                                  <>
+                                    <Pause size={10} className="transition-transform duration-300 group-hover:rotate-12" />
+                                    Pause
+                                  </>
                                 ) : (
-                                  <><Play size={10} /> Resume</>
+                                  <>
+                                    <Play size={10} className="transition-transform duration-300 group-hover:translate-x-0.5" />
+                                    Resume
+                                  </>
                                 )}
                               </button>
                             )}
@@ -552,7 +578,7 @@ export default function Subscriptions() {
                   setPage(0);
                 }}
                 sx={{
-                  borderTop: "1px solid #374151",
+                  borderTop: "1px solid #d1d5db",
                   fontSize: "0.875rem",
                   color: "#64748b",
                   fontFamily: "inherit",

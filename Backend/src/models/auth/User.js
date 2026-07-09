@@ -36,6 +36,14 @@ const userSchema = new mongoose.Schema(
       default: true,
     },
 
+    // 🔥 separate from isActive: false until the signup OTP is confirmed.
+    // Accounts created through the normal flow are verified immediately;
+    // only the OTP-gated ('usercreated') signup path starts this as false.
+    isVerified: {
+      type: Boolean,
+      default: true,
+    },
+
     lastLogin: {
       type: Date,
       default: null,
@@ -86,11 +94,9 @@ userSchema.pre('save', async function () {
   this.password = await bcrypt.hash(this.password, salt);
 });
 
-
 // ✅ Compare password method
 userSchema.methods.comparePassword = async function (enteredPassword) {
   return await bcrypt.compare(enteredPassword, this.password);
 };
-
 
 module.exports = mongoose.model('User', userSchema);

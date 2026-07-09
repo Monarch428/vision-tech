@@ -278,7 +278,7 @@ function SystemActions() {
   ];
 
   return (
-    <div className="bg-white rounded-2xl border border-gray-700 p-5">
+    <div className="bg-white rounded-2xl border border-gray-300 p-5">
       <h2 className="text-lg font-bold text-gray-900 mb-1">System Actions</h2>
       <p className="text-md text-gray-700 mb-5">
         Perform critical system operations
@@ -287,7 +287,7 @@ function SystemActions() {
         {actions.map((action) => (
           <button
             key={action.label}
-            className="flex flex-col items-center justify-center gap-3 border border-gray-700 rounded-2xl px-4 py-6 hover:bg-gray-50 transition-colors text-sm font-semibold text-gray-800"
+            className="flex flex-col items-center justify-center gap-3 border border-gray-300 rounded-2xl px-4 py-6 hover:bg-gray-50 transition-colors text-sm font-semibold text-gray-800"
           >
             {action.icon}
             {action.label}
@@ -546,7 +546,7 @@ export default function SystemConfig() {
 
         {/* Stat Cards */}
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
-          <div className="bg-white rounded-2xl border border-gray-700 p-4 flex items-center justify-between">
+          <div className="bg-white rounded-2xl border border-gray-300 p-4 flex items-center justify-between">
             <div>
               <p className="text-md text-gray-700 mb-1">System Status</p>
               <p className="text-2xl font-bold text-green-600">
@@ -574,7 +574,7 @@ export default function SystemConfig() {
               </svg>
             </div>
           </div>
-          <div className="bg-white rounded-2xl border border-gray-700 p-4 flex items-center justify-between">
+          <div className="bg-white rounded-2xl border border-gray-300 p-4 flex items-center justify-between">
             <div>
               <p className="text-md text-gray-700 mb-1">Database Health</p>
               <p className="text-2xl font-bold text-green-600">
@@ -595,7 +595,7 @@ export default function SystemConfig() {
               </svg>
             </div>
           </div>
-          <div className="bg-white rounded-2xl border border-gray-700 p-4 flex items-center justify-between">
+          <div className="bg-white rounded-2xl border border-gray-300 p-4 flex items-center justify-between">
             <div>
               <p className="text-md text-gray-700 mb-1">API Status</p>
               <p className="text-2xl font-bold text-green-600">
@@ -652,7 +652,7 @@ export default function SystemConfig() {
         {/* ── GENERAL TAB ── */}
         {!fetchLoading && activeTab === "general" && (
           <div className="space-y-4">
-            <div className="bg-white rounded-2xl border border-gray-700 p-5">
+            <div className="bg-white rounded-2xl border border-gray-300 p-5">
               <h2 className="text-lg font-bold text-gray-900 mb-1">
                 General Settings
               </h2>
@@ -721,7 +721,7 @@ export default function SystemConfig() {
         {/* ── EMAIL TAB ── */}
         {!fetchLoading && activeTab === "email" && (
           <div className="space-y-4">
-            <div className="bg-white rounded-2xl border border-gray-700 p-5">
+            <div className="bg-white rounded-2xl border border-gray-300 p-5">
               <h2 className="text-lg font-bold text-gray-900 mb-1">
                 Email Configuration
               </h2>
@@ -850,7 +850,7 @@ export default function SystemConfig() {
         {/* ── SECURITY TAB ── */}
         {!fetchLoading && activeTab === "security" && (
           <div className="space-y-4">
-            <div className="bg-white rounded-2xl border border-gray-700 p-5">
+            <div className="bg-white rounded-2xl border border-gray-300 p-5">
               <h2 className="text-lg font-bold text-gray-900 mb-1">
                 Security Settings
               </h2>
@@ -915,7 +915,7 @@ export default function SystemConfig() {
         {/* ── NOTIFICATIONS TAB ── */}
         {!fetchLoading && activeTab === "notifications" && (
           <div className="space-y-4">
-            <div className="bg-white rounded-2xl border border-gray-700 p-5">
+            <div className="bg-white rounded-2xl border border-gray-300 p-5">
               <h2 className="text-lg font-bold text-gray-900 mb-1">
                 Notification Settings
               </h2>

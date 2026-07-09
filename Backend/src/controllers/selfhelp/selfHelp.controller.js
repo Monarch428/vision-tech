@@ -35,17 +35,27 @@ const getBDUrls = () => {
 };
 
 // ─── Shared CSV helpers ───────────────────────────────────────────────────────
-const parseCSVLine = (line) => {
+const parseCSVLine = (line, delimiter) => {
   const result = [];
   let current = '';
   let inQuotes = false;
   for (const char of line) {
     if (char === '"') { inQuotes = !inQuotes; }
-    else if (char === ',' && !inQuotes) { result.push(current.trim().replace(/^"|"$/g, '')); current = ''; }
+    else if (char === delimiter && !inQuotes) { result.push(current.trim().replace(/^"|"$/g, '')); current = ''; }
     else { current += char; }
   }
   result.push(current.trim().replace(/^"|"$/g, ''));
   return result;
+};
+
+// Bitdefender's CSV export delimiter can vary (comma vs semicolon) depending
+// on the account's locale settings. Detect it from the header line instead
+// of assuming comma, otherwise every column collapses into one field and
+// nothing downstream matches.
+const detectDelimiter = (headerLine) => {
+  const commaCount = (headerLine.match(/,/g) || []).length;
+  const semiCount = (headerLine.match(/;/g) || []).length;
+  return semiCount > commaCount ? ';' : ',';
 };
 
 // Parses the FULL CSV into an array of row objects (one per data line),
@@ -53,24 +63,39 @@ const parseCSVLine = (line) => {
 // "On demand scanning" report returns one row per individual scan
 // execution, not one aggregated summary row.
 const parseCSVRows = (csvData) => {
-  if (!csvData) return [];
+  if (!csvData) return { rows: [], headers: [] };
   const cleaned = csvData.replace(/^\uFEFF/, '');
   const lines = cleaned.split(/\r?\n/).filter(Boolean);
-  if (lines.length < 2) return [];
-  const hdrs = parseCSVLine(lines[0]).map((h) => h.toLowerCase().trim());
+  if (lines.length < 1) return { rows: [], headers: [] };
+
+  const delimiter = detectDelimiter(lines[0]);
+  const hdrs = parseCSVLine(lines[0], delimiter).map((h) => h.toLowerCase().trim());
   const rows = [];
   for (let i = 1; i < lines.length; i++) {
-    const vals = parseCSVLine(lines[i]);
+    const vals = parseCSVLine(lines[i], delimiter);
     if (!vals.length) continue;
     const row = {};
     hdrs.forEach((h, idx) => { row[h] = vals[idx] ?? ''; });
     rows.push(row);
   }
-  return rows;
+  return { rows, headers: hdrs };
 };
 
-const getExact = (map, key) => {
-  const raw = map[key];
+// Finds a column value by fuzzy-matching header text, since GravityZone's
+// exact wording for report columns varies by report type/version/locale
+// (e.g. "Last successful scan - Scanned files" vs "Scanned files" vs
+// "Objects scanned"). `patterns` is a list of keyword-arrays; a header
+// matches if it contains ALL keywords in at least one array.
+const findFieldValue = (row, patterns) => {
+  const keys = Object.keys(row);
+  for (const keywords of patterns) {
+    const match = keys.find((k) => keywords.every((kw) => k.includes(kw)));
+    if (match) return row[match];
+  }
+  return undefined;
+};
+
+const getExact = (raw) => {
   if (raw === undefined || raw === '' || raw === 'N/A') return 0;
   const parsed = parseInt(String(raw).replace(/,(?=\d{3})/g, ''), 10);
   return isNaN(parsed) ? 0 : parsed;
@@ -102,39 +127,87 @@ const pickReportingInterval = (oldestDate) => {
   if (!oldestDate) return 8; // safest fallback: This year
   const days = (Date.now() - oldestDate.getTime()) / (1000 * 60 * 60 * 24);
   if (days <= 0) return 0;
-  if (days <= 1) return 1;
-  if (days <= 7) return 2;
-  if (days <= 30) return 4;
-  if (days <= 60) return 6;
-  if (days <= 90) return 7;
-  return 8;
+
+  const now = new Date();
+
+  const startOfWeek = (d) => {
+    const copy = new Date(d);
+    const day = (copy.getDay() + 6) % 7; // 0 = Monday
+    copy.setHours(0, 0, 0, 0);
+    copy.setDate(copy.getDate() - day);
+    return copy;
+  };
+
+  const sameCalendarWeek = startOfWeek(oldestDate).getTime() === startOfWeek(now).getTime();
+
+  const sameCalendarMonth =
+    oldestDate.getFullYear() === now.getFullYear() &&
+    oldestDate.getMonth() === now.getMonth();
+
+  if (days <= 1) return 1; // Last day
+  if (days <= 7 && sameCalendarWeek) return 2; // This week (only if truly same week)
+  if (days <= 14) return 3; // Last week (covers spillover into prior week)
+  if (days <= 30 && sameCalendarMonth) return 4; // This month
+  if (days <= 60) return 6; // Last 2 months
+  if (days <= 90) return 7; // Last 3 months
+  return 8; // This year
 };
 
 // ─── Download ZIP / CSV from a BD report link ─────────────────────────────────
+// IMPORTANT: GravityZone's `downloadReportZip` link always returns a real
+// ZIP binary. Requesting it with responseType: 'text' (as a first attempt)
+// forces axios to decode raw ZIP bytes as UTF-8, which corrupts the payload
+// — but the corrupted garbage can still coincidentally contain a comma
+// character, so a naive `.includes(',')` check can wrongly accept it as
+// "CSV data present" while it's actually unparsable noise. Binary magic-byte
+// detection must always come first.
 const downloadCSVFromLink = async (link, authHeader) => {
+  const binRes = await axios.get(link, {
+    headers: { Authorization: authHeader },
+    responseType: 'arraybuffer',
+  });
+  const buffer = Buffer.from(binRes.data);
+
+  const isZip = buffer.slice(0, 4).toString('hex') === '504b0304';
+  const isPDF = buffer.slice(0, 4).toString('latin1') === '%PDF';
+
+  if (isZip) {
+    const zip = new AdmZip(buffer);
+    const entries = zip.getEntries();
+    console.log('[downloadCSVFromLink][DEBUG] zip entries:', entries.map((e) => e.entryName));
+    const csvEntry = entries.find((e) => e.entryName.toLowerCase().endsWith('.csv'));
+    if (csvEntry) {
+      const text = csvEntry.getData().toString('utf8');
+      console.log('[downloadCSVFromLink][DEBUG] csv entry bytes:', csvEntry.getData().length);
+      return text;
+    }
+    console.warn('[downloadCSVFromLink][DEBUG] zip contained no .csv entry');
+    return null;
+  }
+
+  if (isPDF) {
+    console.warn('[downloadCSVFromLink][DEBUG] link returned a PDF, not a CSV/ZIP');
+    return null;
+  }
+
+  // Not a zip, not a PDF — the bytes might just be plain CSV text already.
+  const asText = buffer.toString('utf8');
+  if (asText.includes(',') || asText.includes(';')) {
+    return asText;
+  }
+
+  // Last resort fallback for endpoints that do honor an explicit format param.
   try {
     const separator = link.includes('?') ? '&' : '?';
     const csvRes = await axios.get(`${link}${separator}format=csv`, {
       headers: { Authorization: authHeader },
       responseType: 'text',
     });
-    if (csvRes.data && !csvRes.data.startsWith('%PDF') && csvRes.data.includes(',')) {
+    if (csvRes.data && !String(csvRes.data).startsWith('%PDF') && (String(csvRes.data).includes(',') || String(csvRes.data).includes(';'))) {
       return csvRes.data;
     }
   } catch (_) { }
 
-  const binRes = await axios.get(link, {
-    headers: { Authorization: authHeader },
-    responseType: 'arraybuffer',
-  });
-  const buffer = Buffer.from(binRes.data);
-  if (buffer.slice(0, 4).toString('hex') === '504b0304') {
-    const zip = new AdmZip(buffer);
-    const csvEntry = zip.getEntries().find((e) => e.entryName.toLowerCase().endsWith('.csv'));
-    if (csvEntry) {
-      return csvEntry.getData().toString('utf8');
-    }
-  }
   return null;
 };
 
@@ -467,20 +540,31 @@ const getScanReport = async (req, res) => {
         console.log('[getScanReport][DEBUG] createReport response:', JSON.stringify(createRes.data));
 
         if (createRes.data.error) {
-          throw new Error(createRes.data.error.message || 'createReport failed');
+          // Surface this distinctly: if it's a licensing/permission error,
+          // this is where it will show up (e.g. code -32610 "insufficient
+          // permissions" or a plan-tier restriction message from GravityZone).
+          throw new Error(
+            `createReport failed: ${createRes.data.error.message || 'unknown error'} (code: ${createRes.data.error.code ?? 'n/a'})`
+          );
         }
 
         const reportId = createRes.data.result;
         let link = null;
 
+        // Poll longer (up to ~90s) since report generation time scales with
+        // the reportingInterval and account size; 20s was too tight.
         if (reportId) {
-          for (let i = 0; i < 10; i++) {
-            await new Promise((r) => setTimeout(r, 2000));
+          const maxAttempts = 30;
+          for (let i = 0; i < maxAttempts; i++) {
+            await new Promise((r) => setTimeout(r, 3000));
             const dlRes = await post(reportsUrl, 'getDownloadLinks', { reportId }, 'report-dl');
             const result = dlRes.data.result;
             if (result?.readyForDownload) {
               link = result.lastInstanceUrl || result.allInstancesUrl;
               break;
+            }
+            if (i === maxAttempts - 1) {
+              console.warn('[getScanReport][DEBUG] report never became ready for download after', maxAttempts * 3, 'seconds');
             }
           }
 
@@ -493,20 +577,42 @@ const getScanReport = async (req, res) => {
           console.log('[getScanReport][DEBUG] csvData present:', !!csvData);
 
           if (csvData) {
-            const rows = parseCSVRows(csvData);
+            const { rows, headers: csvHeaders } = parseCSVRows(csvData);
+            console.log('[getScanReport][DEBUG] CSV headers found:', csvHeaders);
             console.log('[getScanReport][DEBUG] CSV row count:', rows.length);
 
             // Build a list of usable candidate scans from the report:
-            // { scanTime, filesScanned }
+            // { scanTime, filesScanned }. Column names are matched fuzzily
+            // (any header containing all keywords in one of these arrays)
+            // instead of one hardcoded exact string, since GravityZone's
+            // wording varies by report/locale (e.g. "Scanned files" vs
+            // "Last successful scan - Scanned files" vs "Objects scanned").
+            const scanTimePatterns = [
+              ['last successful scan', 'start time'],
+              ['last scan', 'start time'],
+              ['scan start time'],
+              ['start time'],
+            ];
+            const scannedFilesPatterns = [
+              ['last successful scan', 'scanned files'],
+              ['scanned files'],
+              ['scanned objects'],
+              ['objects scanned'],
+              ['files scanned'],
+            ];
+
             const candidates = rows
               .map((r) => {
-                const scanTime = parseBDDate(r['last successful scan - start time']);
-                const filesScanned = getExact(r, 'last successful scan - scanned files');
+                const scanTime = parseBDDate(findFieldValue(r, scanTimePatterns));
+                const filesScanned = getExact(findFieldValue(r, scannedFilesPatterns));
                 return (scanTime && filesScanned > 0) ? { scanTime, filesScanned } : null;
               })
               .filter(Boolean);
 
             console.log('[getScanReport][DEBUG] usable candidate rows:', candidates.length);
+            if (rows.length > 0 && candidates.length === 0) {
+              console.warn('[getScanReport][DEBUG] No candidates matched. Sample row:', JSON.stringify(rows[0]));
+            }
 
             // Greedy nearest-match: each pending task claims the closest
             // unclaimed candidate row within a 15-minute window.

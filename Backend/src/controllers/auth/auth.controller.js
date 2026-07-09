@@ -44,10 +44,8 @@ const refreshToken = async (req, res) => {
 
 const register = async (req, res) => {
   try {
-    // NOTE: role is intentionally NOT read from req.body — this is a public
-    // endpoint, and accepting a client-supplied role would let anyone
-    // self-register as an admin.
-    const { name, email, password } = req.body;
+    const { name, email, password, source } = req.body;
+    const isUserCreatedFlow = source === 'usercreated';
 
     if (!name || !email || !password) {
       return res.status(400).json({ message: 'Name, email, and password are required' });
@@ -79,8 +77,9 @@ const register = async (req, res) => {
       name: name.trim(),
       email: emailNormalized,
       password: hashedPassword,
-      role: 'user',        // hardcoded — never trust client input here
-      isActive: true,
+      role: 'user',
+      // pending accounts stay inactive until the OTP is verified
+      isActive: isUserCreatedFlow ? false : true,
       avatar: '',
       plan: 'free',
     });
@@ -103,7 +102,7 @@ const register = async (req, res) => {
 
     const now = new Date();
     const nextRenewal = new Date(now);
-    nextRenewal.setFullYear(nextRenewal.getFullYear() + 100); // free plan — effectively no expiry
+    nextRenewal.setFullYear(nextRenewal.getFullYear() + 100);
 
     await Subscription.create({
       sub_id: nextSubId,
@@ -148,6 +147,47 @@ const register = async (req, res) => {
       }
     }
 
+    // ── usercreated flow: hold off on the token, send an OTP instead ────────
+    if (isUserCreatedFlow) {
+      // Fetch through the auth User model — same collection, but this is the
+      // schema that carries otpCode / otpExpiry (see login/verifyOtp above).
+      const authUser = await User.findById(user._id).select('+otpCode +otpExpiry');
+
+      const otp = generateOtp();
+      const salt = await bcrypt.genSalt(10);
+      authUser.otpCode = await bcrypt.hash(otp, salt);
+      authUser.otpExpiry = new Date(Date.now() + 10 * 60 * 1000);
+      await authUser.save();
+
+      await sendEmail({
+        to: authUser.email,
+        subject: 'Verify your SOLO account',
+        html: `
+          <div style="font-family:sans-serif;max-width:480px;margin:auto;padding:24px">
+            <h2 style="color:#1a1a1a">Verify your account</h2>
+            <p style="color:#555">Use this code to activate your account. It expires in <strong>10 minutes</strong>.</p>
+            <div style="font-size:32px;font-weight:700;letter-spacing:8px;color:#22c55e;margin:24px 0">
+              ${otp}
+            </div>
+            <p style="color:#aaa;font-size:12px;">If you didn't create this account, you can ignore this email.</p>
+          </div>
+        `,
+      });
+
+      await systemLogger({
+        type: 'success', action: 'USER_REGISTER_OTP_SENT', user: user._id,
+        userEmail: user.email, details: 'OTP sent to verify newly created account',
+        module: 'auth', ipAddress: req.ip,
+      });
+
+      return res.status(201).json({
+        message: 'Account created. Verification code sent to your email.',
+        requiresOtp: true,
+        email: user.email,
+      });
+    }
+
+    // ── normal public self-registration: issue token right away ─────────────
     const token = await generateToken(user);
 
     res.status(201).json({
