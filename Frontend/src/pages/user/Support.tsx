@@ -10,10 +10,6 @@ import {
   getMySubscription,
   type SupportUsage,
 } from "../../services/user/dashboard.service";
-
-// Only two views now: the ticket list, and a single "Support Request" form
-// (this form covers both filing a ticket and, optionally, scheduling a
-// one-on-one session — those used to be two separate tabs/buttons).
 type Tab = "my-tickets" | "support-request";
 
 const statusStyles: Record<Status, string> = {
@@ -61,9 +57,6 @@ const categoryIcons: Record<string, JSX.Element> = {
   ),
 };
 
-// The ticket detail view is defensive about extra fields the API may or may
-// not return (priority, category, attachments, activity log, etc.) since the
-// shared Ticket type only guarantees the fields already used elsewhere.
 interface TicketActivity {
   message?: string;
   note?: string;

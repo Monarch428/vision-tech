@@ -17,6 +17,7 @@ const startSubscriptionReminder = require("./cron/subscriptionReminder");
 const selfHelpRoutes = require('./routes/selfHelp/selfHelp.route');
 const dataManagementRoutes = require('./routes/data-management/dataManagement.route')
 // const systemHealthRoutes = require("./routes/systemHealth/systemHealth.route");
+const deviceRoutes = require('./routes/rmm/device.route');
 
 
 const app = express();
@@ -147,7 +148,7 @@ app.use('/api/antivirus-schedules', antivirusScheduleRoutes);
 app.use('/api/self-help',          selfHelpRoutes);
 app.use('/api/system-config',          systemConfig);
 app.use('/api/data-management',          dataManagementRoutes);
-
+app.use('/api/devices',            deviceRoutes);
 
 startSubscriptionReminder();
 

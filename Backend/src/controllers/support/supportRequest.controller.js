@@ -152,8 +152,6 @@ const assignTicket = async (req, res) => {
     const { ticketId } = req.params;
     const { assigned_user_id, status } = req.body;
 
-    // Fetch the previous state first so we can build a meaningful activity
-    // message (what actually changed) before overwriting it.
     const previous = await SupportRequest.findById(ticketId);
     if (!previous) {
       return res.status(404).json({ success: false, message: "Ticket not found" });
