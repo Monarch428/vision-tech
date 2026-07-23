@@ -23,6 +23,8 @@ import NetworkRestartGuide from "./pages/user/NetworkRestartGuide";
 // import RMM from "./pages/user/rmm";
 import CreateAccountPage from "./pages/auth/userAccountPage";
 import HomePage from "./pages/home/homePage";
+import PrivacyPolicy from "./pages/home/privacyPolicy";
+import TermsConditions from "./pages/home/termsConditions";
 
 function App() {
   const initialized = useRef(false);
@@ -42,6 +44,8 @@ function App() {
         {/* <Route path="/forgot-password" element={<ForgotPasswordPage />} /> */}
         <Route path="/otpVerify" element={<OtpVerificationPage />} />
         <Route path="/new-user" element={<CreateAccountPage />} />
+        <Route path="/privacy-policy" element={<PrivacyPolicy />} />
+        <Route path="/terms-conditions" element={<TermsConditions />} />
 
         {/* Protected — all get sidebar + topbar from AdminLayout */}
         <Route element={<AdminLayout />}>

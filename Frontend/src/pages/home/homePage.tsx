@@ -459,7 +459,10 @@ const contactDetails = [
     { icon: Mail, label: "support@newvtech.com" },
 ];
 
-const legalLinks = ["Privacy Policy", "Terms & Conditions"];
+const legalLinks = [
+    { label: "Privacy Policy", href: "/privacy-policy" },
+    { label: "Terms & Conditions", href: "/terms-conditions" },
+];
 
 const SoloLandingPage: React.FC = () => {
     const [mobileNavOpen, setMobileNavOpen] = useState(false);
@@ -1643,13 +1646,13 @@ const SoloLandingPage: React.FC = () => {
                         </p>
 
                         <div className="flex items-center gap-6">
-                            {legalLinks.map((link) => (
+                            {legalLinks.map(({ label, href }) => (
                                 <a
-                                    key={link}
-                                    href="#"
+                                    key={label}
+                                    href={href}
                                     className="text-slate-400 hover:text-emerald-400 transition-colors"
                                 >
-                                    {link}
+                                    {label}
                                 </a>
                             ))}
                         </div>
