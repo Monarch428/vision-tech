@@ -1598,16 +1598,16 @@ const SoloLandingPage: React.FC = () => {
 
                                 <nav className="mt-5 flex flex-col gap-3">
                                     {footerLinks.map(({ label, href }, index) => (
-                                        <Link
+                                        <a
                                             key={label}
-                                            to={href}
+                                            href={href}
                                             className={`text-sm hover:text-emerald-400 transition-colors w-fit ${index === 0
                                                 ? "text-white font-medium"
                                                 : "text-slate-400"
                                                 }`}
                                         >
                                             {label}
-                                        </Link>
+                                        </a>
                                     ))}
                                 </nav>
                             </div>
