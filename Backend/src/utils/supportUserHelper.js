@@ -1,0 +1,51 @@
+const SupportRequest = require('../models/support/SupportRequest'); // ⚠️ CONFIRM this matches your actual model path
+
+/**
+ * Returns support usage stats for a user in the current billing cycle.
+ * @param {ObjectId|string} userId
+ * @param {Object} subscription  - populated Subscription doc (plan must be populated)
+ * @returns {{ usedMinutes, allowedMinutes, remainingMinutes, isEnterprise }}
+ */
+const getSupportUsage = async (userId, subscription) => {
+  const planName = subscription.plan?.name?.toLowerCase() || '';
+  const isEnterprise = planName === 'enterprise';
+
+  let allowedMinutes;
+  switch (planName) {
+    case 'free':       allowedMinutes = 60;       break;
+    case 'pro':        allowedMinutes = 600;      break;
+    case 'enterprise': allowedMinutes = Infinity; break;
+    default:           allowedMinutes = 0;
+  }
+
+  const cycleStart =
+    subscription.currentPeriodStart ||
+    subscription.startDate ||
+    new Date(0);
+
+  // Sum the duration (minutes) of every ticket/session this user has had
+  // in the current billing cycle. Tickets filed without a call attached
+  // default to duration: 0 and simply don't add to the total.
+  const requests = await SupportRequest.find({
+    user: userId,
+    createdAt: { $gte: cycleStart },
+  }).select('duration');
+
+  const usedMinutes = requests.reduce(
+    (total, r) => total + Number(r.duration || 0),
+    0
+  );
+
+  const remainingMinutes = isEnterprise
+    ? 'Unlimited'
+    : Math.max(0, allowedMinutes - usedMinutes);
+
+  return {
+    usedMinutes,
+    allowedMinutes: isEnterprise ? 'Unlimited' : allowedMinutes,
+    remainingMinutes,
+    isEnterprise,
+  };
+};
+
+module.exports = { getSupportUsage };
