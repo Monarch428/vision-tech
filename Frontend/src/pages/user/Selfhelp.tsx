@@ -4,8 +4,11 @@ import Cookies from "js-cookie";
 import {
   startTool,
   getToolStatus,
-  startBackupJob
+  startBackupJob,
+  listBackups,
+  downloadBackup,
 } from "../../services/user/selfhelp.service";
+import type { BackupRecord } from "../../services/user/selfhelp.service";
 import { clearCache } from "../../hooks/useCacheStorage";
 
 type ToolStatus = "idle" | "running" | "completed";
@@ -109,6 +112,14 @@ const TrashIcon = () => (
   </svg>
 );
 
+const DownloadIcon = () => (
+  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+    <path d="M12 3v12" strokeLinecap="round" strokeLinejoin="round" />
+    <path d="M7 10l5 5 5-5" strokeLinecap="round" strokeLinejoin="round" />
+    <path d="M4 19h16" strokeLinecap="round" strokeLinejoin="round" />
+  </svg>
+);
+
 // ─── Tools config ─────────────────────────────────────────────────────────────
 
 const TOOLS: Tool[] = [
@@ -191,6 +202,87 @@ function runSimulated(
   return () => clearInterval(id);
 }
 
+// ─── Format helper ─────────────────────────────────────────────────────────────
+
+function formatSize(bytes: number | null) {
+  if (bytes == null) return "";
+  const mb = bytes / (1024 * 1024);
+  return mb >= 1 ? `${mb.toFixed(1)} MB` : `${(bytes / 1024).toFixed(0)} KB`;
+}
+
+// ─── BackupsList ────────────────────────────────────────────────────────────
+
+function BackupsList({ refreshKey }: { refreshKey: number }) {
+  const [backups, setBackups] = useState<BackupRecord[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [downloadingId, setDownloadingId] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
+    listBackups()
+      .then((res) => {
+        if (!cancelled) setBackups(res);
+      })
+      .catch((err) => console.error("Failed to load backups:", err))
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [refreshKey]);
+
+  const handleDownload = async (b: BackupRecord) => {
+    try {
+      setDownloadingId(b.id);
+      await downloadBackup(b.id, b.fileName);
+    } catch (err) {
+      console.error("Download failed:", err);
+    } finally {
+      setDownloadingId(null);
+    }
+  };
+
+  if (loading) {
+    return <p className="text-[11px] text-gray-500">Loading backups…</p>;
+  }
+
+  if (!backups.length) return null;
+
+  return (
+    <div className="mt-1 border-t border-gray-300 pt-2.5 flex flex-col gap-1.5">
+      <p className="text-[10px] font-semibold text-gray-500 uppercase tracking-wide">
+        Previous Backups
+      </p>
+      <div className="flex flex-col gap-1.5 max-h-40 overflow-y-auto">
+        {backups.map((b) => (
+          <div
+            key={b.id}
+            className="flex items-center justify-between bg-gray-50 rounded-lg px-2.5 py-1.5"
+          >
+            <div className="min-w-0">
+              <p className="text-[11px] font-medium text-gray-800 truncate">{b.fileName}</p>
+              <p className="text-[10px] text-gray-500">
+                {new Date(b.createdAt).toLocaleString()}
+                {b.size != null ? ` · ${formatSize(b.size)}` : ""}
+              </p>
+            </div>
+            <button
+              onClick={() => handleDownload(b)}
+              disabled={downloadingId === b.id}
+              className="shrink-0 flex items-center gap-1 text-[11px] font-semibold text-green-700 hover:text-green-800 disabled:opacity-50 ml-2"
+            >
+              {downloadingId === b.id ? <SpinnerIcon size={10} /> : <DownloadIcon />}
+              {downloadingId === b.id ? "…" : "Download"}
+            </button>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 // ─── ToolCard ─────────────────────────────────────────────────────────────────
 
 interface ToolCardProps {
@@ -205,6 +297,7 @@ function ToolCard({ tool, onNetworkRestartComplete, triggerRun }: ToolCardProps)
   const [toolRecordId, setToolRecordId] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [backupResult, setBackupResult] = useState<any>(null);
+  const [backupsRefresh, setBackupsRefresh] = useState(0);
   const navigate = useNavigate();
 
   const simCleanupRef = useRef<(() => void) | null>(null);
@@ -240,6 +333,7 @@ function ToolCard({ tool, onNetworkRestartComplete, triggerRun }: ToolCardProps)
         setProgress(100);
         setStatus("completed");
         setBackupResult(result);
+        setBackupsRefresh((n) => n + 1);
       } catch (err) {
         console.error("Backup failed:", err);
         setStatus("idle");
@@ -445,6 +539,9 @@ function ToolCard({ tool, onNetworkRestartComplete, triggerRun }: ToolCardProps)
           </div>
         </div>
       )}
+
+      {/* Backup history / downloads */}
+      {tool.id === "start-backup" && <BackupsList refreshKey={backupsRefresh} />}
     </div>
   );
 }

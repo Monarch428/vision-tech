@@ -37,3 +37,33 @@ export const startBackupJob = async () => {
 };
 
 export const getReportDebug = () => API.get('/self-help/scan-report-debug');
+
+// ─── Backup history / download ────────────────────────────────────────────
+
+export interface BackupRecord {
+  id: string;
+  fileName: string;
+  size: number | null;
+  createdAt: string;
+}
+
+export const listBackups = async (): Promise<BackupRecord[]> => {
+  const response = await API.get("/self-help/backups");
+  return response.data.backups;
+};
+
+// Downloads via axios (not a plain <a href>) so the Authorization header
+// from the interceptor is actually sent, then saves the blob client-side.
+export const downloadBackup = async (id: string, fileName: string) => {
+  const response = await API.get(`/self-help/backups/${id}/download`, {
+    responseType: "blob",
+  });
+  const url = window.URL.createObjectURL(new Blob([response.data]));
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = fileName;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  window.URL.revokeObjectURL(url);
+};

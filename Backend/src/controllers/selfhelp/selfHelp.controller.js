@@ -3,7 +3,7 @@ const axios = require('axios');
 const mongoose = require('mongoose');
 const fs = require('fs');
 const path = require('path');
-const { runBackup } = require('../../cron/autoBackup');
+const { runBackup, backupDir } = require('../../cron/autoBackup');
 const AdmZip = require("adm-zip");
 const systemLogger = require("../../utils/systemLogger");
 
@@ -12,6 +12,23 @@ const categoryMap = {
   'network-restart': 'network',
   'antivirus-scan': 'security',
   'start-backup': 'backup',
+};
+
+// ─── Backup storage location ──────────────────────────────────────────────
+// Same directory autoBackup.js writes to — imported directly so there's no
+// chance of the two drifting apart via a stale env var.
+const BACKUP_DIR = path.resolve(backupDir);
+
+// Resolves a stored backupPath and guarantees it's inside BACKUP_DIR,
+// so a manipulated/legacy path can never be used to read arbitrary
+// files off disk (path traversal guard).
+const resolveSafeBackupPath = (storedPath) => {
+  if (!storedPath) return null;
+  const resolved = path.resolve(storedPath);
+  if (!resolved.startsWith(BACKUP_DIR + path.sep) && resolved !== BACKUP_DIR) {
+    return null;
+  }
+  return resolved;
 };
 
 // ─── Helper: build Bitdefender auth headers ───────────────────────────────────
@@ -769,14 +786,96 @@ const startBackup = async (req, res) => {
       status: 'pending',
     });
 
-    const backupPath = await runBackup();
+    const backupResult = await runBackup();
+
+    // runBackup() may return either a plain path string, or an object like
+    // { backupPath, collections, message } — handle both so we never pass
+    // a non-string into fs/path APIs.
+    const backupPath =
+      typeof backupResult === 'string' ? backupResult : backupResult?.backupPath ?? null;
+    const collections = Array.isArray(backupResult?.collections) ? backupResult.collections : undefined;
+
+    // Best-effort file size lookup — never let a stat failure fail the backup.
+    let fileSize = null;
+    if (backupPath) {
+      try {
+        fileSize = fs.statSync(backupPath).size;
+      } catch (statErr) {
+        console.warn('[startBackup] Could not stat backup file:', statErr.message);
+      }
+    } else {
+      console.warn('[startBackup] runBackup() did not return a usable backupPath:', backupResult);
+    }
+
     await SelfHelpTool.findByIdAndUpdate(record._id, {
       progress: 100,
       status: 'completed',
       scanFinishedAt: new Date(),
+      backupPath,
+      backupFileName: backupPath ? path.basename(backupPath) : null,
+      backupFileSize: fileSize,
     });
 
-    return res.status(200).json({ success: true, message: 'Backup completed', backupPath });
+    return res.status(200).json({
+      success: true,
+      message: 'Backup completed',
+      backupPath,
+      collections,
+    });
+  } catch (error) {
+    return res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+// ─── listBackups ──────────────────────────────────────────────────────────────
+// Returns the current user's completed backups, most recent first, so the
+// frontend can render a downloadable history list.
+const listBackups = async (req, res) => {
+  try {
+    const backups = await SelfHelpTool.find({
+      user: req.user.id,
+      category: 'backup',
+      status: 'completed',
+      backupPath: { $exists: true, $ne: null },
+    })
+      .sort({ scanFinishedAt: -1 })
+      .select('_id backupFileName backupFileSize scanFinishedAt')
+      .lean();
+
+    return res.status(200).json({
+      success: true,
+      backups: backups.map((b) => ({
+        id: b._id,
+        fileName: b.backupFileName,
+        size: b.backupFileSize,
+        createdAt: b.scanFinishedAt,
+      })),
+    });
+  } catch (error) {
+    return res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+// ─── downloadBackup ───────────────────────────────────────────────────────────
+// Streams a single backup file to the requesting user. Enforces ownership
+// and confines the resolved path to BACKUP_DIR to prevent path traversal.
+const downloadBackup = async (req, res) => {
+  try {
+    const record = await SelfHelpTool.findById(req.params.id);
+    if (!record || record.category !== 'backup') {
+      return res.status(404).json({ success: false, message: 'Backup not found' });
+    }
+
+    if (record.user.toString() !== req.user.id.toString()) {
+      return res.status(403).json({ success: false, message: 'Forbidden' });
+    }
+
+    const safePath = resolveSafeBackupPath(record.backupPath);
+    if (!safePath || !fs.existsSync(safePath)) {
+      return res.status(404).json({ success: false, message: 'Backup file not found on disk' });
+    }
+
+    return res.download(safePath, record.backupFileName || path.basename(safePath));
   } catch (error) {
     return res.status(500).json({ success: false, message: error.message });
   }
@@ -805,5 +904,7 @@ module.exports = {
   getScanResults,
   getScanReport,
   startBackup,
+  listBackups,
+  downloadBackup,
   getReportData
 };

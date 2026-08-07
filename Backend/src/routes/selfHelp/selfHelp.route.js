@@ -7,8 +7,10 @@ const {
   getToolStatus,
   getScanResults,
   getEndpoints,
+  listBackups,
   startBackup,
   getScanReport,
+  downloadBackup,
   getReportData
 } = require('../../controllers/selfhelp/selfHelp.controller');
 
@@ -27,5 +29,9 @@ router.get('/bitdefender/scan-report', protect, getScanReport);
 router.post('/backup', protect, startBackup);
 
 router.get('/scan-report-debug', protect, getReportData);
+
+router.get('/backups', protect, listBackups);
+
+router.get('/backups/:id/download', protect, downloadBackup);
 
 module.exports = router;

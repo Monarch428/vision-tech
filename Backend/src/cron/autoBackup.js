@@ -3,6 +3,7 @@ const SystemConfig = require('../models/system-config/SystemConfig');
 const mongoose = require('mongoose');
 const fs = require('fs');
 const path = require('path');
+const AdmZip = require('adm-zip');
 
 const backupDir = path.join(__dirname, '../../../vision-tech-backup');
 
@@ -20,6 +21,18 @@ function parseFolderDate(folderName) {
     full:  `${match[1]}-${match[2]}`,       // "YYYY-MM"
     folder: folderName,
   };
+}
+
+// Removes a session folder and its companion .zip (if present), so zip
+// archives don't silently pile up forever once their source folder is pruned.
+function removeBackupSession(folderName) {
+  const folderPath = path.join(backupDir, folderName);
+  fs.rmSync(folderPath, { recursive: true, force: true });
+
+  const zipPath = `${folderPath}.zip`;
+  if (fs.existsSync(zipPath)) {
+    fs.rmSync(zipPath, { force: true });
+  }
 }
 
 // ─────────────────────────────────────────────
@@ -40,10 +53,9 @@ function cleanOldBackups(todayDate) {
 
   // ── Within this month: keep only today, delete everything else ──
   const thisMonthFolders = parsed.filter(p => p.full === thisMonth && p.folder !== `backup-${todayDate}`);
-  
+
   for (const p of thisMonthFolders) {
-    const folderPath = path.join(backupDir, p.folder);
-    fs.rmSync(folderPath, { recursive: true, force: true });
+    removeBackupSession(p.folder);
     console.log(`[Cron] Deleted old backup: ${p.folder}`);
   }
 
@@ -65,8 +77,7 @@ function cleanOldBackups(todayDate) {
     // Delete all others from that month
     for (const item of items) {
       if (item.folder !== keepFolder) {
-        const folderPath = path.join(backupDir, item.folder);
-        fs.rmSync(folderPath, { recursive: true, force: true });
+        removeBackupSession(item.folder);
         console.log(`[Cron] Deleted ${month} old backup: ${item.folder} (kept: ${keepFolder})`);
       }
     }
@@ -88,8 +99,10 @@ async function runBackup() {
 
   fs.mkdirSync(sessionDir, { recursive: true });
 
+  const collectionNames = [];
   for (const col of collections) {
     const name = col.name;
+    collectionNames.push(name);
     const docs = await db.collection(name).find({}).toArray();
     fs.writeFileSync(
       path.join(sessionDir, `${name}.json`),
@@ -97,7 +110,21 @@ async function runBackup() {
     );
   }
 
-  return { sessionDir, datestamp };
+  // Zip the session folder into a single downloadable archive alongside it.
+  // The raw folder is left in place — cleanOldBackups() still operates on
+  // directories to decide what's old — the zip is purely the artifact users
+  // can download from Self-Help.
+  const zipPath = `${sessionDir}.zip`;
+  const zip = new AdmZip();
+  zip.addLocalFolder(sessionDir);
+  zip.writeZip(zipPath);
+
+  return {
+    sessionDir,
+    datestamp,
+    backupPath: zipPath,
+    collections: collectionNames,
+  };
 }
 
 // ─────────────────────────────────────────────
@@ -130,4 +157,4 @@ cron.schedule('55 10 * * *', async () => {
   timezone: "Asia/Kolkata"
 });
 
-module.exports = { runBackup };
+module.exports = { runBackup, backupDir };

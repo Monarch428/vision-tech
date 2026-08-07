@@ -328,7 +328,7 @@ function AddDeviceModal({
             <input
               value={name}
               onChange={(e) => setName(e.target.value)}
-              placeholder="e.g. Abhinesh"
+              placeholder="e.g. Client 1"
               className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm outline-none focus:border-gray-900"
             />
           </div>

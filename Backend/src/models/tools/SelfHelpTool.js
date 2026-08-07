@@ -43,6 +43,9 @@ const selfHelpSchema = new mongoose.Schema(
       type: Number,
       default: 0,
     },
+    backupPath: { type: String, default: null },
+backupFileName: { type: String, default: null },
+backupFileSize: { type: Number, default: null },
   },
   {
     timestamps: true,
