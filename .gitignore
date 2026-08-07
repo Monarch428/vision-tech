@@ -1,1 +1,22 @@
-﻿vision-tech-backup/
+﻿# Dependencies
+node_modules/
+Backend/node_modules/
+Frontend/node_modules/
+rmm/node_modules/
+
+# Environment variables
+.env
+Backend/.env
+Frontend/.env
+rmm/.env
+
+# Backups
+vision-tech-backup/
+
+# Build output
+Frontend/dist/
+Backend/dist/
+rmm/dist/
+
+# Logs
+*.log
