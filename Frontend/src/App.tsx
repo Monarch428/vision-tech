@@ -20,7 +20,7 @@ import ExternalServiceAccess from "./pages/admin/externalServiceAcess";
 // import SupportBookings from "./pages/admin/SupportBookings";
 import OtpVerificationPage from "./pages/auth/OtpVerificationPage";
 import NetworkRestartGuide from "./pages/user/NetworkRestartGuide";
-// import RMM from "./pages/user/rmm";
+import RMM from "./pages/user/rmm";
 import CreateAccountPage from "./pages/auth/userAccountPage";
 import HomePage from "./pages/home/homePage";
 import PrivacyPolicy from "./pages/home/privacyPolicy";
@@ -55,7 +55,7 @@ function App() {
           <Route path="/admin/subscriptions" element={<Subscriptions />} />
           <Route path="/admin/Systemlogs" element={<Systemlogs />} />
           <Route path="/user/support" element={<Support />} />
-          {/*<Route path="/user/rmm" element={<RMM />} />*/}
+          <Route path="/user/rmm" element={<RMM />} />
           <Route path="/admin/serviceRequest" element={<ServiceRequest />} />
           <Route path="/user/selfhelp" element={<SelfHelp />} />
           <Route path="/user/network-restart-guide" element={<NetworkRestartGuide />} />

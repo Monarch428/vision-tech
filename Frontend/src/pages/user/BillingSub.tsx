@@ -43,7 +43,7 @@ interface Invoice {
 const PLANS = [
   {
     name: "free" as const,
-    label: "Free",
+    label: "Core",
     price: 0,
     display: "$0",
     period: "forever",
@@ -57,7 +57,7 @@ const PLANS = [
   },
   {
     name: "pro" as const,
-    label: "Pro",
+    label: "Plus",
     price: 49.99,
     display: "$49.99",
     period: "/month",
@@ -71,7 +71,7 @@ const PLANS = [
   },
   {
     name: "enterprise" as const,
-    label: "Enterprise",
+    label: "Complete",
     price: 149.99,
     display: "$149.99",
     period: "/month",

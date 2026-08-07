@@ -15,7 +15,7 @@ const PLATFORM_ITEMS = [
   { id: 'selfhelp', label: 'Self-Help', path: '/user/selfhelp', icon: 'selfhelp' },
   { id: 'support', label: 'Support', path: '/user/support', icon: 'support' },
   { id: 'antivirus', label: 'Antivirus', path: '/user/antivirus', icon: 'antivirus' },
-  // { id: 'rmm', label: 'RMM', path: '/user/rmm', icon: 'monitor-check' },
+  { id: 'rmm', label: 'RMM', path: '/user/rmm', icon: 'monitor-check' },
   { id: 'billingsubscriptions', label: 'Billing Subscriptions', path: '/user/billingsubscriptions', icon: 'card' }
 ];
 
@@ -157,7 +157,7 @@ export default function Sidebar({ open, onClose }: SidebarProps) {
           {/* SOLO text — hidden when collapsed */}
           {!isCollapsed && (
             <div className="ml-3 overflow-hidden flex-1 min-w-0">
-              <h2 className="text-[17px] font-bold text-gray-900 leading-none whitespace-nowrap">SOLO</h2>
+              <h2 className="text-[12px] font-bold text-gray-900 leading-none whitespace-nowrap">NVT System Essentials</h2>
               <p className="text-[10px] font-semibold text-gray-700 mt-0.5 whitespace-nowrap">Dashboard Platform</p>
             </div>
           )}

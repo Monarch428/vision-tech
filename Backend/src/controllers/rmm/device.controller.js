@@ -1,7 +1,12 @@
 const crypto = require('crypto');
 const Device = require('../../models/rnm/Device');
+<<<<<<< HEAD
 
 // GET /api/devices  — dashboard fetch (auth required, scoped to logged-in user)
+=======
+const { assignCredentials,disconnectDevice  } = require('../../wsServer');
+
+>>>>>>> abhinesh
 exports.getDevices = async (req, res) => {
   try {
     const devices = await Device.find({ owner: req.user.id }).sort({ createdAt: -1 });
@@ -11,34 +16,64 @@ exports.getDevices = async (req, res) => {
   }
 };
 
+<<<<<<< HEAD
 // POST /api/devices  — register a new device, returns token+id for the agent's .env
+=======
+>>>>>>> abhinesh
 exports.addDevice = async (req, res) => {
   try {
     const { name, type } = req.body;
 
+<<<<<<< HEAD
+=======
+    if (!name || !name.trim()) {
+      return res.status(400).json({ success: false, message: 'Device name is required.' });
+    }
+
+>>>>>>> abhinesh
     const deviceId = crypto.randomUUID();
     const token = crypto.randomBytes(32).toString('hex');
 
     const device = await Device.create({
       deviceId,
+<<<<<<< HEAD
       name,
+=======
+      name: name.trim(),
+>>>>>>> abhinesh
       type,
       token,
       owner: req.user.id,
     });
 
+<<<<<<< HEAD
     // only ever return the raw token on creation — never again after this
     res.status(201).json({
       success: true,
       device,
       agentConfig: { deviceId, token },
     });
+=======
+    const paired = assignCredentials({ deviceId, token });
+    if (!paired) {
+      await Device.deleteOne({ _id: device._id }); // no agent waiting — don't leave an orphaned record
+      return res.status(400).json({
+        success: false,
+        message: 'No agent is currently waiting to pair. Start the agent on the target device, then try again.',
+      });
+    }
+
+    res.status(201).json({ success: true, device });
+>>>>>>> abhinesh
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
   }
 };
 
+<<<<<<< HEAD
 // PATCH /api/devices/:id/monitoring  — toggle monitoring on/off from UI
+=======
+>>>>>>> abhinesh
 exports.toggleMonitoring = async (req, res) => {
   try {
     const { monitoring } = req.body;
@@ -54,15 +89,25 @@ exports.toggleMonitoring = async (req, res) => {
   }
 };
 
+<<<<<<< HEAD
 // DELETE /api/devices/:id
+=======
+>>>>>>> abhinesh
 exports.deleteDevice = async (req, res) => {
   try {
     const device = await Device.findOneAndDelete({ _id: req.params.id, owner: req.user.id });
     if (!device) return res.status(404).json({ success: false, message: 'Device not found' });
+<<<<<<< HEAD
+=======
+
+    disconnectDevice(device.deviceId); // kick the live agent connection immediately
+
+>>>>>>> abhinesh
     res.json({ success: true, message: 'Device removed' });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
   }
+<<<<<<< HEAD
 };
 
 // POST /api/devices/heartbeat  — called by the AGENT, not the browser
@@ -97,4 +142,6 @@ exports.heartbeat = async (req, res) => {
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
   }
+=======
+>>>>>>> abhinesh
 };

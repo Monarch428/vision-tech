@@ -32,7 +32,12 @@
     "redis": "^6.0.0",
     "uuid": "^13.0.0",
     "winston": "^3.19.0",
+<<<<<<< HEAD
     "winston-mongodb": "^7.0.1"
+=======
+    "winston-mongodb": "^7.0.1",
+    "ws": "^8.21.2"
+>>>>>>> abhinesh
   },
   "devDependencies": {
     "nodemon": "^3.1.14"

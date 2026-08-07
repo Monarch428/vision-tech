@@ -281,7 +281,11 @@ const startTool = async (req, res) => {
             jsonrpc: "2.0",
             method: "createScanTask",
             params: {
+<<<<<<< HEAD
               targetIds: ["6a202a9198740422ae09c75e"],
+=======
+              targetIds: ["6a742295aec4de6bb6853cc4"],
+>>>>>>> abhinesh
               type: 2,
               name: scanName,
             },
@@ -463,7 +467,11 @@ const getScanReport = async (req, res) => {
 
     const [tasks, endpointRes] = await Promise.all([
       getAllTasks(),
+<<<<<<< HEAD
       post(networkUrl, 'getManagedEndpointDetails', { endpointId: '6a202a9198740422ae09c75e' }, 'endpoint'),
+=======
+      post(networkUrl, 'getManagedEndpointDetails', { endpointId: '6a742295aec4de6bb6853cc4' }, 'endpoint'),
+>>>>>>> abhinesh
     ]);
 
     const endpoint = endpointRes.data.result;
@@ -532,7 +540,11 @@ const getScanReport = async (req, res) => {
         const createRes = await post(reportsUrl, 'createReport', {
           name: reportName,
           type: 15, // On demand scanning
+<<<<<<< HEAD
           targetIds: ['6a202a9198740422ae09c75e'],
+=======
+          targetIds: ['6a742295aec4de6bb6853cc4'],
+>>>>>>> abhinesh
           options: { reportingInterval },
         }, 'report-create');
 
@@ -791,7 +803,11 @@ const getReportData = async (req, res) => {
     const post = (url, method, params, id) =>
       axios.post(url, { jsonrpc: '2.0', method, params, id }, { headers });
 
+<<<<<<< HEAD
     const endpointRes = await post(networkUrl, 'getManagedEndpointDetails', { endpointId: '6a202a9198740422ae09c75e' }, 'ep-details');
+=======
+    const endpointRes = await post(networkUrl, 'getManagedEndpointDetails', { endpointId: '6a742295aec4de6bb6853cc4' }, 'ep-details');
+>>>>>>> abhinesh
     return res.json(endpointRes.data);
   } catch (err) {
     return res.status(500).json({ message: err.message });

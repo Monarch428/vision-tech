@@ -12,7 +12,11 @@ const deviceSchema = new mongoose.Schema(
     token: { type: String, required: true, select: false },
 
     // link device to a user/org, adjust ref name to match your auth model
+<<<<<<< HEAD
     owner: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
+=======
+    owner: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: false },
+>>>>>>> abhinesh
 
     monitoring: { type: Boolean, default: true },
 

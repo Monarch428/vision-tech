@@ -402,7 +402,7 @@ const integrationOrbits = [
 // --- Pricing section data ---
 const pricingPlans = [
     {
-        name: "Basic Support",
+        name: "Core",
         description: "Essential IT help for individuals and small teams.",
         monthlyPrice: 29,
         cta: "Start Free Trial",
@@ -416,7 +416,7 @@ const pricingPlans = [
         ],
     },
     {
-        name: "Security Plus",
+        name: "Plus",
         description: "Full security coverage with priority support access.",
         monthlyPrice: 59,
         cta: "Get Started",
@@ -432,7 +432,7 @@ const pricingPlans = [
         ],
     },
     {
-        name: "Managed Pro",
+        name: "Complete",
         description: "Complete IT operations with full RMM monitoring.",
         monthlyPrice: 99,
         cta: "Contact Sales",
@@ -492,7 +492,7 @@ const SoloLandingPage: React.FC = () => {
 
                         <div className="leading-tight">
                             <div className="font-bold text-base">
-                                SOLO
+                                NVT System Essentials
                                 <span className="block text-[12px] font-normal text-slate-400 -mt-1">
                                     Dashboard
                                 </span>
@@ -652,8 +652,8 @@ const SoloLandingPage: React.FC = () => {
                                     <div className="text-[10px] text-slate-400 -mb-0.5">
                                         VISIONtech
                                     </div>
-                                    <div className="font-bold text-sm">
-                                        SOLO
+                                    <div className="font-bold text-xs">
+                                        NVT System Essentials
                                         <span className="block text-[9px] font-normal text-slate-400 -mt-1">
                                             Dashboard Platform
                                         </span>
