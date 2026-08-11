@@ -54,6 +54,12 @@ const userSchema = new mongoose.Schema(
       default: null,
     },
 
+    bitdefenderEndpointId: { type: String, default: null },
+    bitdefenderEndpointName: { type: String, default: null },   // ← currently missing, being silently dropped
+bitdefenderPackageId: { type: String, default: null },      // ← new: tracks the package we generated for this user
+bitdefenderPackageName: { type: String, default: null },    // ← new: used to match the endpoint back after install
+bitdefenderPackageCreatedAt: { type: Date, default: null },
+
     resetPasswordExpiry: {
       type: Date,
       default: null,

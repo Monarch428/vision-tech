@@ -4,9 +4,15 @@ import Cookies from "js-cookie";
 import {
   startTool,
   getToolStatus,
-  startBackupJob
+  startBackupJob,
+  listBackups,
+  downloadBackup,
+  checkEndpointLinked,
+  createInstallPackage,
 } from "../../services/user/selfhelp.service";
+import type { BackupRecord, CreateInstallPackageResponse } from "../../services/user/selfhelp.service";
 import { clearCache } from "../../hooks/useCacheStorage";
+import { DownloadIcon } from "lucide-react";
 
 type ToolStatus = "idle" | "running" | "completed";
 
@@ -191,6 +197,212 @@ function runSimulated(
   return () => clearInterval(id);
 }
 
+// ─── Format helper ─────────────────────────────────────────────────────────────
+
+function formatSize(bytes: number | null) {
+  if (bytes == null) return "";
+  const mb = bytes / (1024 * 1024);
+  return mb >= 1 ? `${mb.toFixed(1)} MB` : `${(bytes / 1024).toFixed(0)} KB`;
+}
+
+/** GravityZone's getInstallationLinks response shape isn't fixed across
+ *  accounts/modules — it can be an array of {link, ...} objects, an object
+ *  keyed by kit type, or something else entirely. Walk whatever comes back
+ *  and pull out every string that looks like a URL, pairing it with the
+ *  nearest key name so it can be rendered as a clickable, labeled link. */
+function extractDownloadLinks(value: unknown, label = "Download"): { label: string; url: string }[] {
+  const found: { label: string; url: string }[] = [];
+
+  const walk = (node: unknown, currentLabel: string) => {
+    if (typeof node === "string") {
+      if (/^https?:\/\//i.test(node)) {
+        found.push({ label: currentLabel, url: node });
+      }
+      return;
+    }
+    if (Array.isArray(node)) {
+      node.forEach((item, i) => walk(item, `${currentLabel} ${i + 1}`));
+      return;
+    }
+    if (node && typeof node === "object") {
+      Object.entries(node as Record<string, unknown>).forEach(([key, val]) => {
+        const niceKey = key.replace(/([a-z])([A-Z])/g, "$1 $2").replace(/^\w/, (c) => c.toUpperCase());
+        walk(val, /^(link|url|downloadurl)$/i.test(key) ? currentLabel : niceKey);
+      });
+    }
+  };
+
+  walk(value, label);
+  return found;
+}
+
+// ─── BackupsList ────────────────────────────────────────────────────────────
+
+function BackupsList({ refreshKey }: { refreshKey: number }) {
+  const [backups, setBackups] = useState<BackupRecord[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [downloadingId, setDownloadingId] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
+    listBackups()
+      .then((res) => {
+        if (!cancelled) setBackups(res);
+      })
+      .catch((err) => console.error("Failed to load backups:", err))
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [refreshKey]);
+
+  const handleDownload = async (b: BackupRecord) => {
+    try {
+      setDownloadingId(b.id);
+      await downloadBackup(b.id, b.fileName);
+    } catch (err) {
+      console.error("Download failed:", err);
+    } finally {
+      setDownloadingId(null);
+    }
+  };
+
+  if (loading) {
+    return <p className="text-[11px] text-gray-500">Loading backups…</p>;
+  }
+
+  if (!backups.length) return null;
+
+  return (
+    <div className="mt-1 border-t border-gray-300 pt-2.5 flex flex-col gap-1.5">
+      <p className="text-[10px] font-semibold text-gray-500 uppercase tracking-wide">
+        Previous Backups
+      </p>
+      <div className="flex flex-col gap-1.5 max-h-40 overflow-y-auto">
+        {backups.map((b) => (
+          <div
+            key={b.id}
+            className="flex items-center justify-between bg-gray-50 rounded-lg px-2.5 py-1.5"
+          >
+            <div className="min-w-0">
+              <p className="text-[11px] font-medium text-gray-800 truncate">{b.fileName}</p>
+              <p className="text-[10px] text-gray-500">
+                {new Date(b.createdAt).toLocaleString()}
+                {b.size != null ? ` · ${formatSize(b.size)}` : ""}
+              </p>
+            </div>
+            <button
+              onClick={() => handleDownload(b)}
+              disabled={downloadingId === b.id}
+              className="shrink-0 flex items-center gap-1 text-[11px] font-semibold text-green-700 hover:text-green-800 disabled:opacity-50 ml-2"
+            >
+              {downloadingId === b.id ? <SpinnerIcon size={10} /> : <DownloadIcon />}
+              {downloadingId === b.id ? "…" : "Download"}
+            </button>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ─── InstallPackagePrompt (antivirus-scan only, shown when no device linked) ──
+
+function InstallPackagePrompt({ onLinked }: { onLinked: () => void }) {
+  const [packageResult, setPackageResult] = useState<CreateInstallPackageResponse | null>(null);
+  const [packageLoading, setPackageLoading] = useState(false);
+  const [packageError, setPackageError] = useState("");
+  const [checking, setChecking] = useState(false);
+
+  const handleGeneratePackage = async () => {
+    setPackageError("");
+    setPackageResult(null);
+    try {
+      setPackageLoading(true);
+      const result = await createInstallPackage();
+      setPackageResult(result);
+    } catch {
+      setPackageError("Could not generate an install package. Please try again.");
+    } finally {
+      setPackageLoading(false);
+    }
+  };
+
+  const handleCheckAgain = async () => {
+    try {
+      setChecking(true);
+      const status = await checkEndpointLinked();
+      if (status.linked) onLinked();
+    } finally {
+      setChecking(false);
+    }
+  };
+
+  const links = packageResult ? extractDownloadLinks(packageResult.links) : [];
+
+  return (
+    <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-2.5 flex flex-col gap-2.5">
+      <p className="text-[13px] font-semibold text-yellow-800">No device linked yet</p>
+      <p className="text-[12px] text-yellow-700 leading-snug">
+        Install Bitdefender on this device before running a scan.
+      </p>
+
+      <div className="flex flex-wrap items-center gap-2">
+        <button
+          onClick={handleGeneratePackage}
+          disabled={packageLoading}
+          className="flex items-center gap-1.5 bg-green-500 hover:bg-green-600 disabled:opacity-60 disabled:cursor-not-allowed text-white font-semibold text-xs px-3 py-1.5 rounded-lg transition-colors"
+        >
+          {packageLoading ? <SpinnerIcon size={10} /> : null}
+          {packageLoading ? "Generating…" : "Generate Install Package"}
+        </button>
+        <button
+          onClick={handleCheckAgain}
+          disabled={checking}
+          className="flex items-center gap-1.5 border border-yellow-300 text-yellow-800 font-semibold text-xs px-3 py-1.5 rounded-lg hover:bg-yellow-100 disabled:opacity-60 transition-colors"
+        >
+          {checking ? <SpinnerIcon size={10} /> : <RefreshIcon />}
+          {checking ? "Checking…" : "I've installed it — Check again"}
+        </button>
+      </div>
+
+      {packageError && <p className="text-[11px] text-red-600">{packageError}</p>}
+
+      {packageResult && (
+        <div className="bg-white/70 border border-yellow-200 rounded-lg p-2.5">
+          <p className="text-[11px] text-yellow-800 mb-2">
+            {packageResult.reused ? "Reusing your existing install package." : "Install package created."}{" "}
+            Download and run the installer — it links itself automatically once installation finishes.
+          </p>
+          {links.length > 0 ? (
+            <div className="flex flex-wrap gap-1.5">
+              {links.map((l, i) => (
+                <a
+                  key={i}
+                  href={l.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1 bg-green-500 hover:bg-green-600 text-white font-semibold text-[11px] px-2.5 py-1.5 rounded-lg transition-colors"
+                >
+                  <DownloadIcon />
+                  {l.label}
+                </a>
+              ))}
+            </div>
+          ) : (
+            <p className="text-[11px] text-yellow-700">
+              No downloadable links were found — check with support.
+            </p>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─── ToolCard ─────────────────────────────────────────────────────────────────
 
 interface ToolCardProps {
@@ -211,6 +423,28 @@ function ToolCard({ tool, onNetworkRestartComplete, triggerRun }: ToolCardProps)
 
   // Only antivirus polls the backend for real status
   const usesApi = tool.id === "antivirus-scan";
+  const isAntivirus = tool.id === "antivirus-scan";
+
+  // ── Endpoint-linked check (antivirus-scan only) ───────────────────────────
+  // null = still checking, true/false = known. Determines whether "Run Tool"
+  // or the install-package prompt is shown.
+  const [endpointLinked, setEndpointLinked] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    if (!isAntivirus) return;
+    let cancelled = false;
+    checkEndpointLinked()
+      .then((res) => {
+        if (!cancelled) setEndpointLinked(res.linked);
+      })
+      .catch(() => {
+        if (!cancelled) setEndpointLinked(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isAntivirus]);
 
   // ── Start run ──────────────────────────────────────────────────────────────
   const startRun = async () => {
@@ -223,8 +457,14 @@ function ToolCard({ tool, onNetworkRestartComplete, triggerRun }: ToolCardProps)
         const response = await startTool(tool.id);
         setToolRecordId(response.tool._id);
         setStatus("running");
-      } catch (error) {
+      } catch (error: any) {
         console.error("Antivirus start error:", error);
+        // Backend returns 400 with a "No Bitdefender endpoint linked..."
+        // message when nothing is linked yet — treat that specifically as
+        // "show the install prompt" rather than a generic failure.
+        if (error?.response?.status === 400) {
+          setEndpointLinked(false);
+        }
       } finally {
         setLoading(false);
       }
@@ -354,6 +594,11 @@ function ToolCard({ tool, onNetworkRestartComplete, triggerRun }: ToolCardProps)
         </p>
       </div>
 
+      {/* Install-package prompt (antivirus-scan only, no device linked yet) */}
+      {isAntivirus && status === "idle" && endpointLinked === false && (
+        <InstallPackagePrompt onLinked={() => setEndpointLinked(true)} />
+      )}
+
       {/* Progress bar */}
       {status === "running" && (
         <div>
@@ -371,18 +616,22 @@ function ToolCard({ tool, onNetworkRestartComplete, triggerRun }: ToolCardProps)
       )}
 
       {/* Action buttons */}
-      {status === "idle" && (
+      {status === "idle" && !(isAntivirus && endpointLinked === false) && (
         <button
           onClick={
             tool.id === "network-restart"
               ? () => navigate("/user/network-restart-guide")
               : handleRun
           }
-          disabled={loading}
+          disabled={loading || (isAntivirus && endpointLinked === null)}
           className="w-full flex items-center justify-center gap-1.5 bg-green-500 hover:bg-green-600 text-white font-semibold text-xs py-2 rounded-lg transition-colors disabled:opacity-50"
         >
           {loading ? <SpinnerIcon /> : <PlayIcon />}
-          {loading ? "Starting..." : "Run Tool"}
+          {loading
+            ? "Starting..."
+            : isAntivirus && endpointLinked === null
+              ? "Checking device…"
+              : "Run Tool"}
         </button>
       )}
 

@@ -1,5 +1,6 @@
 const SelfHelpTool = require('../../models/tools/SelfHelpTool');
 const axios = require('axios');
+const User = require('../../models/auth/User');
 const mongoose = require('mongoose');
 const fs = require('fs');
 const path = require('path');
@@ -27,12 +28,34 @@ const getBDHeaders = () => {
 // ─── Helper: derive base + sub-URLs from env ──────────────────────────────────
 const getBDUrls = () => {
   const BASE = process.env.BITDEFENDER_API_URL
-    .replace(/\/(network|reports|incidents|accounts)$/, '');
+    .replace(/\/(network|reports|incidents|accounts|packages)$/, '');
   return {
     networkUrl: `${BASE}/network`,
     reportsUrl: `${BASE}/reports`,
+    packagesUrl: `${BASE}/packages`,
   };
 };
+
+const resolveEndpointId = async (userId) => {
+  const user = await User.findById(userId).select('bitdefenderEndpointId');
+  return user?.bitdefenderEndpointId || null;
+};
+
+// createPackage's `result` is NOT a bare ID string — GravityZone wraps it,
+// e.g. { success: true, records: ["6a7b0997ef02f61db10826f0"] }, and on
+// some API versions that object itself comes wrapped in an array:
+// [ { success: true, records: [...] } ]. Unwrap defensively rather than
+// assuming one exact shape, and fall back to treating `result` as a plain
+// string ID if GravityZone ever does return one directly.
+const extractPackageId = (result) => {
+  if (!result) return null;
+  if (typeof result === 'string') return result;
+  const obj = Array.isArray(result) ? result[0] : result;
+  if (!obj) return null;
+  if (Array.isArray(obj.records) && obj.records.length) return obj.records[0];
+  return null;
+};
+
 
 // ─── Shared CSV helpers ───────────────────────────────────────────────────────
 const parseCSVLine = (line, delimiter) => {
@@ -270,6 +293,14 @@ const startTool = async (req, res) => {
     }
 
     if (toolId === 'antivirus-scan') {
+        const endpointId = await resolveEndpointId(req.user.id);
+  if (!endpointId) {
+    await SelfHelpTool.findByIdAndUpdate(record._id, { status: "failed" });
+    return res.status(400).json({
+      success: false,
+      message: "No Bitdefender endpoint linked to your account. Please install Bitdefender Essentials and link your device first.",
+    });
+  }
       try {
         const headers = getBDHeaders();
         const { networkUrl } = getBDUrls();
@@ -281,7 +312,7 @@ const startTool = async (req, res) => {
             jsonrpc: "2.0",
             method: "createScanTask",
             params: {
-              targetIds: ["6a742295aec4de6bb6853cc4"],
+              targetIds: ["endpointId"],
               type: 2,
               name: scanName,
             },
@@ -782,19 +813,213 @@ const startBackup = async (req, res) => {
   }
 };
 
-// ─── getReportData (debug endpoint) ──────────────────────────────────────────
 const getReportData = async (req, res) => {
   try {
+    const endpointId = await resolveEndpointId(req.user.id);
+    if (!endpointId) {
+      return res.status(400).json({ success: false, message: 'No linked endpoint' });
+    }
     const headers = getBDHeaders();
     const { networkUrl } = getBDUrls();
-
     const post = (url, method, params, id) =>
       axios.post(url, { jsonrpc: '2.0', method, params, id }, { headers });
-
-    const endpointRes = await post(networkUrl, 'getManagedEndpointDetails', { endpointId: '6a742295aec4de6bb6853cc4' }, 'ep-details');
+    const endpointRes = await post(networkUrl, 'getManagedEndpointDetails', { endpointId }, 'ep-details');
     return res.json(endpointRes.data);
   } catch (err) {
     return res.status(500).json({ message: err.message });
+  }
+};
+
+// ─── createInstallPackage ──────────────────────────────────────────────────
+// Premium GravityZone accounts support multiple installation packages under
+// one account — this generates one per user so each gets their own download
+// link, without needing separate GravityZone accounts.
+//
+// IMPORTANT: GravityZone's createPackage method does NOT accept `name` or
+// `moduleList` (an earlier version of this code sent those and got back
+// "Invalid params"). Per Bitdefender's Packages API reference, the real
+// shape is:
+//   - packageName   (string, required)  — not `name`
+//   - description   (string, optional)
+//   - language      (string, required, e.g. "en_US")
+//   - modules       (object of moduleName -> 0|1 flags, NOT an array)
+//   - scanMode      (object, e.g. { type: 2 } for automatic)
+// Antimalware protection itself has no on/off flag — it's included by
+// default whenever a package is created; `modules` only toggles the
+// additional add-on protections (firewall, deviceControl, etc.).
+//
+// NOTE: `companyId` is NOT documented in the createPackage parameter table,
+// but Bitdefender's own example request for this method includes it. This
+// matters for partner/reseller-level API keys, which manage multiple
+// companies and need to be told which one to create the package under —
+// omitting it is a common cause of a generic "Invalid params" response.
+// If BITDEFENDER_COMPANY_ID isn't set, we simply omit the field (harmless
+// for company-level API keys, which don't need it).
+const createInstallPackage = async (req, res) => {
+  try {
+    const user = await User.findById(req.user.id).select('name email bitdefenderPackageName');
+    if (!user) {
+      return res.status(404).json({ success: false, message: 'User not found' });
+    }
+
+    const headers = getBDHeaders();
+    const { packagesUrl } = getBDUrls();
+    const post = (url, method, params, id) =>
+      axios.post(url, { jsonrpc: '2.0', method, params, id }, { headers });
+
+    // Reuse an existing package instead of spamming new ones on repeat clicks.
+    // getInstallationLinks identifies the package by `packageName`, NOT by
+    // `packageId` — GravityZone doesn't accept packageId as a parameter for
+    // this method at all ("One or more parameters are not expected:
+    // packageId" was the actual bug).
+    if (user.bitdefenderPackageName) {
+      const linkRes = await post(packagesUrl, 'getInstallationLinks', {
+        packageName: user.bitdefenderPackageName,
+      }, 'get-links-existing');
+
+      if (!linkRes.data.error) {
+        return res.json({ success: true, links: linkRes.data.result, reused: true });
+      }
+      // fall through to create a new one if the old package/link is gone
+    }
+
+    const packageName = `SelfHelp_${user._id}_${Date.now()}`;
+
+    const createParams = {
+      packageName,
+      description: `Auto-generated for ${user.email}`,
+      language: 'en_US',
+      modules: {
+        // `antimalware` is a real toggle per the docs — include it explicitly
+        // rather than assuming it's implied. Everything else here is opt-in;
+        // keep minimal unless your license requires otherwise.
+        antimalware: 1,
+        advancedThreatControl: 1,
+      },
+      // scanMode is intentionally omitted: type 2 ("custom") REQUIRES
+      // computers/vms/ec2 sub-objects to also be sent, or GravityZone
+      // rejects the whole call as "Invalid params" (this was the actual
+      // bug). Leaving scanMode out entirely lets GravityZone fill in its
+      // own automatic-mode defaults, which is what we want here.
+    };
+
+    // Only attach companyId if configured — required for partner/reseller
+    // API keys, unnecessary (and possibly rejected) for company-level keys.
+    if (process.env.BITDEFENDER_COMPANY_ID) {
+      createParams.companyId = process.env.BITDEFENDER_COMPANY_ID;
+    }
+
+    const createRes = await post(packagesUrl, 'createPackage', createParams, 'create-package');
+
+    if (createRes.data.error) {
+      // Log + surface the FULL error object (code, message, data), not just
+      // the message string — GravityZone's `data` field often names the
+      // exact bad parameter, which a bare .message string throws away.
+      console.error('[createInstallPackage] createPackage error:', JSON.stringify(createRes.data.error));
+      const err = new Error(createRes.data.error.message || 'createPackage failed');
+      err.bdError = createRes.data.error;
+      throw err;
+    }
+
+    const packageId = extractPackageId(createRes.data.result);
+    if (!packageId) {
+      console.error('[createInstallPackage] Unexpected createPackage result shape:', JSON.stringify(createRes.data.result));
+      throw new Error('createPackage succeeded but no package ID was returned');
+    }
+
+    // getInstallationLinks takes `packageName`, not `packageId` — see note
+    // above. We already have packageName in scope from creating it.
+    const linkRes = await post(packagesUrl, 'getInstallationLinks', { packageName }, 'get-links');
+    if (linkRes.data.error) {
+      console.error('[createInstallPackage] getInstallationLinks error:', JSON.stringify(linkRes.data.error));
+      const err = new Error(linkRes.data.error.message || 'getInstallationLinks failed');
+      err.bdError = linkRes.data.error;
+      throw err;
+    }
+
+    await User.findByIdAndUpdate(user._id, {
+      bitdefenderPackageId: packageId, // kept for reference/debugging only — not used to fetch links
+      bitdefenderPackageName: packageName,
+      bitdefenderPackageCreatedAt: new Date(),
+    });
+
+    return res.json({ success: true, packageId, packageName, links: linkRes.data.result });
+  } catch (err) {
+    return res.status(500).json({
+      success: false,
+      message: err.message,
+      bdError: err.bdError || null, // TEMPORARY — remove once createPackage is confirmed working
+    });
+  }
+};
+
+// controllers/selfHelp/linkEndpoint.js
+const linkEndpoint = async (req, res) => {
+  try {
+    const { endpointId } = req.body;
+    if (!endpointId) {
+      return res.status(400).json({ success: false, message: 'endpointId required' });
+    }
+
+    // Optional: verify it actually exists in Bitdefender before saving
+    const headers = getBDHeaders();
+    const { networkUrl } = getBDUrls();
+    const detailsRes = await axios.post(networkUrl, {
+      jsonrpc: '2.0',
+      method: 'getManagedEndpointDetails',
+      params: { endpointId },
+      id: 'verify-endpoint',
+    }, { headers });
+
+    if (detailsRes.data.error || !detailsRes.data.result) {
+      return res.status(400).json({ success: false, message: 'Invalid endpoint ID' });
+    }
+
+    await User.findByIdAndUpdate(req.user.id, {
+      bitdefenderEndpointId: endpointId,
+      bitdefenderEndpointName: detailsRes.data.result.name,
+    });
+
+    return res.json({ success: true, endpoint: detailsRes.data.result });
+  } catch (err) {
+    return res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+// Call this from a cron (reuse your existing autoBackup.js cron setup) or
+// trigger it opportunistically inside getScanReport, since that already
+// pulls fresh endpoint/task data on every dashboard load.
+const autoLinkPendingEndpoints = async () => {
+  const headers = getBDHeaders();
+  const { networkUrl } = getBDUrls();
+
+  const waitingUsers = await User.find({
+    bitdefenderPackageName: { $ne: null },
+    bitdefenderEndpointId: null,
+  }).select('_id bitdefenderPackageName');
+
+  if (!waitingUsers.length) return;
+
+  const listRes = await axios.post(networkUrl, {
+    jsonrpc: '2.0',
+    method: 'getEndpointsList',
+    params: { page: 1, perPage: 100 },
+    id: 'auto-link',
+  }, { headers: getBDHeaders() });
+
+  const endpoints = listRes.data.result?.items || [];
+
+  for (const user of waitingUsers) {
+    // Verify the exact field name GravityZone returns for this — inspect
+    // a real getManagedEndpointDetails response for an endpoint installed
+    // from a named package before trusting this field name.
+    const match = endpoints.find(e => e.packageName === user.bitdefenderPackageName);
+    if (match) {
+      await User.findByIdAndUpdate(user._id, {
+        bitdefenderEndpointId: match.id,
+        bitdefenderEndpointName: match.name,
+      });
+    }
   }
 };
 
@@ -805,5 +1030,7 @@ module.exports = {
   getScanResults,
   getScanReport,
   startBackup,
+  listBackups,
+  downloadBackup,
   getReportData
 };
