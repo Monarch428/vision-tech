@@ -311,10 +311,10 @@ const startTool = async (req, res) => {
           throw new Error(response.data.error.message || "Bitdefender internal error");
         }
 
-        const bdTaskId = response.data.result;
+        const bitdefenderTaskId = response.data.result;
         const updated = await SelfHelpTool.findByIdAndUpdate(
           record._id,
-          { status: "running", progress: 10, bdTaskId },
+          { status: "running", progress: 10, bitdefenderTaskId },
           { returnDocument: 'after' }
         );
 
@@ -343,7 +343,7 @@ const getToolStatus = async (req, res) => {
     }
 
     if (tool.category === 'security') {
-      if (tool.status !== 'completed' && tool.status !== 'failed' && tool.bdTaskId) {
+      if (tool.status !== 'completed' && tool.status !== 'failed' && tool.bitdefenderTaskId) {
         try {
           const headers = getBDHeaders();
           const { networkUrl } = getBDUrls();
@@ -356,7 +356,7 @@ const getToolStatus = async (req, res) => {
           }, { headers });
 
           const items = taskRes.data.result?.items || [];
-          const taskMatch = items.find(t => t.id === tool.bdTaskId);
+          const taskMatch = items.find(t => t.id === tool.bitdefenderTaskId);
 
           if (taskMatch) {
             const info = extractTaskStats(taskMatch);
@@ -456,6 +456,32 @@ const getScanResults = async (req, res) => {
 
 // ─── getScanReport ────────────────────────────────────────────────────────────
 const getScanReport = async (req, res) => {
+  // TEMPORARY: mirrors the [getScanReport][DEBUG] console.log lines into the
+  // JSON response so the report-fallback pipeline can be diagnosed from the
+  // browser Network tab when server terminal access isn't available.
+  // Remove this block (and the `debug: debugInfo` line near the bottom)
+  // once files-scanned is confirmed working reliably.
+  const debugInfo = {
+    pendingTasksCount: null,
+    reportingIntervalUsed: null,
+    createReportResponse: null,
+    createReportError: null,
+    reportId: null,
+    reportReadyLink: null,
+    reportPollTimedOut: null,
+    csvDataPresent: null,
+    csvHeadersFound: null,
+    csvRowCount: null,
+    usableCandidateRows: null,
+    sampleRow: null,
+    matchedLatestCompletedTask: null,
+    matchedCount: null,
+    staleReportSkipped: null,
+    staleSkippedCount: null,
+    matchDetails: null,
+    reportFallbackError: null,
+  };
+
   try {
     const headers = getBDHeaders();
     const { networkUrl, reportsUrl } = getBDUrls();
@@ -493,15 +519,25 @@ const getScanReport = async (req, res) => {
     const recordIds = Object.values(taskIdByRecordId);
 
     let ownerByRecordId = {};
+    let dbStatsByRecordId = {};
     if (recordIds.length) {
+      // Select filesScanned/threatsDetected too, not just for owner display —
+      // this lets us skip re-generating a Bitdefender report for any scan
+      // whose result was already saved to the DB on a previous request.
       const ownerRecords = await SelfHelpTool.find({ _id: { $in: recordIds } })
-        .select('_id user')
+        .select('_id user filesScanned threatsDetected')
         .populate('user', 'name email')
         .lean();
       ownerByRecordId = Object.fromEntries(
         ownerRecords.map((r) => [
           r._id.toString(),
           r.user ? { id: r.user._id, name: r.user.name ?? null, email: r.user.email ?? null } : null,
+        ])
+      );
+      dbStatsByRecordId = Object.fromEntries(
+        ownerRecords.map((r) => [
+          r._id.toString(),
+          { filesScanned: r.filesScanned ?? null, threatsDetected: r.threatsDetected ?? 0 },
         ])
       );
     }
@@ -511,39 +547,95 @@ const getScanReport = async (req, res) => {
       return recordId ? (ownerByRecordId[recordId] ?? null) : null;
     };
 
-    const myTasks = tasks.filter((task) => {
+    // ─── User filter ────────────────────────────────────────────────────
+    // Previously this endpoint hard-locked results to req.user.id, so no
+    // one (including an admin) could ever see another user's scan history
+    // through this API — even though the underlying data covers every
+    // user's scans on the endpoint. Now it defaults to showing everyone's
+    // scans, with an optional ?userId=<id> query param to narrow the
+    // results down to one specific user server-side (the frontend's
+    // "Requested by" dropdown can pass this instead of, or in addition to,
+    // filtering client-side).
+    const requestedUserId = typeof req.query.userId === 'string' && req.query.userId.trim()
+      ? req.query.userId.trim()
+      : null;
+
+    const scopedTasks = tasks.filter((task) => {
       const scannedBy = getScannedBy(task.id);
-      return scannedBy?.id?.toString() === req.user.id.toString();
+      if (!scannedBy) return false; // exclude tasks we can't attribute to any known user
+      if (!requestedUserId) return true; // no filter — include everyone
+      return scannedBy.id?.toString() === requestedUserId;
     });
 
-    const myCompletedTasks = myTasks.filter((t) => t.status === 3);
+    const myCompletedTasks = scopedTasks.filter((t) => t.status === 3);
     const myLatestCompleted = myCompletedTasks.length
       ? [...myCompletedTasks].sort((a, b) => new Date(b.startDate).getTime() - new Date(a.startDate).getTime())[0]
       : null;
+    const myFailedTasks = scopedTasks.filter((t) => t.status === 4);
 
-    // ─── Build the base scans array from task-level stats (fast, no I/O) ──────
+    // ─── Sync SelfHelpTool record status with the real Bitdefender task
+    //     status. Previously, a record only left "running"/progress:10 when
+    //     getToolStatus happened to be polled and saw status === 3 — if the
+    //     frontend instead only ever called getScanReport (as it does once
+    //     scanning finishes), the record stayed stuck at "running" forever
+    //     even though the underlying scan had completed. ─────────────────
+    const recordIdsToSync = [
+      ...myCompletedTasks.map((t) => ({ id: taskIdByRecordId[t.id], finishedAt: t.endDate ? new Date(t.endDate) : new Date() })),
+      ...myFailedTasks.map((t) => ({ id: taskIdByRecordId[t.id], failed: true })),
+    ].filter((r) => r.id);
+
+    if (recordIdsToSync.length) {
+      await Promise.all(recordIdsToSync.map(({ id, finishedAt, failed }) =>
+        SelfHelpTool.updateOne(
+          { _id: id, status: { $nin: ['completed', 'failed'] } },
+          failed
+            ? { $set: { status: 'failed' } }
+            : { $set: { status: 'completed', progress: 100, scanFinishedAt: finishedAt } }
+        ).catch(() => { })
+      ));
+    }
+
+    // ─── Build the base scans array from task-level stats (fast, no I/O).
+    //     Hydrate from the DB first wherever we already have a saved value —
+    //     this is what prevents re-triggering a brand-new Bitdefender report
+    //     (createReport + up to 60 polling calls) on every single dashboard
+    //     refresh for scans that were already resolved on a prior request.
+    //     Without this, repeated polling reliably hits GravityZone's API
+    //     rate limit (HTTP 429). ───────────────────────────────────────────
     const scanStatsById = {};
-    for (const task of myTasks) {
-      scanStatsById[task.id] = extractTaskStats(task);
+    for (const task of scopedTasks) {
+      const recordId = taskIdByRecordId[task.id];
+      const dbStats = recordId ? dbStatsByRecordId[recordId] : null;
+      if (dbStats && dbStats.filesScanned != null && dbStats.filesScanned > 0) {
+        scanStatsById[task.id] = dbStats;
+      } else {
+        scanStatsById[task.id] = extractTaskStats(task);
+      }
     }
 
     // ─── Report fallback: GravityZone's getScanTasksList never returns
     //     scanned-file counts, so we pull them from the "On demand scanning"
-    //     report (type 15) and match rows to tasks by start-time proximity,
-    //     since the report labels every task generically ("Full Scan"). ────
+    //     report (type 15), which contains the endpoint's single latest
+    //     successful scan. ──────────────────────────────────────────────
     const pendingTasks = myCompletedTasks.filter(
       (t) => scanStatsById[t.id].filesScanned == null
     );
 
+    debugInfo.pendingTasksCount = pendingTasks.length;
+
     if (pendingTasks.length > 0) {
       try {
-        const oldestPendingDate = pendingTasks.reduce((min, t) => {
-          const d = t.startDate ? new Date(t.startDate) : null;
-          if (!d) return min;
-          return (!min || d < min) ? d : min;
-        }, null);
-
-        const reportingInterval = pickReportingInterval(oldestPendingDate);
+        // GravityZone's "On demand scanning" report (type 15) returns ONE ROW
+        // PER TARGETED ENDPOINT, containing that endpoint's most recent
+        // successful scan (columns like "last successful scan - start time",
+        // "last successful scan - scanned files"). It is NOT one row per scan
+        // execution, so there is nothing to time-match against per task —
+        // the report can only ever tell us about the single latest scan.
+        // Always request the widest available window so today's scan is
+        // guaranteed to fall inside it, regardless of how GravityZone buckets
+        // "Last day" / "This week" etc.
+        const reportingInterval = 8; // This year — widest available option
+        debugInfo.reportingIntervalUsed = reportingInterval;
 
         const reportName = `Report_${req.user.id}_${Date.now()}`;
         const createRes = await post(reportsUrl, 'createReport', {
@@ -555,11 +647,13 @@ const getScanReport = async (req, res) => {
 
         console.log('[getScanReport][DEBUG] reportingInterval used:', reportingInterval);
         console.log('[getScanReport][DEBUG] createReport response:', JSON.stringify(createRes.data));
+        debugInfo.createReportResponse = createRes.data;
 
         if (createRes.data.error) {
           // Surface this distinctly: if it's a licensing/permission error,
           // this is where it will show up (e.g. code -32610 "insufficient
           // permissions" or a plan-tier restriction message from GravityZone).
+          debugInfo.createReportError = createRes.data.error;
           throw new Error(
             `createReport failed: ${createRes.data.error.message || 'unknown error'} (code: ${createRes.data.error.code ?? 'n/a'})`
           );
@@ -568,42 +662,61 @@ const getScanReport = async (req, res) => {
         const reportId = createRes.data.result;
         let link = null;
 
-        // Poll longer (up to ~90s) since report generation time scales with
-        // the reportingInterval and account size; 20s was too tight.
+        // Poll longer (up to ~3 minutes) since report generation time scales
+        // with account size and the number of files in each scan (large
+        // Local Scan runs can push report compilation well past 90s — 60
+        // attempts * 3s gives GravityZone more headroom). A 429 from
+        // GravityZone during polling is treated as "not ready yet, back off
+        // longer" rather than aborting the whole report attempt.
         if (reportId) {
-          const maxAttempts = 30;
+          const maxAttempts = 60;
+          let waitMs = 3000;
           for (let i = 0; i < maxAttempts; i++) {
-            await new Promise((r) => setTimeout(r, 3000));
-            const dlRes = await post(reportsUrl, 'getDownloadLinks', { reportId }, 'report-dl');
-            const result = dlRes.data.result;
-            if (result?.readyForDownload) {
-              link = result.lastInstanceUrl || result.allInstancesUrl;
-              break;
+            await new Promise((r) => setTimeout(r, waitMs));
+            try {
+              const dlRes = await post(reportsUrl, 'getDownloadLinks', { reportId }, 'report-dl');
+              const result = dlRes.data.result;
+              waitMs = 3000; // reset backoff after a successful call
+              if (result?.readyForDownload) {
+                link = result.lastInstanceUrl || result.allInstancesUrl;
+                break;
+              }
+            } catch (pollErr) {
+              if (pollErr.response?.status === 429) {
+                console.warn('[getScanReport][DEBUG] rate limited while polling, backing off');
+                waitMs = Math.min(waitMs * 2, 15000); // exponential backoff, capped at 15s
+                continue;
+              }
+              throw pollErr;
             }
             if (i === maxAttempts - 1) {
               console.warn('[getScanReport][DEBUG] report never became ready for download after', maxAttempts * 3, 'seconds');
+              debugInfo.reportPollTimedOut = true;
             }
           }
 
           console.log('[getScanReport][DEBUG] reportId:', reportId, 'link:', link);
+          debugInfo.reportId = reportId;
+          debugInfo.reportReadyLink = link;
+          if (debugInfo.reportPollTimedOut == null) debugInfo.reportPollTimedOut = false;
 
           let csvData = null;
           if (link) csvData = await downloadCSVFromLink(link, headers.Authorization);
           post(reportsUrl, 'deleteReport', { reportId }, 'report-del').catch(() => { });
 
           console.log('[getScanReport][DEBUG] csvData present:', !!csvData);
+          debugInfo.csvDataPresent = !!csvData;
 
           if (csvData) {
             const { rows, headers: csvHeaders } = parseCSVRows(csvData);
             console.log('[getScanReport][DEBUG] CSV headers found:', csvHeaders);
             console.log('[getScanReport][DEBUG] CSV row count:', rows.length);
+            debugInfo.csvHeadersFound = csvHeaders;
+            debugInfo.csvRowCount = rows.length;
 
-            // Build a list of usable candidate scans from the report:
-            // { scanTime, filesScanned }. Column names are matched fuzzily
-            // (any header containing all keywords in one of these arrays)
-            // instead of one hardcoded exact string, since GravityZone's
-            // wording varies by report/locale (e.g. "Scanned files" vs
-            // "Last successful scan - Scanned files" vs "Objects scanned").
+            // Column names matched fuzzily (any header containing all
+            // keywords in one of these arrays) since GravityZone's wording
+            // varies by report/locale.
             const scanTimePatterns = [
               ['last successful scan', 'start time'],
               ['last scan', 'start time'],
@@ -622,67 +735,105 @@ const getScanReport = async (req, res) => {
               .map((r) => {
                 const scanTime = parseBDDate(findFieldValue(r, scanTimePatterns));
                 const filesScanned = getExact(findFieldValue(r, scannedFilesPatterns));
-                return (scanTime && filesScanned > 0) ? { scanTime, filesScanned } : null;
+                return (filesScanned > 0) ? { scanTime, filesScanned } : null;
               })
               .filter(Boolean);
 
             console.log('[getScanReport][DEBUG] usable candidate rows:', candidates.length);
+            debugInfo.usableCandidateRows = candidates.length;
             if (rows.length > 0 && candidates.length === 0) {
               console.warn('[getScanReport][DEBUG] No candidates matched. Sample row:', JSON.stringify(rows[0]));
+              debugInfo.sampleRow = rows[0];
             }
 
-            // Greedy nearest-match: each pending task claims the closest
-            // unclaimed candidate row within a 15-minute window.
-            const usedIdx = new Set();
-            const sortedPending = [...pendingTasks].sort(
+            // Correction: this report is NOT limited to one row per endpoint
+            // — with a wide enough reportingInterval it returns one row per
+            // completed scan. Grabbing "row 0" (as an earlier version of
+            // this code did) is wrong: rows aren't guaranteed to be sorted
+            // newest-first, so row 0 can be an old scan, permanently
+            // starving newer tasks of their real data.
+            //
+            // Correct approach: match EACH pending task to its OWN row,
+            // chronologically. Sort both tasks and candidate rows by time
+            // ascending, then greedily assign each task the earliest
+            // still-unused row whose scan time is at or after the task's
+            // own start time (a completed scan can't be reporting on
+            // something that finished before it started — that's the
+            // staleness guard, now applied per-task instead of once).
+            const sortedPendingTasks = [...pendingTasks].sort(
               (a, b) => new Date(a.startDate).getTime() - new Date(b.startDate).getTime()
             );
+            const sortedCandidates = [...candidates]
+              .map((c, idx) => ({ ...c, idx }))
+              .filter((c) => c.scanTime)
+              .sort((a, b) => a.scanTime.getTime() - b.scanTime.getTime());
 
-            for (const task of sortedPending) {
-              const taskTime = task.startDate ? new Date(task.startDate) : null;
-              if (!taskTime) continue;
+            const usedCandidateIdx = new Set();
+            let matchedCount = 0;
+            let staleSkippedCount = 0;
+            const matchDetails = [];
 
-              let bestIdx = -1;
-              let bestDelta = Infinity;
-              candidates.forEach((c, idx) => {
-                if (usedIdx.has(idx)) return;
-                const delta = Math.abs(c.scanTime.getTime() - taskTime.getTime());
-                if (delta < 15 * 60 * 1000 && delta < bestDelta) {
-                  bestDelta = delta;
-                  bestIdx = idx;
-                }
+            for (const task of sortedPendingTasks) {
+              const taskStart = task.startDate ? new Date(task.startDate) : null;
+              if (!taskStart) continue;
+
+              const candidate = sortedCandidates.find(
+                (c) => !usedCandidateIdx.has(c.idx) && c.scanTime.getTime() >= taskStart.getTime()
+              );
+
+              if (!candidate) {
+                staleSkippedCount++;
+                matchDetails.push({
+                  taskId: task.id,
+                  taskStart: taskStart.toISOString(),
+                  result: 'no report row at/after task start yet — still pending',
+                });
+                continue;
+              }
+
+              usedCandidateIdx.add(candidate.idx);
+              matchedCount++;
+              matchDetails.push({
+                taskId: task.id,
+                taskStart: taskStart.toISOString(),
+                matchedScanTime: candidate.scanTime.toISOString(),
+                filesScanned: candidate.filesScanned,
               });
 
-              if (bestIdx !== -1) {
-                usedIdx.add(bestIdx);
-                const matched = candidates[bestIdx];
+              scanStatsById[task.id] = {
+                filesScanned: candidate.filesScanned,
+                threatsDetected: scanStatsById[task.id]?.threatsDetected ?? 0,
+              };
 
-                scanStatsById[task.id] = {
-                  filesScanned: matched.filesScanned,
-                  threatsDetected: scanStatsById[task.id]?.threatsDetected ?? 0,
-                };
-
-                const matchedRecordId = taskIdByRecordId[task.id];
-                if (matchedRecordId) {
-                  await SelfHelpTool.findByIdAndUpdate(matchedRecordId, {
-                    filesScanned: matched.filesScanned,
-                    threatsDetected: scanStatsById[task.id].threatsDetected,
-                  }).catch(() => { });
-                }
+              const matchedRecordId = taskIdByRecordId[task.id];
+              if (matchedRecordId) {
+                await SelfHelpTool.findByIdAndUpdate(matchedRecordId, {
+                  filesScanned: candidate.filesScanned,
+                  threatsDetected: scanStatsById[task.id].threatsDetected,
+                }).catch(() => { });
               }
             }
+
+            console.log('[getScanReport][DEBUG] per-task match results:', JSON.stringify(matchDetails));
+            debugInfo.matchedLatestCompletedTask = matchedCount > 0;
+            debugInfo.matchedCount = matchedCount;
+            debugInfo.staleReportSkipped = staleSkippedCount > 0;
+            debugInfo.staleSkippedCount = staleSkippedCount;
+            debugInfo.matchDetails = matchDetails;
           }
         }
       } catch (reportErr) {
         console.warn('[getScanReport] Report fallback error:', reportErr.message);
+        debugInfo.reportFallbackError = reportErr.message;
         if (reportErr.response) {
           console.warn('[getScanReport] Report fallback error response:', JSON.stringify(reportErr.response.data));
+          debugInfo.reportFallbackError += ' | response: ' + JSON.stringify(reportErr.response.data);
         }
       }
     }
 
     // ─── Build scans[] using the (possibly patched) stats map ────────────────
-    const scans = myTasks.map((task) => {
+    const scans = scopedTasks.map((task) => {
       const info = scanStatsById[task.id] ?? { filesScanned: null, threatsDetected: 0 };
 
       return {
@@ -699,6 +850,18 @@ const getScanReport = async (req, res) => {
         threatsDetected: info.threatsDetected,
       };
     });
+
+    // Full list of users who have requested a scan on this endpoint, built
+    // from ALL tasks (not scopedTasks) so the filter dropdown always offers
+    // every option regardless of which filter is currently applied.
+    const availableRequesters = Array.from(
+      new Map(
+        tasks
+          .map((task) => getScannedBy(task.id))
+          .filter(Boolean)
+          .map((user) => [user.id?.toString(), user])
+      ).values()
+    );
 
     const userLastScan = await SelfHelpTool.findOne({ user: req.user.id, category: 'security' }).sort({ createdAt: -1 });
 
@@ -722,8 +885,8 @@ const getScanReport = async (req, res) => {
         filesScanned = userLastScan.filesScanned;
         threatsDetected = userLastScan.threatsDetected ?? 0;
         filesScannedAvailable = true;
-      } else if (userLastScan.bdTaskId && scanStatsById[userLastScan.bdTaskId]) {
-        const taskInfo = scanStatsById[userLastScan.bdTaskId];
+      } else if (userLastScan.bitdefenderTaskId && scanStatsById[userLastScan.bitdefenderTaskId]) {
+        const taskInfo = scanStatsById[userLastScan.bitdefenderTaskId];
         filesScanned = taskInfo.filesScanned;
         threatsDetected = taskInfo.threatsDetected;
         filesScannedAvailable = filesScanned != null && filesScanned > 0;
@@ -745,7 +908,7 @@ const getScanReport = async (req, res) => {
         lastUpdate: endpoint?.agent?.lastUpdate,
       },
       stats: {
-        totalScans: myTasks.length,
+        totalScans: scopedTasks.length,
         completedScans: myCompletedTasks.length,
       },
       recentScan: myLatestCompleted ? {
@@ -758,6 +921,13 @@ const getScanReport = async (req, res) => {
         threatsDetected: recentThreatsDetected,
       } : null,
       scans,
+      // Every user who has ever requested a scan on this endpoint, and the
+      // filter currently applied (null = showing everyone). The frontend's
+      // "Requested by" dropdown should source its options from this list
+      // rather than deriving it from `scans`, since `scans` is already
+      // filtered down to `appliedUserFilter` when one is set.
+      availableRequesters,
+      appliedUserFilter: requestedUserId,
       userLastScan: userLastScan ? {
         id: userLastScan._id,
         status: userLastScan.status,
@@ -768,10 +938,11 @@ const getScanReport = async (req, res) => {
         filesScannedAvailable,
         threatsDetected,
       } : null,
+      debug: debugInfo, // TEMPORARY — remove once files-scanned is confirmed working
     });
 
   } catch (err) {
-    return res.status(500).json({ success: false, message: err.message });
+    return res.status(500).json({ success: false, message: err.message, debug: debugInfo });
   }
 };
 
