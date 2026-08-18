@@ -20,7 +20,7 @@ router.post('/start-tool', protect, startTool);
 
 router.get('/tool-status/:id', protect, getToolStatus);
 
-router.get("/bitdefender/endpoints", protect, getEndpoints);
+router.get("/endpoints", protect, getEndpoints);
 
 router.get("/bitdefender/scan-results", protect, getScanResults);
 

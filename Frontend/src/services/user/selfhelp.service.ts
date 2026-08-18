@@ -14,13 +14,10 @@ API.interceptors.request.use((config) => {
   return config;
 });
 
-export const startTool = async (toolId: string) => {
-  const response = await API.post("/self-help/start-tool", {
-    toolId,
-  });
-
-  return response.data;
-};
+export async function startTool(toolId: string, deviceId?: string) {
+  const res = await API.post("/self-help/start-tool", { toolId, deviceId });
+  return res.data;
+}
 
 export const getToolStatus = async (id: string) => {
   const response = await API.get(`/self-help/tool-status/${id}`);
@@ -67,3 +64,8 @@ export const downloadBackup = async (id: string, fileName: string) => {
   link.remove();
   window.URL.revokeObjectURL(url);
 };
+
+export async function getEndpoints() {
+  const res = await API.get("/self-help/endpoints"); // match your actual route
+  return res.data.agents; // array of RMM agent objects
+}

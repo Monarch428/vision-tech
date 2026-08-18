@@ -23,6 +23,9 @@ const deviceSchema = new mongoose.Schema(
     uptime: { type: Number, default: 0 }, // seconds
 
     lastSeen: { type: Date },
+
+    // Tactical RMM link — the agent_id of the matching agent in Tactical RMM
+    tacticalAgentId: { type: String, default: null, trim: true },
   },
   { timestamps: true }
 );
@@ -35,8 +38,6 @@ deviceSchema.virtual('status').get(function () {
 });
 
 deviceSchema.virtual('health').get(function () {
-  // No heartbeat received yet — cpu/memory/storage are just schema defaults (0),
-  // not real data. Reporting 100% here would be misleading, so treat as unknown.
   if (!this.lastSeen) return 0;
 
   const cpuScore = 100 - this.cpu;

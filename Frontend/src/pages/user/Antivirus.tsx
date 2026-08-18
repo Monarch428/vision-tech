@@ -152,6 +152,9 @@ export default function Antivirus() {
     }
   };
 
+  // ── Derived values (all optional-chained; scanReport.machine can be null) ──
+  const protectionActive = scanReport?.machine?.securityStatus === 1;
+
   // ── Derive service statuses from scan report ──
   const serviceStatuses = scanReport
     ? [
@@ -162,19 +165,16 @@ export default function Antivirus() {
       },
       {
         name: "Update",
-        detail: `Last update: ${formatDate(scanReport.machine.lastUpdate)}`,
+        detail: `Last update: ${formatDate(scanReport.machine?.lastUpdate)}`,
         status: "in progress" as const,
       },
       {
         name: "Installation",
-        detail: `Agent v${scanReport.machine.agentVersion}`,
+        detail: `Agent v${scanReport.machine?.agentVersion ?? "N/A"}`,
         status: "scheduled" as const,
       },
     ]
     : [];
-
-  // ── Derived values ──
-  const protectionActive = scanReport?.machine.securityStatus === 1;
 
   // Always surface the most recent scan's filesScanned/threatsDetected by
   // pulling from the last (most recent, by startDate) entry in scans[],
@@ -251,7 +251,7 @@ export default function Antivirus() {
           <div>
             <p className="text-md text-gray-700 mb-1">Total Scans</p>
             <p className="text-2xl font-bold text-gray-900">
-              {reportLoading ? "—" : (scanReport?.stats.totalScans ?? 0)}
+              {reportLoading ? "—" : (scanReport?.stats?.totalScans ?? 0)}
             </p>
           </div>
           <div className="bg-purple-50 rounded-xl p-3">

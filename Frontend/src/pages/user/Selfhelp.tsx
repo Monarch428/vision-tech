@@ -7,6 +7,7 @@ import {
   startBackupJob,
   listBackups,
   downloadBackup,
+  getEndpoints,
 } from "../../services/user/selfhelp.service";
 import type { BackupRecord } from "../../services/user/selfhelp.service";
 import { clearCache } from "../../hooks/useCacheStorage";
@@ -300,6 +301,19 @@ function ToolCard({ tool, onNetworkRestartComplete, triggerRun }: ToolCardProps)
   const [backupsRefresh, setBackupsRefresh] = useState(0);
   const navigate = useNavigate();
 
+  // ── Antivirus-only: device/agent selection ────────────────────────────────
+  const [agents, setAgents] = useState<any[]>([]);
+  const [selectedDeviceId, setSelectedDeviceId] = useState<string>("");
+
+  useEffect(() => {
+    if (tool.id === "antivirus-scan") {
+      getEndpoints()
+        .then((list) => setAgents(list))
+        .catch((err) => console.error("Failed to load agents:", err));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tool.id]);
+
   const simCleanupRef = useRef<(() => void) | null>(null);
 
   // Only antivirus polls the backend for real status
@@ -311,9 +325,13 @@ function ToolCard({ tool, onNetworkRestartComplete, triggerRun }: ToolCardProps)
 
     // ── Antivirus: real Bitdefender scan ─────────────────────────────────────
     if (usesApi) {
+      if (!selectedDeviceId) {
+        console.error("No device selected");
+        return; // or show a toast/error to the user
+      }
       try {
         setLoading(true);
-        const response = await startTool(tool.id);
+        const response = await startTool(tool.id, selectedDeviceId);
         setToolRecordId(response.tool._id);
         setStatus("running");
       } catch (error) {
@@ -443,7 +461,7 @@ function ToolCard({ tool, onNetworkRestartComplete, triggerRun }: ToolCardProps)
 
       {/* Inline instructions */}
       <div className={`${tool.instructionBg} rounded-lg p-2.5`}>
-        <p className={`text-[14 px] leading-snug ${tool.instructionText}`}>
+        <p className={`text-[14px] leading-snug ${tool.instructionText}`}>
           {tool.fullDescription}
         </p>
       </div>
@@ -464,6 +482,22 @@ function ToolCard({ tool, onNetworkRestartComplete, triggerRun }: ToolCardProps)
         </div>
       )}
 
+      {/* Antivirus device selector */}
+      {tool.id === "antivirus-scan" && status === "idle" && (
+        <select
+          value={selectedDeviceId}
+          onChange={(e) => setSelectedDeviceId(e.target.value)}
+          className="w-full text-xs border border-gray-300 rounded-lg p-2"
+        >
+          <option value="">Select a device…</option>
+          {agents.map((a) => (
+            <option key={a.agent_id} value={a.agent_id}>
+              {a.hostname} ({a.client_name} / {a.site_name})
+            </option>
+          ))}
+        </select>
+      )}
+
       {/* Action buttons */}
       {status === "idle" && (
         <button
@@ -472,7 +506,7 @@ function ToolCard({ tool, onNetworkRestartComplete, triggerRun }: ToolCardProps)
               ? () => navigate("/user/network-restart-guide")
               : handleRun
           }
-          disabled={loading}
+          disabled={loading || (tool.id === "antivirus-scan" && !selectedDeviceId)}
           className="w-full flex items-center justify-center gap-1.5 bg-green-500 hover:bg-green-600 text-white font-semibold text-xs py-2 rounded-lg transition-colors disabled:opacity-50"
         >
           {loading ? <SpinnerIcon /> : <PlayIcon />}
