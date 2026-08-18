@@ -159,7 +159,7 @@ function computeHealth(cpu: number, memory: number, storage: number) {
   return Math.round((cpuScore + memScore + storageScore) / 3);
 }
 
-function inferDeviceType(platform?: string): "Laptop" | "Desktop" {
+function inferDeviceType(_platform?: string): "Laptop" | "Desktop" {
   // Tactical doesn't report form-factor — default to Desktop unless you want to
   // wire this up to a real signal (chassis type via a custom field/script later).
   return "Desktop";
@@ -559,7 +559,7 @@ function AddDeviceModal({ onClose, onDeviceLikelyAdded }: { onClose: () => void;
 // ─── Page ───────────────────────────────────────────────────────────────────
 
 export default function RMM() {
-  const [rmmEnabled, setRmmEnabled] = useState(true);
+  const [rmmEnabled] = useState(true);
   const [devices, setDevices] = useState<Device[]>([]);
   const [loading, setLoading] = useState(true);
   const [showAddModal, setShowAddModal] = useState(false);
