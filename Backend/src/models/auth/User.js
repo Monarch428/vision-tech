@@ -75,6 +75,13 @@ const userSchema = new mongoose.Schema(
       type: Date,
       select: false,
     },
+
+    // Tactical RMM agent_ids assigned to this user — used to filter the
+    // /api/devices list so non-admin users only see their own device(s).
+    rmmAgentIds: {
+      type: [String],
+      default: [],
+    },
   },
   {
     timestamps: true,

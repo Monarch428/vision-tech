@@ -1,41 +1,73 @@
 const tacticalService = require('../../services/tacticalRmm.service');
+const ManagementUser = require('../../models/auth/User');
 
-// GET /devices — list all agents, normalized to your old Device shape
 exports.getDevices = async (req, res) => {
   try {
-    const agents = await tacticalService.listAgents();
+    const agentList = await tacticalService.listAgents();
 
-    const devices = agents.map((a) => ({
+  const devices = await Promise.all(
+  agentList.map(async (a) => {
+    let cpu = 0, memory = 0, storage = a.disks?.[0]?.percent ?? 0;
+    let siteId = null, clientId = null;
+    try {
+      const full = await tacticalService.getAgent(a.agent_id);
+      const wmiCpu = full.wmi_detail?.cpu?.[0]?.[0];
+      const wmiOs = full.wmi_detail?.os?.[0]?.[0];
+      cpu = wmiCpu?.LoadPercentage ?? 0;
+      if (wmiOs?.TotalVisibleMemorySize && wmiOs?.FreePhysicalMemory) {
+        memory = Math.round(
+          (1 - wmiOs.FreePhysicalMemory / wmiOs.TotalVisibleMemorySize) * 100
+        );
+      }
+      storage = full.disks?.[0]?.percent ?? storage;
+      siteId = full.site ?? null;       // confirmed present on full agent detail
+      clientId = full.client ?? null;   // ⚠️ not confirmed in captured data — verify below
+    } catch (e) {
+      console.warn(`Failed to fetch detail for ${a.agent_id}:`, e.message);
+    }
+
+    return {
       _id: a.agent_id,
       deviceId: a.agent_id,
       name: a.hostname,
       hostname: a.hostname,
       platform: a.operating_system,
       status: a.status === 'online' ? 'online' : 'offline',
-      cpu: a.cpu_load ?? 0,
-      memory: a.mem_percent ?? 0,
-      storage: a.disks?.[0]?.percent ?? 0,
+      cpu,
+      memory,
+      storage,
       lastSeen: a.last_seen,
-    }));
+      siteId,
+      clientId,
+      clientName: a.client_name ?? null,
+      siteName: a.site_name ?? null,
+    };
+  })
+);
 
-    res.json({ success: true, devices });
- } catch (err) {
-  console.error("TACTICAL RMM ERROR:", {
-    message: err.message,
-    code: err.code,
-    status: err.response?.status,
-    data: err.response?.data,
-    url: err.config?.url,
-    baseURL: err.config?.baseURL,
-  });
+    // "admin" and "support" (the elevated/system-wide role in this app) see
+    // every device. Everyone else is scoped to their assigned rmmAgentIds.
+    let filteredDevices = devices;
+    if (req.user?.role !== 'admin' && req.user?.role !== 'support') {
+      const user = await ManagementUser.findById(req.user?.id).select('rmmAgentIds').lean();
+      const allowedIds = new Set(user?.rmmAgentIds || []);
+      filteredDevices = devices.filter((d) => allowedIds.has(d.deviceId));
+    }
 
-  res.status(err.response?.status || 500).json({
-    success: false,
-    message: err.message,
-    tacticalStatus: err.response?.status,
-    tacticalResponse: err.response?.data,
-  });
-}
+    res.json({ success: true, devices: filteredDevices });
+  } catch (err) {
+    console.error("TACTICAL RMM ERROR:", {
+      message: err.message,
+      status: err.response?.status,
+      data: err.response?.data,
+    });
+    res.status(err.response?.status || 500).json({
+      success: false,
+      message: err.message,
+      tacticalStatus: err.response?.status,
+      tacticalResponse: err.response?.data,
+    });
+  }
 };
 
 // GET /devices/:id — raw agent detail from Tactical

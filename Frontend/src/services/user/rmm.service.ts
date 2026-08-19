@@ -40,7 +40,7 @@ export interface Device {
   _id: string;
   deviceId: string;
   name: string;
-  type: DeviceType;      // derived client-side from platform, see helper below
+  type: DeviceType;
   hostname?: string;
   platform?: string;
   status: DeviceStatus;
@@ -48,6 +48,10 @@ export interface Device {
   memory: number;
   storage: number;
   lastSeen?: string;
+  siteId?: number | null;      // NEW
+  clientId?: number | null;    // NEW
+  clientName?: string | null;  // NEW
+  siteName?: string | null;    // NEW
 }
 
 export const getDevices = async (): Promise<Device[]> => {

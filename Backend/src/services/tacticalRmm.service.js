@@ -1,12 +1,14 @@
 const rmm = require('../utils/tacticalRmmClient');
 
 exports.listAgents = async () => {
-  const response = await rmm.get("/agents/?detail=false");
+  const response = await rmm.get("/agents/?detail=true");
+  console.log("LIST AGENT SAMPLE:", JSON.stringify(response.data[0], null, 2)); // TEMP
   return response.data;
 };
 
 exports.getAgent = async (agentId) => {
   const response = await rmm.get(`/agents/${agentId}/`);
+  console.log("SINGLE AGENT DETAIL:", JSON.stringify(response.data, null, 2)); // TEMP
   return response.data;
 };
 

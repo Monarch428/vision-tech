@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { getDevices, generateInstaller } from "../../services/user/rmm.service";
 import type { Device, GenerateInstallerPayload } from "../../services/user/rmm.service";
+import { currentUserRole } from "../../services/admin/userManagement.service";
 
 // ─── Icons ────────────────────────────────────────────────────────────────────
 
@@ -160,9 +161,58 @@ function computeHealth(cpu: number, memory: number, storage: number) {
 }
 
 function inferDeviceType(_platform?: string): "Laptop" | "Desktop" {
-  // Tactical doesn't report form-factor — default to Desktop unless you want to
-  // wire this up to a real signal (chassis type via a custom field/script later).
   return "Desktop";
+}
+
+// Detailed, OS-specific steps for running the generated installer command
+// on the target device.
+function getRunInstructions(plat: GenerateInstallerPayload["plat"]): {
+  terminalName: string;
+  steps: string[];
+} {
+  if (plat === "windows") {
+    return {
+      terminalName: "Command Prompt (Administrator)",
+      steps: [
+        'Log in to the target Windows device with an account that has administrator rights.',
+        'Click the Start menu, type "cmd", right-click "Command Prompt", and choose "Run as administrator". If prompted by User Account Control, click "Yes".',
+        'Navigate to a folder the installer can download into, e.g. type cd %USERPROFILE%\\Downloads and press Enter (the Downloads folder works well and avoids permission issues in system folders).',
+        "Copy the install command below using the Copy Command button.",
+        "Right-click inside the black Command Prompt window (or press Ctrl+V) to paste the command.",
+        "Press Enter to run it, and wait for the download and install to finish — this usually takes a minute or two and the window will show progress messages.",
+        "Do not close the window until it returns to a normal prompt, indicating the install finished.",
+        'Once it completes, the device should appear in your device list here within about a minute — refresh this page if it does not show up right away.',
+      ],
+    };
+  }
+  if (plat === "linux") {
+    return {
+      terminalName: "Terminal (root or sudo)",
+      steps: [
+        "Log in to the target Linux machine, either directly or over SSH.",
+        "Open a terminal window.",
+        "Navigate to a folder the installer can write to, e.g. run cd ~/Downloads (or cd /tmp) so the downloaded install files land somewhere you have write access.",
+        "Copy the install command below using the Copy Command button.",
+        "Paste it into the terminal (Ctrl+Shift+V, or right-click → Paste) and press Enter. The command already includes sudo, so you may be prompted for the local user's password.",
+        "Wait for the script to finish downloading and installing the agent — you'll see log output as it runs.",
+        "Once it finishes without errors, the device should appear in your device list here within about a minute.",
+      ],
+    };
+  }
+  // darwin / macOS
+  return {
+    terminalName: "Terminal",
+    steps: [
+      "Log in to the target Mac with an account that has administrator rights.",
+      'Open Terminal (press Cmd+Space, type "Terminal", and press Enter).',
+      "Navigate to a folder the installer can write to, e.g. run cd ~/Downloads so the downloaded files land in a folder you own.",
+      "Copy the install command below using the Copy Command button.",
+      "Paste it into Terminal (Cmd+V) and press Enter.",
+      "If prompted, enter the administrator password for the Mac (the characters won't appear as you type — that's normal).",
+      "Wait for the installer to finish downloading and running.",
+      "Once it completes, the device should appear in your device list here within about a minute.",
+    ],
+  };
 }
 
 function StatBar({
@@ -239,6 +289,8 @@ function DeviceCard({ device }: { device: Device }) {
             </div>
             <p className="text-xs sm:text-sm text-gray-500 mt-0.5 truncate">
               {device.type} • Last seen: {formatLastSeen(device.lastSeen)}
+              {device.clientName ? ` • ${device.clientName}` : ""}
+              {device.siteName ? ` / ${device.siteName}` : ""}
             </p>
           </div>
         </div>
@@ -347,9 +399,6 @@ function AddDeviceModal({ onClose, onDeviceLikelyAdded }: { onClose: () => void;
     }
   };
 
-  // The exact field the install command lives under isn't confirmed yet —
-  // try the common possibilities so this renders no matter what Tactical
-  // actually named it in the response.
   const installCommand: string | null =
     result?.cmd ?? result?.command ?? result?.installCommand ?? null;
   const downloadUrl: string | null =
@@ -482,10 +531,28 @@ function AddDeviceModal({ onClose, onDeviceLikelyAdded }: { onClose: () => void;
 
         {step === "result" && (
           <>
-            <p className="text-sm text-gray-600 mb-3">
-              Run this command in an elevated (Administrator) command prompt on the target
-              device:
-            </p>
+            {(() => {
+              const { terminalName, steps } = getRunInstructions(plat);
+              return (
+                <div className="mb-4">
+                  <p className="text-sm text-gray-800 font-semibold mb-1">
+                    How to run this on the target device
+                  </p>
+                  <p className="text-xs text-gray-500 mb-2">
+                    You'll need: <span className="font-medium text-gray-700">{terminalName}</span>
+                  </p>
+                  <ol className="list-decimal list-inside flex flex-col gap-1.5 text-sm text-gray-700">
+                    {steps.map((s, i) => (
+                      <li key={i} className="leading-snug">
+                        {s}
+                      </li>
+                    ))}
+                  </ol>
+                </div>
+              );
+            })()}
+
+            <p className="text-sm text-gray-600 mb-3">Install command:</p>
 
             {installCommand ? (
               <div className="bg-gray-900 text-gray-100 text-[11px] sm:text-xs rounded-lg p-3 font-mono break-all mb-2">
@@ -556,6 +623,70 @@ function AddDeviceModal({ onClose, onDeviceLikelyAdded }: { onClose: () => void;
   );
 }
 
+// ─── DeviceFilterBar ──────────────────────────────────────────────────────
+
+function DeviceFilterBar({
+  siteId,
+  clientId,
+  hostname,
+  onSiteIdChange,
+  onClientIdChange,
+  onHostnameChange,
+  resultCount,
+}: {
+  siteId: string;
+  clientId: string;
+  hostname: string;
+  onSiteIdChange: (v: string) => void;
+  onClientIdChange: (v: string) => void;
+  onHostnameChange: (v: string) => void;
+  resultCount: number;
+}) {
+  const hasFilter = siteId.trim() || clientId.trim() || hostname.trim();
+
+  return (
+    <div className="mt-6 bg-white border border-gray-300 rounded-2xl p-4 sm:p-5 flex flex-col gap-3">
+      <div className="flex flex-col sm:flex-row gap-3">
+        <div className="flex-1">
+          <label className="text-xs font-semibold text-gray-700 mb-1 block">Client Name</label>
+          <input
+            type="text"
+            value={clientId}
+            onChange={(e) => onClientIdChange(e.target.value)}
+            placeholder="e.g. CyberShield Solo"
+            className="w-full text-sm border border-gray-300 rounded-lg p-2"
+          />
+        </div>
+        <div className="flex-1">
+          <label className="text-xs font-semibold text-gray-700 mb-1 block">Site Name</label>
+          <input
+            type="text"
+            value={siteId}
+            onChange={(e) => onSiteIdChange(e.target.value)}
+            placeholder="e.g. Lolita"
+            className="w-full text-sm border border-gray-300 rounded-lg p-2"
+          />
+        </div>
+        <div className="flex-1">
+          <label className="text-xs font-semibold text-gray-700 mb-1 block">Hostname</label>
+          <input
+            type="text"
+            value={hostname}
+            onChange={(e) => onHostnameChange(e.target.value)}
+            placeholder="e.g. DESKTOP-3FH844G"
+            className="w-full text-sm border border-gray-300 rounded-lg p-2"
+          />
+        </div>
+      </div>
+      {hasFilter && (
+        <p className="text-xs text-gray-500">
+          {resultCount} device{resultCount === 1 ? "" : "s"} match{resultCount === 1 ? "es" : ""} this filter.
+        </p>
+      )}
+    </div>
+  );
+}
+
 // ─── Page ───────────────────────────────────────────────────────────────────
 
 export default function RMM() {
@@ -563,6 +694,20 @@ export default function RMM() {
   const [devices, setDevices] = useState<Device[]>([]);
   const [loading, setLoading] = useState(true);
   const [showAddModal, setShowAddModal] = useState(false);
+
+  const [role, setRole] = useState<string | null>(null);
+  useEffect(() => {
+    currentUserRole()
+      .then((res) => setRole(res.data.data.role))
+      .catch(() => setRole(null));
+  }, []);
+  // "support" is the elevated/system role in this app's User schema
+  // (enum: ['admin', 'user', 'support']) — there is no separate "system" role.
+  const isSystemRole = role === "support";
+
+  const [siteIdFilter, setSiteIdFilter] = useState("");
+  const [clientIdFilter, setClientIdFilter] = useState("");
+  const [hostnameFilter, setHostnameFilter] = useState("");
 
   const loadDevices = async () => {
     try {
@@ -586,10 +731,38 @@ export default function RMM() {
     return () => clearInterval(interval);
   }, []);
 
+const filteredDevices = useMemo(() => {
+  // "system" role sees every device without needing to filter.
+  if (isSystemRole) return devices;
+
+  const site = siteIdFilter.trim();
+  const client = clientIdFilter.trim();
+  const host = hostnameFilter.trim();
+  const hasFilter = site || client || host;
+
+  // Nothing to show until the user actually filters by at least one field.
+  if (!hasFilter) return [];
+
+  return devices.filter((d) => {
+    const siteMatch = site
+      ? String(d.siteId ?? "") === site ||
+        d.siteName?.toLowerCase().includes(site.toLowerCase())
+      : false;
+    const clientMatch = client
+      ? String(d.clientId ?? "") === client ||
+        d.clientName?.toLowerCase().includes(client.toLowerCase())
+      : false;
+    const hostMatch = host
+      ? d.hostname?.toLowerCase().includes(host.toLowerCase())
+      : false;
+    return siteMatch || clientMatch || hostMatch;
+  });
+}, [devices, siteIdFilter, clientIdFilter, hostnameFilter, isSystemRole]);
+
   const stats = useMemo(() => {
     const total = devices.length;
     const online = devices.filter((d) => d.status === "online").length;
-    const monitored = total; // all Tactical-reporting devices are considered monitored
+    const monitored = total;
     const healths = devices.map((d) => computeHealth(d.cpu, d.memory, d.storage));
     const warnings = devices.filter(
       (d, i) => healths[i] < 80 || d.status === "offline"
@@ -618,48 +791,66 @@ export default function RMM() {
         </button>
       </div>
 
-      {/* RMM Service Active banner */}
-      <div className="mt-6 bg-gradient-to-r from-green-50 to-white border border-green-200 rounded-2xl p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div className="flex items-center gap-3 min-w-0">
-          <div className="bg-green-100 p-2.5 rounded-xl shrink-0">
-            <ActivityIcon />
+      {/* RMM Service Active banner — system role only */}
+      {isSystemRole && (
+        <div className="mt-6 bg-gradient-to-r from-green-50 to-white border border-green-200 rounded-2xl p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="bg-green-100 p-2.5 rounded-xl shrink-0">
+              <ActivityIcon />
+            </div>
+            <div className="min-w-0">
+              <h2 className="font-bold text-gray-900 text-sm sm:text-base">RMM Service Active</h2>
+              <p className="text-xs sm:text-sm text-gray-600">
+                Monitoring {stats.monitored} of {stats.total} devices
+              </p>
+            </div>
           </div>
-          <div className="min-w-0">
-            <h2 className="font-bold text-gray-900 text-sm sm:text-base">RMM Service Active</h2>
-            <p className="text-xs sm:text-sm text-gray-600">
-              Monitoring {stats.monitored} of {stats.total} devices
-            </p>
-          </div>
+          <Toggle label="Enable RMM" checked={rmmEnabled} />
         </div>
-        <Toggle label="Enable RMM" checked={rmmEnabled} />
-      </div>
+      )}
 
-      {/* Stat cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mt-6">
-        <StatCard label="Total Devices" value={stats.total} icon={<MonitorIcon color="#9ca3af" size={24} />} />
-        <StatCard label="Online" value={stats.online} valueColorClass="text-green-600" icon={<CheckCircleIcon size={24} />} />
-        <StatCard label="Warnings" value={stats.warnings} valueColorClass="text-red-600" icon={<AlertTriangleIcon size={24} />} />
-        <StatCard label="Avg Health" value={`${stats.avgHealth}%`} valueColorClass="text-green-600" icon={<ActivityIcon color="#3b82f6" size={24} />} />
-      </div>
+      {/* Stat cards — system role only */}
+      {isSystemRole && (
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mt-6">
+          <StatCard label="Total Devices" value={stats.total} icon={<MonitorIcon color="#9ca3af" size={24} />} />
+          <StatCard label="Online" value={stats.online} valueColorClass="text-green-600" icon={<CheckCircleIcon size={24} />} />
+          <StatCard label="Warnings" value={stats.warnings} valueColorClass="text-red-600" icon={<AlertTriangleIcon size={24} />} />
+          <StatCard label="Avg Health" value={`${stats.avgHealth}%`} valueColorClass="text-green-600" icon={<ActivityIcon color="#3b82f6" size={24} />} />
+        </div>
+      )}
+
+      {/* Filter bar */}
+      <DeviceFilterBar
+        siteId={siteIdFilter}
+        clientId={clientIdFilter}
+        hostname={hostnameFilter}
+        onSiteIdChange={setSiteIdFilter}
+        onClientIdChange={setClientIdFilter}
+        onHostnameChange={setHostnameFilter}
+        resultCount={filteredDevices.length}
+      />
 
       {/* Devices */}
       <div className="flex flex-col gap-4 mt-6">
         {loading ? (
-          <p className="text-sm text-gray-500">Loading devices...</p>
-        ) : devices.length === 0 ? (
-          <p className="text-sm text-gray-500">
-            No devices yet. Click "Add New Device" for setup instructions.
-          </p>
-        ) : (
-          devices.map((device) => <DeviceCard key={device._id} device={device} />)
-        )}
+  <p className="text-sm text-gray-500">Loading devices...</p>
+) : filteredDevices.length === 0 ? (
+  <p className="text-sm text-gray-500">
+    {isSystemRole
+      ? "No devices found."
+      : siteIdFilter.trim() || clientIdFilter.trim() || hostnameFilter.trim()
+      ? "No devices match this filter."
+      : "Enter a client name, site name, or hostname above to see matching devices."}
+  </p>
+) : (
+  filteredDevices.map((device) => <DeviceCard key={device._id} device={device} />)
+)}
       </div>
 
       {showAddModal && (
         <AddDeviceModal
           onClose={() => setShowAddModal(false)}
           onDeviceLikelyAdded={() => {
-            // Give the install a moment to complete, then refresh the list.
             setTimeout(loadDevices, 3000);
           }}
         />
