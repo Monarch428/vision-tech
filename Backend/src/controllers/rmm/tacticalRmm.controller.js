@@ -87,7 +87,6 @@ exports.runCommand = async (req, res) => {
   }
 };
 
-// POST /devices/generate-installer
 exports.generateInstaller = async (req, res) => {
   try {
     const { clientId, siteId, plat, agentType, arch, rdp, ping } = req.body;
@@ -103,10 +102,10 @@ exports.generateInstaller = async (req, res) => {
       client: clientId,
       site: siteId,
       plat: plat || 'windows',
-      arch: arch || 'amd64',
+      goarch: arch || 'amd64',
       agenttype: agentType || 'workstation',
-      rdp: rdp ?? true,
-      ping: ping ?? true,
+      rdp: rdp ?? 0,
+      ping: ping ?? 0,
     });
 
     res.json({ success: true, ...result });
