@@ -1,37 +1,47 @@
-const express = require('express');
+const express = require("express");
 const router = express.Router();
-const axios = require('axios');
 
 const {
   startTool,
   getToolStatus,
-  getScanResults,
   getEndpoints,
-  listBackups,
-  startBackup,
+  getScanResults,
   getScanReport,
+  startBackup,
+  listBackups,
   downloadBackup,
-  getReportData
-} = require('../../controllers/selfhelp/selfHelp.controller');
+  getReportData,
+  installBitdefender,
+  getBitdefenderInstallStatus,
+  getBitdefenderDownloadLink,
+} = require("../../controllers/selfhelp/selfHelp.controller");
 
-const { protect } = require('../../middleware/auth.middleware');
+// Auth middleware
+const { protect } = require("../../middleware/auth.middleware");
 
-router.post('/start-tool', protect, startTool);
+router.get(
+  "/bitdefender/status",
+  protect,
+  getBitdefenderInstallStatus
+);
 
-router.get('/tool-status/:id', protect, getToolStatus);
+// Self-help tools
+router.post("/start", protect, startTool);
+router.get("/status/:id", protect, getToolStatus);
 
+// Antivirus
 router.get("/endpoints", protect, getEndpoints);
+router.get("/scan-results", protect, getScanResults);
+router.get("/scan-report", protect, getScanReport);
 
-router.get("/bitdefender/scan-results", protect, getScanResults);
+// Backup
+router.post("/backup", protect, startBackup);
+router.get("/backups", protect, listBackups);
+router.get("/backups/:id/download", protect, downloadBackup);
 
-router.get('/bitdefender/scan-report', protect, getScanReport);
+// Debug
+router.get("/report-data", protect, getReportData);
 
-router.post('/backup', protect, startBackup);
-
-router.get('/scan-report-debug', protect, getReportData);
-
-router.get('/backups', protect, listBackups);
-
-router.get('/backups/:id/download', protect, downloadBackup);
+router.get('/bitdefender/download-link', protect, getBitdefenderDownloadLink);
 
 module.exports = router;

@@ -1,9 +1,11 @@
 const SelfHelpTool = require('../../models/tools/SelfHelpTool');
+const DeviceAntivirus = require('../../models/tools/SelfHelpTool');
 const fs = require('fs');
 const path = require('path');
 const { runBackup, backupDir } = require('../../cron/autoBackup');
 const systemLogger = require("../../utils/systemLogger");
 const rmm = require('../../utils/tacticalRmmClient');
+const gz = require('../../utils/gravityZoneClient');
 
 const categoryMap = {
   'browser-cleanup': 'browser',
@@ -12,14 +14,19 @@ const categoryMap = {
   'start-backup': 'backup',
 };
 
+// GravityZone installation package to push to devices. Create this once in
+// Control Center (Network > Packages) or via gz.createPackage(), then set
+// the resulting packageId here.
+//
+// NOTE: .trim() this — a stray trailing space/newline copied into .env is
+// a common, silent cause of GravityZone rejecting the request with
+// "Invalid params" (the packageId still reads as truthy, so the "not
+// configured" guard below won't catch it).
+const DEFAULT_PACKAGE_ID = process.env.BITDEFENDER_PACKAGE_ID?.trim();
+
 // ─── Backup storage location ──────────────────────────────────────────────
-// Same directory autoBackup.js writes to — imported directly so there's no
-// chance of the two drifting apart via a stale env var.
 const BACKUP_DIR = path.resolve(backupDir);
 
-// Resolves a stored backupPath and guarantees it's inside BACKUP_DIR,
-// so a manipulated/legacy path can never be used to read arbitrary
-// files off disk (path traversal guard).
 const resolveSafeBackupPath = (storedPath) => {
   if (!storedPath) return null;
   const resolved = path.resolve(storedPath);
@@ -27,6 +34,50 @@ const resolveSafeBackupPath = (storedPath) => {
     return null;
   }
   return resolved;
+};
+
+// ─── getBitdefenderInstallStatus ────────────────────────────────────────────
+// Polls GravityZone for the endpoint matching this device's hostname. Once
+// found, caches the endpointId so startTool's antivirus branch can use it.
+// No deviceId param — resolved from the logged-in user, same as install.
+const getBitdefenderInstallStatus = async (req, res) => {
+  try {
+    const record = await DeviceAntivirus.findOne({ user: req.user.id });
+    if (!record) {
+      // No install record yet == not installed. Not an error state.
+      return res.status(200).json({ success: true, device: null });
+    }
+
+    if (record.installStatus === 'installing') {
+      try {
+        const { items } = await gz.getEndpointsList({ filters: { name: record.hostname } });
+        const match = (items || []).find(
+          (e) => e.name?.toLowerCase() === record.hostname.toLowerCase()
+        );
+
+        if (match) {
+          record.installStatus = 'installed';
+          record.installCompletedAt = new Date();
+          record.bitdefenderEndpointId = match.id;
+          await record.save();
+        }
+      } catch (err) {
+        console.warn('[getBitdefenderInstallStatus] GravityZone lookup failed:', err.message);
+      }
+    }
+
+    return res.status(200).json({
+      success: true,
+      device: {
+        hostname: record.hostname,
+        installStatus: record.installStatus,
+        bitdefenderEndpointId: record.bitdefenderEndpointId,
+        installError: record.installError,
+      },
+    });
+  } catch (error) {
+    return res.status(500).json({ success: false, message: error.message });
+  }
 };
 
 // ─── startTool ────────────────────────────────────────────────────────────────
@@ -60,54 +111,43 @@ const startTool = async (req, res) => {
     }
 
     if (toolId === 'antivirus-scan') {
-      // ─── Antivirus scan via Tactical RMM ───────────────────────────────
-      // Tactical RMM has no dedicated "antivirus scan" API of its own — it
-      // just runs arbitrary commands/scripts on the agent. So the actual AV
-      // engine here is Windows Defender (already present on the managed
-      // device), triggered via RMM's /agents/<id>/cmd/ endpoint.
-      //
-      // Fire-and-forget: a full scan can take minutes, so we don't block
-      // this request waiting on it. getToolStatus polls Defender's own
-      // status (Get-MpComputerStatus) to detect completion instead.
-      try {
-        const { deviceId } = req.body; // Tactical RMM agent_id, required
-        if (!deviceId) {
-          throw new Error('No device selected for scan (missing deviceId)');
-        }
-
-        await rmm.post(`/agents/${deviceId}/cmd/`, {
-          shell: 'powershell',
-          cmd: 'Start-Process powershell -WindowStyle Hidden -ArgumentList "-Command Start-MpScan -ScanType QuickScan"',
-          timeout: 20,
-        });
-
-        const updated = await SelfHelpTool.findByIdAndUpdate(
-          record._id,
-          { status: 'running', progress: 10, rmmAgentId: deviceId },
-          { returnDocument: 'after' }
-        );
-
-        return res.status(200).json({
-          success: true,
-          tool: updated,
-        });
-      } catch (err) {
-        // TEMPORARY — surfaces the real cause instead of a generic message.
-        // Remove the `debug` field (and this console.error block) once the
-        // RMM-based scan is confirmed stable.
-        console.error('[antivirus-scan] failed:', err.message);
-        if (err.response) {
-          console.error('[antivirus-scan] response status:', err.response.status);
-          console.error('[antivirus-scan] response data:', JSON.stringify(err.response.data));
-        }
-        await SelfHelpTool.findByIdAndUpdate(record._id, { status: "failed" });
-        return res.status(500).json({
-          success: false,
-          message: "Antivirus scan failed to start",
-          debug: err.response?.data || err.message, // TEMPORARY — remove once fixed
-        });
-      }
+  // ─── Antivirus scan via GravityZone (Bitdefender) ───────────────────
+  // Looked up by the logged-in user, not any RMM agent id — GravityZone
+  // and Tactical RMM are unrelated here.
+  try {
+    const antivirusRecord = await DeviceAntivirus.findOne({ user: req.user.id });
+    const endpointId = antivirusRecord?.bitdefenderEndpointId;
+    if (!endpointId) {
+      throw new Error('Bitdefender is not installed on your device yet.');
     }
+
+    const task = await gz.createScanTask({ endpointId });
+    const taskId = task?.taskId || task?.id || task;
+
+    const updated = await SelfHelpTool.findByIdAndUpdate(
+      record._id,
+      { status: 'running', progress: 10, bitdefenderTaskId: taskId },
+      { new: true }
+    );
+
+    return res.status(200).json({
+      success: true,
+      tool: updated,
+    });
+  } catch (err) {
+    console.error('[antivirus-scan] failed:', err.message);
+    if (err.response) {
+      console.error('[antivirus-scan] response status:', err.response.status);
+      console.error('[antivirus-scan] response data:', JSON.stringify(err.response.data));
+    }
+    await SelfHelpTool.findByIdAndUpdate(record._id, { status: "failed" });
+    return res.status(500).json({
+      success: false,
+      message: err.message || "Antivirus scan failed to start",
+      debug: err.response?.data || err.message, // TEMPORARY — remove once fixed
+    });
+  }
+}
     return res.status(200).json({ success: true, tool: record });
   } catch (error) {
     return res.status(500).json({ success: false, message: error.message });
@@ -123,43 +163,23 @@ const getToolStatus = async (req, res) => {
     }
 
     if (tool.category === 'security') {
-      // ─── Poll Windows Defender (via RMM) for scan completion ──────────
-      // Ask the device directly whether its last quick scan finished after
-      // this SelfHelpTool record was started.
-      if (tool.status !== 'completed' && tool.status !== 'failed' && tool.rmmAgentId) {
+      // ─── Poll GravityZone for scan task completion ─────────────────────
+      if (tool.status !== 'completed' && tool.status !== 'failed' && tool.bitdefenderTaskId) {
         try {
-          const statusRes = await rmm.post(`/agents/${tool.rmmAgentId}/cmd/`, {
-            shell: 'powershell',
-            cmd: 'Get-MpComputerStatus | Select-Object QuickScanEndTime | ConvertTo-Json',
-            timeout: 20,
-          });
+          const taskStatus = await gz.getTaskStatus(tool.bitdefenderTaskId);
+          // Adjust these field reads once you've confirmed the actual
+          // getTasksList response shape against your GravityZone instance.
+          const isFinished = taskStatus?.status === 'finished' || taskStatus?.status === 3;
+          const threatsDetected = taskStatus?.infectedItems ?? taskStatus?.threatsDetected ?? 0;
+          const filesScanned = taskStatus?.scannedItems ?? null;
 
-          let scanEndTime = null;
-          try {
-            const parsed = JSON.parse(statusRes.data);
-            if (parsed?.QuickScanEndTime) scanEndTime = new Date(parsed.QuickScanEndTime);
-          } catch (parseErr) {
-            console.warn('[getToolStatus] could not parse Defender status output:', statusRes.data);
-          }
-
-          if (scanEndTime && tool.scanStartedAt && scanEndTime >= tool.scanStartedAt) {
-            let threatsDetected = 0;
-            try {
-              const threatRes = await rmm.post(`/agents/${tool.rmmAgentId}/cmd/`, {
-                shell: 'powershell',
-                cmd: '(Get-MpThreatDetection | Measure-Object).Count',
-                timeout: 20,
-              });
-              threatsDetected = parseInt(threatRes.data, 10) || 0;
-            } catch (threatErr) {
-              console.warn('[getToolStatus] threat count lookup failed:', threatErr.message);
-            }
-
+          if (isFinished) {
             const update = {
               status: 'completed',
               progress: 100,
               scanFinishedAt: new Date(),
               threatsDetected,
+              filesScanned,
             };
             await SelfHelpTool.findByIdAndUpdate(tool._id, update);
             Object.assign(tool, update);
@@ -169,7 +189,7 @@ const getToolStatus = async (req, res) => {
             Object.assign(tool, update);
           }
         } catch (err) {
-          console.warn('[getToolStatus] RMM scan status check failed:', err.message);
+          console.warn('[getToolStatus] GravityZone task status check failed:', err.message);
         }
       }
       return res.status(200).json({
@@ -211,11 +231,8 @@ const getToolStatus = async (req, res) => {
 };
 
 // ─── getEndpoints ─────────────────────────────────────────────────────────────
-// Replaces GravityZone's getEndpointsList with Tactical RMM's agent list.
-// NOTE: Tactical RMM doesn't publish a stable formal API schema (their own
-// docs recommend checking the browser Network tab against your instance),
-// so double check the field names on the returned agent objects
-// (agent_id / hostname / client_name / site_name / etc.) match your version.
+// Kept for admin-facing screens (e.g. an admin RMM device list). No longer
+// used by the user-facing Self-Help antivirus card.
 const getEndpoints = async (req, res) => {
   try {
     const response = await rmm.get('/agents/');
@@ -226,9 +243,6 @@ const getEndpoints = async (req, res) => {
 };
 
 // ─── getScanResults ───────────────────────────────────────────────────────────
-// Replaces GravityZone's getScanTasksList. Tactical RMM has no concept of a
-// "scan task" list — our own SelfHelpTool records (written in startTool /
-// getToolStatus) are the source of truth for scan history now.
 const getScanResults = async (req, res) => {
   try {
     const records = await SelfHelpTool.find({ category: 'security' })
@@ -244,20 +258,8 @@ const getScanResults = async (req, res) => {
 };
 
 // ─── getScanReport ────────────────────────────────────────────────────────────
-// Previously this pulled a GravityZone "On demand scanning" CSV report to
-// backfill files-scanned counts. That's no longer needed: filesScanned /
-// threatsDetected are already written directly onto each SelfHelpTool
-// record by getToolStatus's Defender polling, so this just reads them
-// back out of Mongo and pairs them with live agent info from RMM.
 const getScanReport = async (req, res) => {
   try {
-    // ─── Determine which RMM agent this report is for ───────────────────
-    // GravityZone had one hardcoded "network" to ask about; RMM has no
-    // equivalent single-network concept — every agent is independent — so
-    // the caller must say which agent's scan history to show. Accept it
-    // via ?agentId=, falling back to the most recent security-scan
-    // record's stored rmmAgentId so there's still something sensible to
-    // show if the frontend hasn't been updated to pass it yet.
     let agentId = typeof req.query.agentId === 'string' && req.query.agentId.trim()
       ? req.query.agentId.trim()
       : null;
@@ -283,10 +285,6 @@ const getScanReport = async (req, res) => {
       }
     }
 
-    // ─── User filter ────────────────────────────────────────────────────
-    // Shows every user's scans on the agent by default, with an optional
-    // ?userId=<id> to narrow it down (the frontend's "Requested by"
-    // dropdown can pass this).
     const requestedUserId = typeof req.query.userId === 'string' && req.query.userId.trim()
       ? req.query.userId.trim()
       : null;
@@ -317,11 +315,8 @@ const getScanReport = async (req, res) => {
     }));
 
     const completedRecords = scanRecords.filter((r) => r.status === 'completed');
-    const mostRecentCompleted = completedRecords[0] || null; // already sorted desc
+    const mostRecentCompleted = completedRecords[0] || null;
 
-    // Every user who has ever requested a scan on this agent, for the
-    // "Requested by" filter dropdown — built unfiltered so switching the
-    // filter doesn't shrink the available options.
     const allRecordsForAgent = agentId
       ? await SelfHelpTool.find({ category: 'security', rmmAgentId: agentId })
         .populate('user', 'name email')
@@ -342,9 +337,6 @@ const getScanReport = async (req, res) => {
     return res.json({
       success: true,
       machine: agent ? {
-        // Field names here are the commonly-seen ones on a Tactical RMM
-        // agent object — verify against your instance (devtools Network
-        // tab on GET /agents/<id>/ in the RMM web UI) and adjust as needed.
         name: agent.hostname,
         ip: agent.local_ips ?? agent.public_ip ?? null,
         os: agent.operating_system ?? agent.plat ?? null,
@@ -353,7 +345,7 @@ const getScanReport = async (req, res) => {
         infected: mostRecentCompleted ? (mostRecentCompleted.threatsDetected ?? 0) > 0 : false,
         detection: mostRecentCompleted ? (mostRecentCompleted.threatsDetected ?? 0) > 0 : false,
         agentVersion: agent.version ?? null,
-        engineVersion: null, // Defender engine version isn't surfaced by RMM's agent payload
+        engineVersion: null,
         lastUpdate: agent.last_seen,
       } : null,
       stats: {
@@ -489,9 +481,6 @@ const downloadBackup = async (req, res) => {
 };
 
 // ─── getReportData (debug endpoint) ──────────────────────────────────────────
-// Replaces GravityZone's getManagedEndpointDetails with a raw RMM agent
-// details fetch. Requires ?agentId= now, since there's no single hardcoded
-// network endpoint to fall back to.
 const getReportData = async (req, res) => {
   try {
     const agentId = typeof req.query.agentId === 'string' && req.query.agentId.trim()
@@ -507,6 +496,97 @@ const getReportData = async (req, res) => {
   }
 };
 
+// ─── getBitdefenderDownloadLink ─────────────────────────────────────────────
+// Returns direct GravityZone installer download links for the configured
+// package. No RMM device linking required — just asks GravityZone's
+// Packages API for the install URLs so the frontend can offer a simple
+// "Download Bitdefender" button.
+const getBitdefenderDownloadLink = async (req, res) => {
+  try {
+    if (!DEFAULT_PACKAGE_ID) {
+      return res.status(500).json({
+        success: false,
+        message: 'BITDEFENDER_PACKAGE_ID is not configured',
+      });
+    }
+
+    // TEMPORARY DEBUG LOG — remove once confirmed stable.
+    console.log('[getBitdefenderDownloadLink] packageId:', JSON.stringify(DEFAULT_PACKAGE_ID));
+
+    // NOTE: GravityZone's getInstallationLinks method takes a packageName,
+    // not a packageId (see gravityZoneClient.js for details) — so we use
+    // theByPackageId wrapper, which resolves the name via getPackageDetails
+    // first, then calls getInstallationLinks with it.
+    const result = await gz.getInstallationLinksByPackageId(DEFAULT_PACKAGE_ID);
+
+    if (!result) {
+      return res.status(502).json({
+        success: false,
+        message: 'GravityZone did not return installation links.',
+      });
+    }
+
+    // getInstallationLinks returns an Array per the GravityZone API docs —
+    // guard against both array and object shapes just in case.
+    const linkData = Array.isArray(result) ? result[0] : result;
+
+    if (!linkData) {
+      return res.status(502).json({
+        success: false,
+        message: 'GravityZone returned an empty installation links list — check the package exists and is published in Control Center > Configuration > Update > Components.',
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      links: {
+        windows: linkData.installLinkWindows || null,
+        linux: linkData.installLinkLinux || null,
+        mac: linkData.installLinkMac || null,
+      },
+    });
+  } catch (error) {
+    console.error('[getBitdefenderDownloadLink] failed:', error.message);
+    if (error.rpcError) {
+      console.error('[getBitdefenderDownloadLink] rpcError:', JSON.stringify(error.rpcError));
+    }
+    return res.status(500).json({
+      success: false,
+      message: error.rpcError?.message || error.message,
+      debug: error.rpcError || null, // TEMPORARY — remove once fixed
+    });
+  }
+};
+
+// User confirms their machine's hostname after downloading + installing manually.
+// Creates/updates a DeviceAntivirus record keyed by hostname instead of rmmAgentId,
+// then the existing install-status polling (by hostname) takes it from here.
+const registerDeviceHostname = async (req, res) => {
+  try {
+    const { hostname } = req.body;
+    if (!hostname || typeof hostname !== 'string' || !hostname.trim()) {
+      return res.status(400).json({ success: false, message: 'hostname is required' });
+    }
+
+    const record = await DeviceAntivirus.findOneAndUpdate(
+      { user: req.user.id },
+      {
+        user: req.user.id,
+        hostname: hostname.trim(),
+        installStatus: 'installing',
+        installStartedAt: new Date(),
+        installError: null,
+        bitdefenderEndpointId: null,
+      },
+      { upsert: true, new: true }
+    );
+
+    return res.status(200).json({ success: true, device: record });
+  } catch (error) {
+    return res.status(500).json({ success: false, message: error.message });
+  }
+};
+
 module.exports = {
   startTool,
   getToolStatus,
@@ -516,5 +596,8 @@ module.exports = {
   startBackup,
   listBackups,
   downloadBackup,
-  getReportData
+  getReportData,
+  getBitdefenderInstallStatus,
+  registerDeviceHostname,
+  getBitdefenderDownloadLink,
 };

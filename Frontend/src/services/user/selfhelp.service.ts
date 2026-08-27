@@ -15,13 +15,12 @@ API.interceptors.request.use((config) => {
 });
 
 export async function startTool(toolId: string, deviceId?: string) {
-  const res = await API.post("/self-help/start-tool", { toolId, deviceId });
+  const res = await API.post("/self-help/start", { toolId, deviceId });
   return res.data;
 }
 
 export const getToolStatus = async (id: string) => {
-  const response = await API.get(`/self-help/tool-status/${id}`);
-
+  const response = await API.get(`/self-help/status/${id}`);
   return response.data;
 };
 
@@ -69,3 +68,37 @@ export async function getEndpoints() {
   const res = await API.get("/self-help/endpoints"); // match your actual route
   return res.data.agents; // array of RMM agent objects
 }
+
+
+// ─── Bitdefender install ─────────────────────────────────────────────────
+
+export interface BitdefenderDeviceStatus {
+  rmmAgentId: string;
+  hostname: string;
+  installStatus: "not_installed" | "installing" | "installed" | "failed";
+  bitdefenderEndpointId: string | null;
+  installError?: string | null;
+}
+
+export const installBitdefender = async () => {
+  const res = await API.post("/self-help/bitdefender/install");
+  return res.data;
+};
+
+// ─── Bitdefender download link ────────────────────────────────────────────
+
+export interface BitdefenderDownloadLinks {
+  windows: string | null;
+  linux: string | null;
+  mac: string | null;
+}
+
+export const getBitdefenderDownloadLink = async (): Promise<BitdefenderDownloadLinks> => {
+  const res = await API.get("/self-help/bitdefender/download-link");
+  return res.data.links;
+};
+
+export const getBitdefenderInstallStatus = async (): Promise<BitdefenderDeviceStatus> => {
+  const res = await API.get("/self-help/bitdefender/status");
+  return res.data.device;
+};
