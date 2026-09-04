@@ -596,6 +596,30 @@ const getBitdefenderDownloadLink = async (req, res) => {
   }
 };
 
+function getClientIp(req) {
+  const xff = req.headers['x-forwarded-for'];
+  let ip = xff ? xff.split(',')[0].trim() : req.socket.remoteAddress;
+  if (ip && ip.startsWith('::ffff:')) ip = ip.slice(7); // normalize IPv6-mapped IPv4
+  return ip;
+}
+
+async function matchEndpointByIp(req) {
+  const clientIp = getClientIp(req);
+  console.log('[matchEndpointByIp] clientIp:', clientIp);
+  if (!clientIp) return null;
+
+  const { items } = await gz.getEndpointsList({
+    parentId: process.env.CYBERSHIELD_SOLO_ID,
+    isManaged: true,
+    page: 1,
+    perPage: 100,
+  });
+
+  const endpoints = items || [];
+  console.log('[matchEndpointByIp] endpoint ips:', endpoints.map(e => `${e.name}:${e.ip}`));
+  return endpoints.find((e) => e.ip === clientIp) || null;
+}
+
 // User confirms their machine's hostname after downloading + installing manually.
 // Creates/updates a DeviceAntivirus record keyed by hostname instead of rmmAgentId,
 // then the existing install-status polling (by hostname) takes it from here.
@@ -633,56 +657,35 @@ const getBitdefenderEndpoint = async (req, res) => {
       page: 1,
       perPage: 100,
     });
-
     const endpoints = result?.items || [];
 
     if (!endpoints.length) {
-      return res.status(200).json({
-        success: true,
-        installed: false,
-        endpoint: null,
-      });
+      return res.status(200).json({ success: true, installed: false, endpoint: null });
     }
 
-    /*
-     * IMPORTANT:
-     * You still need some way of knowing WHICH endpoint belongs
-     * to the logged-in user.
-     *
-     * Example:
-     * match using hostname stored for that user's machine.
-     */
-    const device = await DeviceAntivirus.findOne({
-      user: req.user.id,
-    });
+    let device = await DeviceAntivirus.findOne({ user: req.user.id });
 
-    if (!device?.hostname) {
-      return res.status(200).json({
-        success: true,
-        installed: false,
-        endpoint: null,
-      });
+    // Try hostname match first (most precise)
+    let endpoint = device?.hostname
+      ? endpoints.find((item) => item.name?.toLowerCase() === device.hostname.toLowerCase())
+      : null;
+
+    // Fall back to IP match if hostname didn't resolve
+    if (!endpoint) {
+      const clientIp = getClientIp(req);
+      console.log('[getBitdefenderEndpoint] falling back to IP match, clientIp:', clientIp);
+      endpoint = endpoints.find((item) => item.ip === clientIp) || null;
     }
-
-    const endpoint = endpoints.find(
-      (item) =>
-        item.name?.toLowerCase() ===
-        device.hostname.toLowerCase()
-    );
 
     if (!endpoint) {
-      return res.status(200).json({
-        success: true,
-        installed: false,
-        endpoint: null,
-      });
+      return res.status(200).json({ success: true, installed: false, endpoint: null });
     }
 
-    // Save GravityZone endpoint id
+    if (!device) device = new DeviceAntivirus({ user: req.user.id });
     device.bitdefenderEndpointId = endpoint.id;
-    device.installStatus = "installed";
+    device.hostname = endpoint.name; // backfill hostname from the matched endpoint
+    device.installStatus = 'installed';
     device.installCompletedAt = new Date();
-
     await device.save();
 
     return res.status(200).json({
@@ -695,17 +698,9 @@ const getBitdefenderEndpoint = async (req, res) => {
         macs: endpoint.macs || [],
       },
     });
-
   } catch (error) {
-    console.error(
-      "[getBitdefenderEndpoint]",
-      error.message
-    );
-
-    return res.status(500).json({
-      success: false,
-      message: error.message,
-    });
+    console.error('[getBitdefenderEndpoint]', error.message);
+    return res.status(500).json({ success: false, message: error.message });
   }
 };
 

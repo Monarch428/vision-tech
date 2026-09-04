@@ -22,6 +22,7 @@ const tacticalRmmRoutes = require('./routes/rmm/tacticalRmm.route');
 
 
 const app = express();
+app.set('trust proxy', true); 
 
 const normalizeOrigin = (value) => (value || "").trim().replace(/\/$/, "");
 
