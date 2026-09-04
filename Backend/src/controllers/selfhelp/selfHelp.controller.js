@@ -1,5 +1,5 @@
 const SelfHelpTool = require('../../models/tools/SelfHelpTool');
-const DeviceAntivirus = require('../../models/tools/DeviceAntivirus');
+const DeviceAntivirus = require('../../models/tools/deviceAntivirus');
 const fs = require('fs');
 const path = require('path');
 const { runBackup, backupDir } = require('../../cron/autoBackup');
