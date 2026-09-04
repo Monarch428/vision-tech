@@ -41,6 +41,10 @@ cloudinary.config({
   api_secret: process.env.CLOUDINARY_API_SECRET,
 });
 
+console.log("Bitdefender key loaded:", !!process.env.BITDEFENDER_API_KEY);
+console.log("Length:", process.env.BITDEFENDER_API_KEY?.length);
+console.log("Last 4:", process.env.BITDEFENDER_API_KEY?.slice(-4));
+
 const corsOptions = {
   origin(origin, callback) {
     // Allow server-to-server requests and same-origin tools with no Origin header.

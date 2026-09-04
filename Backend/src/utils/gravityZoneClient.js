@@ -1,42 +1,35 @@
 const axios = require("axios");
+const AdmZip = require("adm-zip");
 
-// ─── Env var sanitization ───────────────────────────────────────────────────
-// IMPORTANT: .trim() every credential/config value read from process.env.
-// A stray trailing space or newline (very easy to introduce when
-// copy-pasting into a .env file) will silently break Basic Auth or produce
-// a packageId GravityZone doesn't recognize, and the resulting errors
-// ("Invalid API key", "Invalid params") give no hint that whitespace is
-// the actual cause.
+// ─── Environment ─────────────────────────────────────────────────────────────
+
 const RAW_API_URL = process.env.BITDEFENDER_API_URL;
 const RAW_API_KEY = process.env.BITDEFENDER_API_KEY;
 
 if (!RAW_API_URL || !RAW_API_KEY) {
-  console.warn("[gravityZoneClient] GravityZone configuration missing");
+  console.warn(
+    "[gravityZoneClient] BITDEFENDER_API_URL or BITDEFENDER_API_KEY missing"
+  );
 }
 
-// ─── Base setup ─────────────────────────────────────────────────────────────
-// GravityZone's JSON-RPC endpoint is namespaced per API, e.g.:
-//   {BASE}/packages   -> createPackage, getInstallationLinks, ...
-//   {BASE}/network     -> getEndpointsList, createDeploymentTask, ...
-//   {BASE}/incidents  -> ...
-// So BITDEFENDER_API_URL should be the *bare* jsonrpc root, no trailing
-// namespace — each call appends its own namespace.
-//   e.g. https://cloud.gravityzone.bitdefender.com/api/v1.0/jsonrpc
-//
-// NOTE: GravityZone Cloud has multiple regional hosts (e.g. `cloud.` for
-// US/EU vs `cloudap.` for Asia-Pacific). This MUST match the Access URL
-// shown in Control Center -> My Account -> API keys for the key you're
-// using, or every call will 401 with "Invalid API key" even though the
-// key itself is correct.
-const JSONRPC_BASE = RAW_API_URL?.trim().replace(/\/$/, "");
+const JSONRPC_BASE = RAW_API_URL
+  ?.trim()
+  .replace(/\/$/, "");
 
-// GravityZone auths JSON-RPC calls with HTTP Basic Auth: API key as the
-// username, empty password. axios wants this pre-encoded for us to avoid
-// surprises with special characters in the key.
+
+// ─── Authentication ──────────────────────────────────────────────────────────
+
 const authHeader = () => {
   const key = (RAW_API_KEY || "").trim();
-  return "Basic " + Buffer.from(`${key}:`).toString("base64");
+
+  return (
+    "Basic " +
+    Buffer.from(`${key}:`).toString("base64")
+  );
 };
+
+
+// ─── Axios ───────────────────────────────────────────────────────────────────
 
 const http = axios.create({
   timeout: 20000,
@@ -45,29 +38,46 @@ const http = axios.create({
   },
 });
 
-// Guard against silently getting back an HTML error/login page instead of
-// JSON-RPC JSON (e.g. wrong host, expired session-based redirect, etc.) —
-// fail loudly instead of breaking downstream .result access.
+
 http.interceptors.response.use((response) => {
-  if (typeof response.data === "string" && response.data.trim().startsWith("<!DOCTYPE")) {
+  if (
+    typeof response.data === "string" &&
+    response.data.trim().startsWith("<!DOCTYPE")
+  ) {
     throw new Error(
-      "[gravityZoneClient] Received HTML instead of JSON — check BITDEFENDER_API_URL points at the jsonrpc root."
+      "[gravityZoneClient] Received HTML instead of JSON. Check BITDEFENDER_API_URL."
     );
   }
+
   return response;
 });
 
+
 let rpcId = 0;
 
-/**
- * Calls a GravityZone JSON-RPC method against a given API namespace.
- *
- * @param {string} api    - API namespace, e.g. "packages", "network", "incidents"
- * @param {string} method - RPC method name, e.g. "getInstallationLinks"
- * @param {object} params - method params (GravityZone expects an object, not array)
- */
-const call = async (api, method, params = {}) => {
+
+// ─── Generic RPC ─────────────────────────────────────────────────────────────
+
+const call = async (
+  api,
+  method,
+  params = {}
+) => {
+
+  if (!JSONRPC_BASE) {
+    throw new Error(
+      "[gravityZoneClient] BITDEFENDER_API_URL missing"
+    );
+  }
+
+  if (!RAW_API_KEY) {
+    throw new Error(
+      "[gravityZoneClient] BITDEFENDER_API_KEY missing"
+    );
+  }
+
   const url = `${JSONRPC_BASE}/${api}`;
+
   const body = {
     params,
     jsonrpc: "2.0",
@@ -75,116 +85,442 @@ const call = async (api, method, params = {}) => {
     id: ++rpcId,
   };
 
-  // ─── DEBUG LOGGING ────────────────────────────────────────────────────
-  // Remove once the "Invalid params" issue is confirmed/fixed. This is the
-  // single most useful line for diagnosing GravityZone JSON-RPC errors:
-  // it shows EXACTLY what left your server, so you can tell immediately
-  // whether e.g. packageId came through as undefined and got dropped by
-  // JSON.stringify (a very common and silent failure mode).
-  console.log(`[gz call] -> ${api}.${method}`, JSON.stringify(body));
+  console.log(
+    `[gz call] -> ${api}.${method}`,
+    JSON.stringify(body)
+  );
 
-  const { data } = await http.post(url, body, {
-    headers: { Authorization: authHeader() },
-  });
+  const { data } = await http.post(
+    url,
+    body,
+    {
+      headers: {
+        Authorization: authHeader(),
+      },
+    }
+  );
 
-  console.log(`[gz call] <- ${api}.${method}`, JSON.stringify(data));
+  console.log(
+    `[gz call] <- ${api}.${method}`,
+    JSON.stringify(data)
+  );
 
-  // JSON-RPC error responses come back HTTP 200 with an `error` field —
-  // axios won't throw on these by itself, so surface them explicitly.
-  if (data.error) {
-    const err = new Error(
-      `[gravityZoneClient] ${api}.${method} failed: ${data.error.message || JSON.stringify(data.error)}`
+  if (data?.error) {
+    const error = new Error(
+      data.error.message ||
+      "GravityZone API error"
     );
-    err.rpcError = data.error;
-    throw err;
+
+    error.rpcError = data.error;
+
+    throw error;
   }
 
-  return data.result;
+  return data?.result;
 };
 
-// ─── Convenience wrappers for the Packages API ─────────────────────────────
 
-/** Lists installation packages already created in GravityZone. */
-const getPackagesList = (params = {}) => call("packages", "getPackagesList", params);
+// ─────────────────────────────────────────────────────────────────────────────
+// PACKAGES API
+// ─────────────────────────────────────────────────────────────────────────────
 
-/** Full package details (installer type, OS, available options) for a packageId. */
-const getPackageDetails = (packageId) => call("packages", "getPackageDetails", { packageId });
+const getPackagesList = (
+  params = {}
+) => {
+  return call(
+    "packages",
+    "getPackagesList",
+    params
+  );
+};
 
-/** Creates a new installation package. See GravityZone API guide for full param shape. */
-const createPackage = (params) => call("packages", "createPackage", params);
 
-/**
- * Returns the direct download link(s) for an existing package — the URL(s)
- * you hand to the target machine (or to an RMM script) to fetch the
- * installer binary itself.
- *
- * IMPORTANT — GravityZone quirk: unlike getPackageDetails/deletePackage,
- * this method does NOT accept `packageId`. It only accepts `packageName`
- * (or `ringId` for a specific staging ring). Passing `packageId` causes
- * GravityZone to reject the call with:
- *   {"code":-32602,"message":"Invalid params","data":{"details":"One or
- *   more parameters are not expected: packageId"}}
- * So this function takes a packageName, not a packageId. If you only have
- * the ID (e.g. from BITDEFENDER_PACKAGE_ID), resolve it to a name first
- * with getPackageDetails() — see getInstallationLinksByPackageId() below
- * for a convenience wrapper that does this for you.
- */
-const getInstallationLinks = (packageName, params = {}) => {
-  const cleanName = typeof packageName === "string" ? packageName.trim() : packageName;
+const getPackageDetails = (
+  packageId
+) => {
+
+  if (!packageId) {
+    throw new Error(
+      "packageId is required"
+    );
+  }
+
+  return call(
+    "packages",
+    "getPackageDetails",
+    {
+      packageId:
+        typeof packageId === "string"
+          ? packageId.trim()
+          : packageId,
+    }
+  );
+};
+
+
+const createPackage = (
+  params
+) => {
+  return call(
+    "packages",
+    "createPackage",
+    params
+  );
+};
+
+
+const getInstallationLinks = (
+  packageName,
+  params = {}
+) => {
+
+  const cleanName =
+    typeof packageName === "string"
+      ? packageName.trim()
+      : packageName;
+
   if (!cleanName) {
     throw new Error(
-      "[gravityZoneClient] getInstallationLinks called with no packageName."
+      "packageName is required"
     );
   }
-  return call("packages", "getInstallationLinks", { packageName: cleanName, ...params });
+
+  return call(
+    "packages",
+    "getInstallationLinks",
+    {
+      packageName: cleanName,
+      ...params,
+    }
+  );
 };
 
-/**
- * Convenience wrapper: resolves a packageId (e.g. BITDEFENDER_PACKAGE_ID)
- * to its packageName via getPackageDetails, then calls getInstallationLinks
- * with that name. Use this instead of getInstallationLinks() directly when
- * all you have is the ID.
- */
-const getInstallationLinksByPackageId = async (packageId) => {
-  const cleanId = typeof packageId === "string" ? packageId.trim() : packageId;
-  if (!cleanId) {
-    throw new Error(
-      "[gravityZoneClient] getInstallationLinksByPackageId called with no packageId — check BITDEFENDER_PACKAGE_ID is set correctly."
+
+const getInstallationLinksByPackageId =
+  async (packageId) => {
+
+    const cleanId =
+      typeof packageId === "string"
+        ? packageId.trim()
+        : packageId;
+
+    if (!cleanId) {
+      throw new Error(
+        "packageId is required"
+      );
+    }
+
+    const details =
+      await getPackageDetails(cleanId);
+
+    const packageName =
+      details?.name ||
+      details?.packageName;
+
+    if (!packageName) {
+      throw new Error(
+        `Could not resolve package name for ${cleanId}`
+      );
+    }
+
+    return getInstallationLinks(
+      packageName
     );
-  }
+  };
 
-  const details = await getPackageDetails(cleanId);
-  const packageName = details?.name || details?.packageName;
 
-  if (!packageName) {
-    throw new Error(
-      `[gravityZoneClient] Could not resolve a name for packageId "${cleanId}" from getPackageDetails — check the ID is correct and the package still exists in Control Center.`
+const buildPackageDownloadUrl = (
+  packageId,
+  downloadType = 20
+) => {
+
+  const httpBase =
+    JSONRPC_BASE.replace(
+      "/jsonrpc",
+      "/http"
     );
-  }
 
-  return getInstallationLinks(packageName);
+  return (
+    `${httpBase}/downloadPackageFullKit` +
+    `?packageId=${encodeURIComponent(packageId)}` +
+    `&downloadType=${downloadType}`
+  );
 };
 
-/**
- * Builds the direct HTTP download URL for a package's full kit installer.
- * This is a plain GET (not JSON-RPC) — the caller (or a script run via RMM)
- * fetches this URL with the same Basic Auth header to get the binary.
- *
- * downloadType: 20 = full kit installer (adjust per GravityZone API guide
- * if you need a different variant, e.g. web/downloader-only kit).
- */
-const buildPackageDownloadUrl = (packageId, downloadType = 20) => {
-  const httpBase = JSONRPC_BASE.replace("/jsonrpc", "/http");
-  return `${httpBase}/downloadPackageFullKit?packageId=${packageId}&downloadType=${downloadType}`;
+
+// ─────────────────────────────────────────────────────────────────────────────
+// NETWORK API
+// ─────────────────────────────────────────────────────────────────────────────
+
+const getEndpointsList = (
+  params = {}
+) => {
+
+  return call(
+    "network",
+    "getEndpointsList",
+    params
+  );
+};
+
+
+// Get all managed endpoints
+const getManagedEndpoints =
+  async () => {
+
+    const response =
+      await getEndpointsList({
+        isManaged: true,
+        page: 1,
+        perPage: 1000,
+      });
+
+    return response?.items || [];
+  };
+
+
+// ─────────────────────────────────────────────────────────────────────────────
+// SCAN API
+// ─────────────────────────────────────────────────────────────────────────────
+
+const createScanTask =
+  async ({
+    endpointId,
+    type = 1,
+    name = "Self Help Quick Scan",
+  }) => {
+
+    if (!endpointId) {
+      throw new Error(
+        "endpointId is required"
+      );
+    }
+
+    return call(
+      "network",
+      "createScanTask",
+      {
+        targetIds: [
+          endpointId,
+        ],
+        type,
+        name,
+
+        // return task ID if supported by instance
+        returnTaskId: true,
+      }
+    );
+  };
+
+
+const getScanTasksList = (
+  params = {}
+) => {
+
+  return call(
+    "network",
+    "getScanTasksList",
+    params
+  );
+};
+
+
+// Find scan by ID
+const getScanTaskById =
+  async (taskId) => {
+
+    if (!taskId) {
+      throw new Error(
+        "taskId is required"
+      );
+    }
+
+    const response =
+      await getScanTasksList({
+        page: 1,
+        perPage: 100,
+      });
+
+    const tasks =
+      response?.items || [];
+
+    return (
+      tasks.find(
+        (task) =>
+          String(task.id) ===
+          String(taskId)
+      ) || null
+    );
+  };
+  const getManagedEndpointDetails = async (endpointId) => {
+  return call("network", "getManagedEndpointDetails", { endpointId });
+};
+
+// Returns { name, startDate, status, type, owner, company } for a task.
+// NOTE: this does NOT include scanned/infected item counts — GravityZone's
+// task-status API only reports lifecycle state (status: 1 = queued/running,
+// 3 = finished, etc.), never file/threat counts. Don't read
+// taskStatus.scannedItems / taskStatus.infectedItems, they don't exist.
+const getTaskStatus = async (taskId) => {
+  if (!taskId) {
+    throw new Error("taskId is required");
+  }
+
+  return call("network", "getTaskStatus", { taskId });
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
+// REPORTS API — the only place GravityZone exposes scanned-file counts
+// ─────────────────────────────────────────────────────────────────────────────
+
+const createReport = (params) => call("reports", "createReport", params);
+
+const getReportDownloadLinks = (reportId) => {
+  if (!reportId) throw new Error("reportId is required");
+  return call("reports", "getDownloadLinks", { reportId });
+};
+
+const deleteReport = (reportId) => {
+  if (!reportId) return Promise.resolve();
+  return call("reports", "deleteReport", { reportId }).catch(() => {});
+};
+
+const downloadReportCSV = async (link) => {
+  const res = await axios.get(link, {
+    headers: { Authorization: authHeader() },
+    responseType: "arraybuffer",
+  });
+  const buffer = Buffer.from(res.data);
+  const isZip = buffer.slice(0, 4).toString("hex") === "504b0304";
+  if (!isZip) {
+    const asText = buffer.toString("utf8");
+    return asText.includes(",") || asText.includes(";") ? asText : null;
+  }
+  const zip = new AdmZip(buffer);
+  const csvEntry = zip.getEntries().find((e) => e.entryName.toLowerCase().endsWith(".csv"));
+  return csvEntry ? csvEntry.getData().toString("utf8") : null;
+};
+
+const waitForReportLink = async (reportId, { maxAttempts = 40, initialWaitMs = 3000 } = {}) => {
+  let waitMs = initialWaitMs;
+  for (let i = 0; i < maxAttempts; i++) {
+    await new Promise((r) => setTimeout(r, waitMs));
+    try {
+      const result = await getReportDownloadLinks(reportId);
+      if (result?.readyForDownload) return result.lastInstanceUrl || result.allInstancesUrl || null;
+      waitMs = initialWaitMs;
+    } catch (err) {
+      if (err?.response?.status === 429) { waitMs = Math.min(waitMs * 2, 15000); continue; }
+      throw err;
+    }
+  }
+  return null;
+};
+
+// ─── CSV parsing (column names vary by GravityZone locale, matched fuzzily) ──
+const parseCSVLine = (line, delimiter) => {
+  const result = [];
+  let current = "", inQuotes = false;
+  for (const char of line) {
+    if (char === '"') inQuotes = !inQuotes;
+    else if (char === delimiter && !inQuotes) { result.push(current.trim().replace(/^"|"$/g, "")); current = ""; }
+    else current += char;
+  }
+  result.push(current.trim().replace(/^"|"$/g, ""));
+  return result;
+};
+const detectDelimiter = (h) => ((h.match(/;/g) || []).length > (h.match(/,/g) || []).length ? ";" : ",");
+const findFieldValue = (row, patternsList) => {
+  const keys = Object.keys(row);
+  for (const kws of patternsList) {
+    const match = keys.find((k) => kws.every((kw) => k.includes(kw)));
+    if (match) return row[match];
+  }
+  return undefined;
+};
+const parseBDDate = (raw) => {
+  if (!raw || raw === "N/A") return null;
+  const m = raw.trim().match(/^(\d{1,2})\s+([A-Za-z]+)\s+(\d{4}),?\s+(\d{1,2}):(\d{2}):(\d{2})$/);
+  if (m) {
+    const [, day, monthName, year, hour, min, sec] = m;
+    const monthIndex = new Date(`${monthName} 1, 2000`).getMonth();
+    if (!isNaN(monthIndex)) return new Date(+year, monthIndex, +day, +hour, +min, +sec);
+  }
+  const fb = new Date(raw.replace(",", ""));
+  return isNaN(fb.getTime()) ? null : fb;
+};
+const getExactInt = (raw) => {
+  if (raw === undefined || raw === "" || raw === "N/A") return 0;
+  const p = parseInt(String(raw).replace(/,(?=\d{3})/g, ""), 10);
+  return isNaN(p) ? 0 : p;
+};
+
+const parseOnDemandScanCsv = (csvData) => {
+  const lines = csvData.replace(/^\uFEFF/, "").split(/\r?\n/).filter(Boolean);
+  if (lines.length < 2) return [];
+  const delimiter = detectDelimiter(lines[0]);
+  const hdrs = parseCSVLine(lines[0], delimiter).map((h) => h.toLowerCase().trim());
+  const scanTimePatterns = [["last successful scan", "start time"], ["last scan", "start time"], ["scan start time"], ["start time"]];
+  const filesPatterns = [["last successful scan", "scanned files"], ["scanned files"], ["scanned objects"], ["objects scanned"], ["files scanned"]];
+
+  const rows = [];
+  for (let i = 1; i < lines.length; i++) {
+    const vals = parseCSVLine(lines[i], delimiter);
+    if (!vals.length) continue;
+    const row = {};
+    hdrs.forEach((h, idx) => { row[h] = vals[idx] ?? ""; });
+    const scanTime = parseBDDate(findFieldValue(row, scanTimePatterns));
+    const filesScanned = getExactInt(findFieldValue(row, filesPatterns));
+    if (filesScanned > 0) rows.push({ scanTime, filesScanned });
+  }
+  return rows;
+};
+
+// Public: generate the "On demand scanning" report for given endpoint(s)
+// and return [{ scanTime, filesScanned }], widest window (This year).
+const getOnDemandScanCsvRows = async (targetIds, { reportingInterval = 8 } = {}) => {
+  const reportId = await createReport({
+    name: `SelfHelp_FileCount_${Date.now()}`,
+    type: 15,
+    targetIds,
+    options: { reportingInterval },
+  });
+  if (!reportId) return [];
+  try {
+    const link = await waitForReportLink(reportId);
+    if (!link) return [];
+    const csvData = await downloadReportCSV(link);
+    return csvData ? parseOnDemandScanCsv(csvData) : [];
+  } finally {
+    deleteReport(reportId);
+  }
 };
 
 module.exports = {
+
   call,
+
+  // Packages
   getPackagesList,
   getPackageDetails,
   createPackage,
   getInstallationLinks,
   getInstallationLinksByPackageId,
   buildPackageDownloadUrl,
+
+  // Endpoint
+  getEndpointsList,
+  getManagedEndpoints,
+  getManagedEndpointDetails,  
+  getTaskStatus,
+
+  // Scan
+  createScanTask,
+  getScanTasksList,
+  getScanTaskById,
+
   authHeader,
+  createReport, getReportDownloadLinks, deleteReport, downloadReportCSV, getOnDemandScanCsvRows
+
+  
 };

@@ -68,38 +68,41 @@ export interface UserLastScan {
 
 export interface ScanReport {
   success: boolean;
-  machine: {
-    name: string;
-    ip: string;
-    os: string;
-    agentVersion: string;
-    detection: boolean;
-    engineVersion: string;
-    infected: boolean;
-    lastSeen: string;
-    lastUpdate: string;
-    securityStatus: number;
-  };
-  recentScan: {
-    taskId: string;
-    taskName: string;
-    filesScanned: number;
-    isClean: boolean;
-    scanDate: string;
-    threatsDetected: number;
-    // Who requested the machine's actual latest scan, resolved by joining
-    // the Bitdefender task name back to our own SelfHelpTool records.
-    scannedBy: ScanUser | null;
-  };
-  scans: Array<{
-    id: string;
-    name: string;
-    startDate?: string;
-    filesScanned?: number;
-    threatsDetected?: number;
-    status?: string;
-    requestedBy: ScanUser | null;
-  }>;
+ machine: {
+  name: string;
+  ip: string;
+  os: string;
+  agentVersion: string;
+  detection: boolean;
+  engineVersion: string;
+  infected: boolean;
+  lastSeen: string;
+  lastUpdate: string;
+  securityStatus: number;
+  signatureOutdated: boolean;
+  productOutdated: boolean;
+  updateDisabled: boolean;
+};
+recentScan: {
+  taskId: string;
+  taskName: string;
+  filesScanned: number | null;
+  filesScannedAvailable: boolean;
+  isClean: boolean;
+  scanDate: string;
+  threatsDetected: number;
+  scannedBy: ScanUser | null;
+};
+scans: Array<{
+  id: string;
+  name: string;
+  startDate?: string;
+  filesScanned?: number | null;
+  filesScannedAvailable?: boolean;
+  threatsDetected?: number;
+  status?: string;
+  requestedBy: ScanUser | null;
+}>;
   stats: {
     filesScanned: number;
     threatsBlocked: number;

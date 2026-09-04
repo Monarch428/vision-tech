@@ -1,12 +1,11 @@
 const SelfHelpTool = require('../../models/tools/SelfHelpTool');
-const DeviceAntivirus = require('../../models/tools/SelfHelpTool');
+const DeviceAntivirus = require('../../models/tools/DeviceAntivirus');
 const fs = require('fs');
 const path = require('path');
 const { runBackup, backupDir } = require('../../cron/autoBackup');
 const systemLogger = require("../../utils/systemLogger");
 const rmm = require('../../utils/tacticalRmmClient');
 const gz = require('../../utils/gravityZoneClient');
-
 const categoryMap = {
   'browser-cleanup': 'browser',
   'network-restart': 'network',
@@ -36,49 +35,28 @@ const resolveSafeBackupPath = (storedPath) => {
   return resolved;
 };
 
-// ─── getBitdefenderInstallStatus ────────────────────────────────────────────
-// Polls GravityZone for the endpoint matching this device's hostname. Once
-// found, caches the endpointId so startTool's antivirus branch can use it.
-// No deviceId param — resolved from the logged-in user, same as install.
-const getBitdefenderInstallStatus = async (req, res) => {
-  try {
-    const record = await DeviceAntivirus.findOne({ user: req.user.id });
-    if (!record) {
-      // No install record yet == not installed. Not an error state.
-      return res.status(200).json({ success: true, device: null });
-    }
-
-    if (record.installStatus === 'installing') {
-      try {
-        const { items } = await gz.getEndpointsList({ filters: { name: record.hostname } });
-        const match = (items || []).find(
-          (e) => e.name?.toLowerCase() === record.hostname.toLowerCase()
-        );
-
-        if (match) {
-          record.installStatus = 'installed';
-          record.installCompletedAt = new Date();
-          record.bitdefenderEndpointId = match.id;
-          await record.save();
-        }
-      } catch (err) {
-        console.warn('[getBitdefenderInstallStatus] GravityZone lookup failed:', err.message);
-      }
-    }
-
-    return res.status(200).json({
-      success: true,
-      device: {
-        hostname: record.hostname,
-        installStatus: record.installStatus,
-        bitdefenderEndpointId: record.bitdefenderEndpointId,
-        installError: record.installError,
-      },
-    });
-  } catch (error) {
-    return res.status(500).json({ success: false, message: error.message });
+async function matchEndpointForUser(userId) {
+  console.log("[matchEndpointForUser] called with userId:", userId);
+  const device = await DeviceAntivirus.findOne({ user: userId });
+  console.log("[matchEndpointForUser] device found:", JSON.stringify(device));
+  if (!device?.hostname) {
+    console.log("[matchEndpointForUser] no hostname, returning null");
+    return null;
   }
-};
+
+  const { items } = await gz.getEndpointsList({
+    parentId: process.env.CYBERSHIELD_SOLO_ID,
+    isManaged: true,
+    page: 1,
+    perPage: 100,
+    filters: { details: { name: device.hostname } },
+    options: { includeScanLogs: true },
+  });
+  console.log("[matchEndpointForUser] gz returned items count:", items?.length);
+  const match = (items || []).find((e) => e.name?.toLowerCase() === device.hostname.toLowerCase());
+  console.log("[matchEndpointForUser] match:", JSON.stringify(match));
+  return match || null;
+}
 
 // ─── startTool ────────────────────────────────────────────────────────────────
 const startTool = async (req, res) => {
@@ -205,6 +183,25 @@ const getToolStatus = async (req, res) => {
       });
     }
 
+    const taskStatus = await gz.getTaskStatus(tool.bitdefenderTaskId);
+const isFinished = taskStatus?.status === 3;
+
+if (isFinished) {
+  const update = {
+    status: 'completed',
+    progress: 100,
+    scanFinishedAt: new Date(),
+    // filesScanned/threatsDetected intentionally left alone — this API
+    // never provides them, so don't overwrite whatever's already there.
+  };
+  await SelfHelpTool.findByIdAndUpdate(tool._id, update);
+  Object.assign(tool, update);
+} else {
+  const update = { status: 'running', progress: Math.max(tool.progress, 50) };
+  await SelfHelpTool.findByIdAndUpdate(tool._id, update);
+  Object.assign(tool, update);
+}
+
     if (tool.progress < 100) {
       tool.progress = Math.min(tool.progress + 20, 100);
       if (tool.progress === 100) {
@@ -260,125 +257,166 @@ const getScanResults = async (req, res) => {
 // ─── getScanReport ────────────────────────────────────────────────────────────
 const getScanReport = async (req, res) => {
   try {
-    let agentId = typeof req.query.agentId === 'string' && req.query.agentId.trim()
-      ? req.query.agentId.trim()
-      : null;
+    const userId = req.user?._id || req.user?.id;
+    const match = await matchEndpointForUser(userId);
 
-    if (!agentId) {
-      const mostRecent = await SelfHelpTool.findOne({
-        category: 'security',
-        rmmAgentId: { $exists: true, $ne: null },
-      })
-        .sort({ scanStartedAt: -1 })
-        .select('rmmAgentId')
-        .lean();
-      agentId = mostRecent?.rmmAgentId || null;
+    if (!match) {
+      return res.status(200).json({
+        success: true,
+        machine: null,
+        recentScan: null,
+        scans: [],
+        stats: { filesScanned: 0, threatsBlocked: 0, totalScans: 0, completedScans: 0 },
+        userLastScan: null,
+      });
     }
 
-    let agent = null;
-    if (agentId) {
-      try {
-        const agentRes = await rmm.get(`/agents/${agentId}/`);
-        agent = agentRes.data;
-      } catch (err) {
-        console.warn('[getScanReport] failed to fetch agent details from RMM:', err.message);
-      }
+    let details = null;
+    try {
+      details = await gz.getManagedEndpointDetails(match.id);
+    } catch (e) {
+      console.warn("[getScanReport] getManagedEndpointDetails failed:", e.message);
     }
 
-    const requestedUserId = typeof req.query.userId === 'string' && req.query.userId.trim()
-      ? req.query.userId.trim()
+    const machine = details
+      ? {
+          name: details.name,
+          ip: details.ip,
+          os: details.operatingSystem,
+          agentVersion: details.agent?.productVersion ?? "",
+          engineVersion: details.agent?.engineVersion ?? "",
+          detection: details.malwareStatus?.detection ?? false,
+          infected: details.malwareStatus?.infected ?? false,
+          lastSeen: details.lastSeen,
+          lastUpdate: details.agent?.lastUpdate,
+          securityStatus: details.malwareStatus?.infected ? 0 : 1,
+          signatureOutdated: details.agent?.signatureOutdated ?? false,
+          productOutdated: details.agent?.productOutdated ?? false,
+          updateDisabled:
+            details.agent?.productUpdateDisabled || details.agent?.signatureUpdateDisabled || false,
+        }
       : null;
 
-    const query = { category: 'security' };
-    if (agentId) query.rmmAgentId = agentId;
-    if (requestedUserId) query.user = requestedUserId;
+    let gzTasks = [];
+    try {
+      const taskList = await gz.getScanTasksList();
+      gzTasks = taskList?.items || [];
+    } catch (e) {
+      console.warn("[getScanReport] getScanTasksList failed:", e.message);
+    }
+    const gzTaskById = new Map(gzTasks.map((t) => [t.id, t]));
 
-    const scanRecords = await SelfHelpTool.find(query)
+    const selfHelpRecords = await SelfHelpTool.find({
+      category: "security",
+      bitdefenderTaskId: { $exists: true, $ne: null },
+    })
       .sort({ scanStartedAt: -1 })
-      .populate('user', 'name email')
+      .limit(50)
+      .populate("user", "name email")
       .lean();
 
-    const scans = scanRecords.map((r) => ({
-      id: r._id,
-      name: `SelfHelp_Scan_${r._id}`,
-      startDate: r.scanStartedAt,
-      requestedBy: r.user
-        ? { id: r.user._id, name: r.user.name ?? null, email: r.user.email ?? null }
-        : null,
-      status:
-        r.status === 'completed' ? '✅ Completed' :
-          r.status === 'running' ? '🔄 Running' :
-            r.status === 'pending' ? '⏳ Pending' : '❌ Failed',
-      filesScanned: r.filesScanned ?? null,
-      filesScannedAvailable: r.filesScanned != null && r.filesScanned > 0,
-      threatsDetected: r.threatsDetected ?? 0,
-    }));
+    const toScanUser = (u) => (u ? { id: u._id.toString(), name: u.name ?? null, email: u.email ?? null } : null);
 
-    const completedRecords = scanRecords.filter((r) => r.status === 'completed');
-    const mostRecentCompleted = completedRecords[0] || null;
+    const scans = selfHelpRecords
+  .filter((r) => gzTaskById.has(r.bitdefenderTaskId)) // drop orphaned records with no matching GravityZone task
+  .map((r) => {
+    const gzTask = gzTaskById.get(r.bitdefenderTaskId);
+    const isFinished = gzTask?.status === 3;
+    const filesScannedAvailable = r.filesScanned != null && r.filesScanned > 0;
+    return {
+      id: r._id.toString(),
+      taskId: r.bitdefenderTaskId || null,
+      name: gzTask?.name || `Scan ${r._id}`,
+      startDate: gzTask?.startDate || r.scanStartedAt,
+      filesScanned: filesScannedAvailable ? r.filesScanned : null,
+      filesScannedAvailable,
+      threatsDetected: r.threatsDetected ?? undefined,
+      status: isFinished ? "completed" : r.status === "running" ? "in progress" : "scheduled",
+      requestedBy: toScanUser(r.user),
+    };
+  });
 
-    const allRecordsForAgent = agentId
-      ? await SelfHelpTool.find({ category: 'security', rmmAgentId: agentId })
-        .populate('user', 'name email')
-        .lean()
-      : scanRecords;
+    // ─── Fill in missing scanned-file counts from the Reports API ────────────
+    // getTaskStatus never returns file counts — only the Reports API does.
+    // Only generates a report when something completed is still missing a
+    // count, so this stays a no-op once a scan's count is saved to Mongo.
+    try {
+      const finishedWithoutCount = scans.filter((s) => s.status === "completed" && !s.filesScannedAvailable);
+      if (finishedWithoutCount.length > 0) {
+        const csvRows = await gz.getOnDemandScanCsvRows([match.id]);
+        const sortedRows = [...csvRows].filter((r) => r.scanTime).sort((a, b) => a.scanTime - b.scanTime);
+        const sortedTasks = [...finishedWithoutCount].sort(
+          (a, b) => new Date(a.startDate) - new Date(b.startDate)
+        );
 
-    const availableRequesters = Array.from(
-      new Map(
-        allRecordsForAgent
-          .map((r) => (r.user ? { id: r.user._id, name: r.user.name ?? null, email: r.user.email ?? null } : null))
-          .filter(Boolean)
-          .map((u) => [u.id?.toString(), u])
-      ).values()
-    );
+        const usedIdx = new Set();
+        for (const task of sortedTasks) {
+          const taskStart = task.startDate ? new Date(task.startDate) : null;
+          if (!taskStart) continue;
+          const rowIdx = sortedRows.findIndex((r, idx) => !usedIdx.has(idx) && r.scanTime >= taskStart);
+          if (rowIdx === -1) continue;
+          usedIdx.add(rowIdx);
 
-    const userLastScan = await SelfHelpTool.findOne({ user: req.user.id, category: 'security' }).sort({ createdAt: -1 });
+          task.filesScanned = sortedRows[rowIdx].filesScanned;
+          task.filesScannedAvailable = true;
+          await SelfHelpTool.findByIdAndUpdate(task.id, { filesScanned: sortedRows[rowIdx].filesScanned }).catch(() => {});
+        }
+      }
+    } catch (e) {
+      console.warn("[getScanReport] file-count report fallback failed:", e.message);
+    }
 
-    return res.json({
-      success: true,
-      machine: agent ? {
-        name: agent.hostname,
-        ip: agent.local_ips ?? agent.public_ip ?? null,
-        os: agent.operating_system ?? agent.plat ?? null,
-        lastSeen: agent.last_seen,
-        securityStatus: agent.status,
-        infected: mostRecentCompleted ? (mostRecentCompleted.threatsDetected ?? 0) > 0 : false,
-        detection: mostRecentCompleted ? (mostRecentCompleted.threatsDetected ?? 0) > 0 : false,
-        agentVersion: agent.version ?? null,
-        engineVersion: null,
-        lastUpdate: agent.last_seen,
-      } : null,
-      stats: {
-        totalScans: scanRecords.length,
-        completedScans: completedRecords.length,
-      },
-      recentScan: mostRecentCompleted ? {
-        taskId: mostRecentCompleted._id,
-        taskName: `SelfHelp_Scan_${mostRecentCompleted._id}`,
-        scanDate: mostRecentCompleted.scanStartedAt ?? null,
-        scannedBy: mostRecentCompleted.user
-          ? { id: mostRecentCompleted.user._id, name: mostRecentCompleted.user.name ?? null, email: mostRecentCompleted.user.email ?? null }
-          : null,
-        filesScanned: mostRecentCompleted.filesScanned ?? null,
-        filesScannedAvailable: mostRecentCompleted.filesScanned != null && mostRecentCompleted.filesScanned > 0,
-        threatsDetected: mostRecentCompleted.threatsDetected ?? 0,
-      } : null,
-      scans,
-      availableRequesters,
-      appliedUserFilter: requestedUserId,
-      userLastScan: userLastScan ? {
-        id: userLastScan._id,
-        status: userLastScan.status,
-        progress: userLastScan.progress,
-        scanStartedAt: userLastScan.scanStartedAt,
-        scanFinishedAt: userLastScan.scanFinishedAt,
-        filesScanned: userLastScan.filesScanned ?? null,
-        filesScannedAvailable: userLastScan.filesScanned != null && userLastScan.filesScanned > 0,
-        threatsDetected: userLastScan.threatsDetected ?? 0,
-      } : null,
-    });
-  } catch (err) {
-    return res.status(500).json({ success: false, message: err.message });
+    const mostRecent = scans[0] ?? null;
+
+    const recentScan = match.lastSuccessfulScan
+      ? {
+          taskId: mostRecent?.taskId ?? null,
+          taskName: match.lastSuccessfulScan.name,
+          filesScanned: mostRecent?.filesScanned ?? null,
+          filesScannedAvailable: mostRecent?.filesScannedAvailable ?? false,
+          isClean: (mostRecent?.threatsDetected ?? 0) === 0,
+          scanDate: match.lastSuccessfulScan.date,
+          threatsDetected: mostRecent?.threatsDetected ?? 0,
+          scannedBy: mostRecent?.requestedBy ?? null,
+        }
+      : mostRecent
+      ? {
+          taskId: mostRecent.taskId,
+          taskName: mostRecent.name,
+          filesScanned: mostRecent.filesScanned,
+          filesScannedAvailable: mostRecent.filesScannedAvailable,
+          isClean: (mostRecent.threatsDetected ?? 0) === 0,
+          scanDate: mostRecent.startDate,
+          threatsDetected: mostRecent.threatsDetected ?? 0,
+          scannedBy: mostRecent.requestedBy,
+        }
+      : null;
+
+    const userRecord = await SelfHelpTool.findOne({ user: userId, category: "security" }).sort({ scanStartedAt: -1 });
+    const userLastScan = userRecord
+      ? {
+          id: userRecord._id.toString(),
+          status: userRecord.status,
+          progress: userRecord.progress ?? 0,
+          filesScanned: userRecord.filesScanned ?? 0,
+          threatsDetected: userRecord.threatsDetected ?? 0,
+          scanStartedAt: userRecord.scanStartedAt,
+          scanFinishedAt: userRecord.scanFinishedAt ?? null,
+          filesScannedAvailable: userRecord.filesScanned != null && userRecord.filesScanned > 0,
+        }
+      : null;
+
+    const stats = {
+      filesScanned: scans.reduce((sum, s) => sum + (s.filesScannedAvailable ? s.filesScanned : 0), 0),
+      threatsBlocked: scans.reduce((sum, s) => sum + (s.threatsDetected || 0), 0),
+      totalScans: scans.length,
+      completedScans: scans.filter((s) => s.status === "completed").length,
+    };
+
+    res.status(200).json({ success: true, machine, recentScan, scans, stats, userLastScan });
+  } catch (error) {
+    console.error("[getScanReport]", error.message);
+    res.status(500).json({ success: false, message: "Error retrieving scan report", error: error.message });
   }
 };
 
@@ -587,6 +625,278 @@ const registerDeviceHostname = async (req, res) => {
   }
 };
 
+const getBitdefenderEndpoint = async (req, res) => {
+  try {
+    const result = await gz.getEndpointsList({
+      parentId: process.env.CYBERSHIELD_SOLO_ID,
+      isManaged: true,
+      page: 1,
+      perPage: 100,
+    });
+
+    const endpoints = result?.items || [];
+
+    if (!endpoints.length) {
+      return res.status(200).json({
+        success: true,
+        installed: false,
+        endpoint: null,
+      });
+    }
+
+    /*
+     * IMPORTANT:
+     * You still need some way of knowing WHICH endpoint belongs
+     * to the logged-in user.
+     *
+     * Example:
+     * match using hostname stored for that user's machine.
+     */
+    const device = await DeviceAntivirus.findOne({
+      user: req.user.id,
+    });
+
+    if (!device?.hostname) {
+      return res.status(200).json({
+        success: true,
+        installed: false,
+        endpoint: null,
+      });
+    }
+
+    const endpoint = endpoints.find(
+      (item) =>
+        item.name?.toLowerCase() ===
+        device.hostname.toLowerCase()
+    );
+
+    if (!endpoint) {
+      return res.status(200).json({
+        success: true,
+        installed: false,
+        endpoint: null,
+      });
+    }
+
+    // Save GravityZone endpoint id
+    device.bitdefenderEndpointId = endpoint.id;
+    device.installStatus = "installed";
+    device.installCompletedAt = new Date();
+
+    await device.save();
+
+    return res.status(200).json({
+      success: true,
+      installed: true,
+      endpoint: {
+        id: endpoint.id,
+        name: endpoint.name,
+        ip: endpoint.ip || null,
+        macs: endpoint.macs || [],
+      },
+    });
+
+  } catch (error) {
+    console.error(
+      "[getBitdefenderEndpoint]",
+      error.message
+    );
+
+    return res.status(500).json({
+      success: false,
+      message: error.message,
+    });
+  }
+};
+
+const runBitdefenderScan = async (req, res) => {
+  try {
+    const device = await DeviceAntivirus.findOne({
+      user: req.user.id,
+    });
+
+    if (!device?.bitdefenderEndpointId) {
+      return res.status(400).json({
+        success: false,
+        message: "Bitdefender endpoint not found",
+      });
+    }
+
+    const scanRecord = await SelfHelpTool.create({
+      user: req.user.id,
+      category: "security",
+      scanStartedAt: new Date(),
+      progress: 10,
+      status: "running",
+    });
+
+    const result = await gz.createScanTask({
+      endpointId: device.bitdefenderEndpointId,
+      type: 1,
+      name: `Quick Scan ${scanRecord._id}`,
+    });
+
+    const taskId =
+      result?.taskId ||
+      result?.id ||
+      result;
+
+    scanRecord.bitdefenderTaskId = taskId;
+
+    await scanRecord.save();
+
+    return res.status(200).json({
+      success: true,
+
+      scan: {
+        id: scanRecord._id,
+        taskId,
+        status: "running",
+        progress: 10,
+      },
+    });
+
+  } catch (error) {
+    console.error(
+      "[runBitdefenderScan]",
+      error.message
+    );
+
+    return res.status(500).json({
+      success: false,
+      message:
+        error.message ||
+        "Failed to start Bitdefender scan",
+    });
+  }
+};
+
+// ─── getBitdefenderInstallStatus ────────────────────────────────────────────
+// Polls GravityZone for the endpoint matching this device's hostname.
+// Now retries the match any time status isn't already 'installed' — not just
+// while 'installing' — so re-entering the page (e.g. after a manual install
+// done outside this flow, or a stale 'failed'/'pending' state) still picks
+// up the target id as soon as GravityZone shows it.
+const getBitdefenderInstallStatus = async (req, res) => {
+  try {
+    const record = await DeviceAntivirus.findOne({ user: req.user.id });
+    if (!record) {
+      // No install record yet == not installed. Not an error state.
+      return res.status(200).json({ success: true, device: null });
+    }
+
+    if (record.installStatus !== 'installed' && record.hostname) {
+      try {
+        const { items } = await gz.getEndpointsList({
+          parentId: process.env.CYBERSHIELD_SOLO_ID,
+          isManaged: true,
+          page: 1,
+          perPage: 100,
+          filters: {
+            details: {
+              name: record.hostname,
+            },
+          },
+        });
+        const match = (items || []).find(
+          (e) => e.name?.toLowerCase() === record.hostname.toLowerCase()
+        );
+
+        if (match) {
+          record.installStatus = 'installed';
+          record.installCompletedAt = new Date();
+          record.bitdefenderEndpointId = match.id;
+          await record.save();
+        }
+      } catch (err) {
+        console.warn('[getBitdefenderInstallStatus] GravityZone lookup failed:', err.message);
+      }
+    }
+
+    return res.status(200).json({
+      success: true,
+      device: {
+        hostname: record.hostname,
+        installStatus: record.installStatus,
+        bitdefenderEndpointId: record.bitdefenderEndpointId,
+        installError: record.installError,
+      },
+    });
+  } catch (error) {
+    return res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+const CYBERSHIELD_SOLO_ID = "66475704f09a97869c028180"; // Cybershield Solo companyId
+
+// ─── listCompanyEndpoints ───────────────────────────────────────────────
+// Lists every device under Cybershield Solo directly, bypassing the
+// per-user hostname-matching flow. For an admin/manual "pick a device
+// and scan it" UI.
+const listCompanyEndpoints = async (req, res) => {
+  try {
+    const result = await gz.getEndpointsList({
+      parentId: process.env.CYBERSHIELD_SOLO_ID,
+      isManaged: true,
+      page: 1,
+      perPage: 100,
+    });
+
+    const endpoints = (result?.items || []).map((e) => ({
+      id: e.id,
+      name: e.name,
+      ip: e.ip || null,
+      os: e.operatingSystemVersion || null,
+    }));
+
+    return res.status(200).json({ success: true, endpoints });
+  } catch (error) {
+    console.error("[listCompanyEndpoints]", error.message);
+    return res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+// ─── runScanOnEndpoint ───────────────────────────────────────────────────
+// Runs a scan on an endpointId given directly in the request body, rather
+// than resolving it through DeviceAntivirus.hostname. Still logs to
+// SelfHelpTool so it shows up in scan history / getScanReport.
+const runScanOnEndpoint = async (req, res) => {
+  try {
+    const { endpointId } = req.body;
+    if (!endpointId) {
+      return res.status(400).json({ success: false, message: "endpointId is required" });
+    }
+
+    const scanRecord = await SelfHelpTool.create({
+      user: req.user.id,
+      category: "security",
+      scanStartedAt: new Date(),
+      progress: 10,
+      status: "running",
+    });
+
+    const result = await gz.createScanTask({
+      endpointId,
+      type: 1,
+      name: `Quick Scan ${scanRecord._id}`,
+    });
+
+      const taskId = result?.taskId || result?.id || result;
+      console.log("[runScanOnEndpoint] about to set taskId:", taskId, "on record:", scanRecord._id);
+      scanRecord.bitdefenderTaskId = taskId;
+      const saved = await scanRecord.save();
+      console.log("[runScanOnEndpoint] AFTER SAVE:", JSON.stringify(saved));
+
+      return res.status(200).json({
+      success: true,
+      scan: { id: scanRecord._id, taskId, status: "running", progress: 10 },
+    });
+  } catch (error) {
+    console.error("[runScanOnEndpoint]", error.message);
+    return res.status(500).json({ success: false, message: error.message || "Failed to start scan" });
+  }
+};
+
 module.exports = {
   startTool,
   getToolStatus,
@@ -599,5 +909,9 @@ module.exports = {
   getReportData,
   getBitdefenderInstallStatus,
   registerDeviceHostname,
+  runBitdefenderScan,
   getBitdefenderDownloadLink,
+  getBitdefenderEndpoint,
+  listCompanyEndpoints,
+  runScanOnEndpoint,
 };

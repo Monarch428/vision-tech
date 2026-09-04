@@ -1,5 +1,6 @@
 const Antivirus = require('../../models/antivirus/AntivirusSchedule');
 const systemLogger = require("../../utils/systemLogger");
+const bitdefender = require("../../services/bitdefender.service");
 
 const createAntivirusSchedule = async (req, res) => {
   try {
@@ -133,8 +134,9 @@ const getAllAntivirusSchedules = async (req, res) => {
   }
 };
 
+
 module.exports = {
   createAntivirusSchedule,
   getAntivirusSchedules,
-  getAllAntivirusSchedules,
+  getAllAntivirusSchedules
 };

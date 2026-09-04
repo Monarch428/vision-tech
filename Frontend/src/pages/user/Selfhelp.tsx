@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import Cookies from "js-cookie";
 import {
@@ -7,15 +7,17 @@ import {
   startBackupJob,
   listBackups,
   downloadBackup,
-  getBitdefenderInstallStatus,
   getBitdefenderDownloadLink,
+  runScanOnEndpoint,
+  getBitdefenderEndpoint,
 } from "../../services/user/selfhelp.service";
 import type {
   BackupRecord,
-  BitdefenderDeviceStatus,
   BitdefenderDownloadLinks,
+  CompanyEndpoint
 } from "../../services/user/selfhelp.service";
 import { clearCache } from "../../hooks/useCacheStorage";
+import { useEffect } from "react";
 
 type ToolStatus = "idle" | "running" | "completed" | "failed";
 
@@ -234,9 +236,6 @@ function formatSize(bytes: number | null) {
 }
 
 // ─── BackupsList ────────────────────────────────────────────────────────────
-// NOTE: This component only handles backup history/download. The
-// Bitdefender OS-download dropdown state belongs in ToolCard (below), not
-// here — it was previously misplaced in this component by mistake.
 
 function BackupsList({ refreshKey }: { refreshKey: number }) {
   const [backups, setBackups] = useState<BackupRecord[]>([]);
@@ -321,46 +320,58 @@ function ToolCard({ tool, onNetworkRestartComplete, triggerRun }: ToolCardProps)
   const [status, setStatus] = useState<ToolStatus>("idle");
   const [progress, setProgress] = useState(0);
   const [toolRecordId, setToolRecordId] = useState<string | null>(null);
-  const [loading, setLoading] = useState(false);
+const [loading, setLoading] = useState(false);
   const [backupResult, setBackupResult] = useState<any>(null);
   const [backupsRefresh, setBackupsRefresh] = useState(0);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [infoMessage, setInfoMessage] = useState<string | null>(null);
   const navigate = useNavigate();
 
-  // ── Antivirus-only: Bitdefender install state ─────────────────────────────
-  // No device picker anymore — the backend resolves "this user's device"
-  // itself, so we just check/poll status for the logged-in user.
-  const [bdStatus, setBdStatus] = useState<BitdefenderDeviceStatus | null>(null);
-
   // ── Antivirus-only: Bitdefender OS download dropdown state ────────────────
+  // Fully independent of Run Tool — usable any time.
   const [downloadLinks, setDownloadLinks] = useState<BitdefenderDownloadLinks | null>(null);
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [fetchingLinks, setFetchingLinks] = useState(false);
   const dropdownRef = useRef<HTMLDivElement | null>(null);
 
-  useEffect(() => {
-    if (tool.id !== "antivirus-scan") return;
-    getBitdefenderInstallStatus()
-      .then(setBdStatus)
-      .catch(() => setBdStatus(null)); // no record yet == not installed
-  }, [tool.id]);
+  const [endpoints, setEndpoints] = useState<CompanyEndpoint[]>([]);
+const [selectedEndpointId, setSelectedEndpointId] = useState("");
+const [endpointsLoading, setEndpointsLoading] = useState(false);
 
-  // Poll while an install is in progress
-  useEffect(() => {
-    if (bdStatus?.installStatus !== "installing") return;
-
-    const interval = setInterval(async () => {
-      try {
-        const updated = await getBitdefenderInstallStatus();
-        setBdStatus(updated);
-        if (updated.installStatus !== "installing") clearInterval(interval);
-      } catch (err) {
-        console.error("Install status poll error:", err);
+useEffect(() => {
+  if (tool.id !== "antivirus-scan") return;
+  let cancelled = false;
+  (async () => {
+    try {
+      setEndpointsLoading(true);
+      const res = await getBitdefenderEndpoint();
+      if (!cancelled && res.installed && res.endpoint) {
+        const matched: CompanyEndpoint = {
+          id: res.endpoint.id,
+          name: res.endpoint.name,
+          ip: res.endpoint.ip ?? null,
+          os: null,
+        };
+        setEndpoints([matched]);
+        setSelectedEndpointId(matched.id);
+      } else if (!cancelled) {
+        setEndpoints([]);
+        setSelectedEndpointId("");
       }
-    }, 5000);
-
-    return () => clearInterval(interval);
-  }, [bdStatus?.installStatus]);
+    } catch (err) {
+      console.error("Failed to resolve your device:", err);
+      if (!cancelled) {
+        setEndpoints([]);
+        setSelectedEndpointId("");
+      }
+    } finally {
+      if (!cancelled) setEndpointsLoading(false);
+    }
+  })();
+  return () => {
+    cancelled = true;
+  };
+}, [tool.id]);
 
   const handleToggleDropdown = async () => {
     if (dropdownOpen) {
@@ -410,23 +421,32 @@ function ToolCard({ tool, onNetworkRestartComplete, triggerRun }: ToolCardProps)
     setProgress(0);
     setErrorMessage(null);
 
-    // ── Antivirus: real Bitdefender scan via GravityZone ─────────────────────
-    if (usesApi) {
-      try {
-        setLoading(true);
-        // deviceId is now resolved server-side from the logged-in user.
-        const response = await startTool(tool.id);
-        setToolRecordId(response.tool._id);
-        setStatus("running");
-      } catch (error: any) {
-        console.error("Antivirus start error:", error);
-        setErrorMessage(error?.response?.data?.message || "Failed to start scan.");
-        setStatus("failed");
-      } finally {
-        setLoading(false);
-      }
-      return;
-    }
+      // ── Antivirus: real Bitdefender scan via GravityZone ─────────────────────
+// ── Antivirus: real Bitdefender scan via GravityZone ─────────────────────
+if (usesApi) {
+  if (!selectedEndpointId) {
+    setErrorMessage("Select a device to scan first.");
+    setStatus("failed");
+    return;
+  }
+  try {
+    setLoading(true);
+    const response = await runScanOnEndpoint(selectedEndpointId);
+    setToolRecordId(response.scan.id);
+    setProgress(100);
+    setStatus("completed");
+    setInfoMessage(
+      "Scan started in the background. It may take a few minutes to finish — feel free to navigate away, results will be ready when you check back in Antivirus Page."
+    );
+  } catch (error: any) {
+    console.error("Antivirus start error:", error);
+    setErrorMessage(error?.response?.data?.message || "Failed to start scan.");
+    setStatus("failed");
+  } finally {
+    setLoading(false);
+  }
+  return;
+}
 
     // ── Backup: real backup API ───────────────────────────────────────────────
     if (tool.id === "start-backup") {
@@ -449,7 +469,6 @@ function ToolCard({ tool, onNetworkRestartComplete, triggerRun }: ToolCardProps)
     // ── Browser-cleanup / Network-restart: simulated + backend log ───────────
     setStatus("running");
 
-    // Fire-and-forget: log the tool run to backend (creates + completes DB record)
     startTool(tool.id).catch((err) =>
       console.error("Failed to log tool start to backend:", err)
     );
@@ -475,13 +494,14 @@ function ToolCard({ tool, onNetworkRestartComplete, triggerRun }: ToolCardProps)
   const handleRun = () => startRun();
 
   const handleReset = () => {
-    simCleanupRef.current?.();
-    simCleanupRef.current = null;
-    setStatus("idle");
-    setProgress(0);
-    setBackupResult(null);
-    setErrorMessage(null);
-  };
+  simCleanupRef.current?.();
+  simCleanupRef.current = null;
+  setStatus("idle");
+  setProgress(0);
+  setBackupResult(null);
+  setErrorMessage(null);
+  setInfoMessage(null); // ← add this
+};
 
   // ── External trigger (browser-cleanup auto-run after network-restart) ──────
   const prevTrigger = useRef(triggerRun ?? 0);
@@ -590,80 +610,80 @@ function ToolCard({ tool, onNetworkRestartComplete, triggerRun }: ToolCardProps)
         </div>
       )}
 
-    {/* Bitdefender install status (no device picker) */}
-{tool.id === "antivirus-scan" && status === "idle" && (
-  <div className="flex flex-col gap-2">
-    {bdStatus?.installStatus === "installed" ? (
-      <p className="text-[11px] text-green-700 font-medium">
-        ✓ Bitdefender installed
-      </p>
-    ) : bdStatus?.installStatus === "installing" ? (
-      <button
-        disabled
-        className="w-full flex items-center justify-center gap-1.5 bg-gray-400 text-white text-xs py-2 rounded-lg cursor-not-allowed"
-      >
-        <SpinnerIcon size={10} /> Installing Bitdefender…
-      </button>
-    ) : bdStatus?.installStatus === "failed" ? (
-      <div className="text-[11px] text-red-600 flex items-center gap-2">
-        <span>
-          Install failed{bdStatus.installError ? `: ${bdStatus.installError}` : ""}
-        </span>
-      </div>
-    ) : (
-      <div className="flex flex-col gap-2">
-        {/* Primary action: actually triggers the RMM push-install and
-            flips bdStatus to "installing", which kicks off polling below.
-            This was previously missing — the dropdown below only fetches
-            manual installer links and never calls installBitdefender(). */}
+     {tool.id === "antivirus-scan" && status === "idle" && (
+  <div className="relative" ref={dropdownRef}>
+    <button
+      onClick={handleToggleDropdown}
+      disabled={fetchingLinks}
+      className="w-full flex items-center justify-center gap-1.5 border border-gray-300 text-gray-700 hover:bg-gray-50 font-medium text-xs py-2 rounded-lg transition-colors disabled:opacity-50"
+    >
+      {fetchingLinks ? <SpinnerIcon size={10} /> : <DownloadIcon />}
+      {fetchingLinks ? "Getting links…" : "Download Bitdefender"}
+      {!fetchingLinks && <ChevronIcon />}
+    </button>
 
-        {/* Secondary/fallback action: manual installer download links,
-            in case the user prefers to install it themselves rather than
-            push it via RMM (e.g. RMM agent not reachable). This does NOT
-            update bdStatus or start the polling flow on its own. */}
-        <div className="relative" ref={dropdownRef}>
-          <button
-            onClick={handleToggleDropdown}
-            disabled={fetchingLinks}
-            className="w-full flex items-center justify-center gap-1.5 border border-gray-300 text-gray-700 hover:bg-gray-50 font-medium text-xs py-2 rounded-lg transition-colors disabled:opacity-50"
-          >
-            {fetchingLinks ? <SpinnerIcon size={10} /> : <DownloadIcon />}
-            {fetchingLinks ? "Getting links…" : "Download installer manually"}
-            {!fetchingLinks && <ChevronIcon />}
-          </button>
-
-          {dropdownOpen && downloadLinks && (
-            <div className="absolute z-10 mt-1 w-full bg-white border border-gray-200 rounded-lg shadow-lg overflow-hidden">
-              <button
-                onClick={() => handleSelectOS("windows")}
-                disabled={!downloadLinks.windows}
-                className="w-full text-left px-3 py-2 text-xs font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed"
-              >
-                Windows
-              </button>
-              <button
-                onClick={() => handleSelectOS("mac")}
-                disabled={!downloadLinks.mac}
-                className="w-full text-left px-3 py-2 text-xs font-medium text-gray-700 hover:bg-gray-50 border-t border-gray-100 disabled:opacity-40 disabled:cursor-not-allowed"
-              >
-                macOS
-              </button>
-              <button
-                onClick={() => handleSelectOS("linux")}
-                disabled={!downloadLinks.linux}
-                className="w-full text-left px-3 py-2 text-xs font-medium text-gray-700 hover:bg-gray-50 border-t border-gray-100 disabled:opacity-40 disabled:cursor-not-allowed"
-              >
-                Linux
-              </button>
-            </div>
-          )}
-        </div>
+    {dropdownOpen && downloadLinks && (
+      <div className="absolute z-10 mt-1 w-full bg-white border border-gray-200 rounded-lg shadow-lg overflow-hidden">
+        <button
+          onClick={() => handleSelectOS("windows")}
+          disabled={!downloadLinks.windows}
+          className="w-full text-left px-3 py-2 text-xs font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-40"
+        >
+          Windows
+        </button>
+        <button
+          onClick={() => handleSelectOS("mac")}
+          disabled={!downloadLinks.mac}
+          className="w-full text-left px-3 py-2 text-xs font-medium text-gray-700 hover:bg-gray-50 border-t border-gray-100 disabled:opacity-40"
+        >
+          macOS
+        </button>
+        <button
+          onClick={() => handleSelectOS("linux")}
+          disabled={!downloadLinks.linux}
+          className="w-full text-left px-3 py-2 text-xs font-medium text-gray-700 hover:bg-gray-50 border-t border-gray-100 disabled:opacity-40"
+        >
+          Linux
+        </button>
       </div>
     )}
   </div>
 )}
 
-      {/* Action buttons */}
+{/* Device picker */}
+{tool.id === "antivirus-scan" && status === "idle" && (
+  <div>
+    <label className="block text-[11px] font-semibold text-gray-600 mb-1">
+      Device to scan
+    </label>
+    <select
+      value={selectedEndpointId}
+      onChange={(e) => setSelectedEndpointId(e.target.value)}
+      disabled={endpointsLoading || !endpoints.length}
+      className="w-full border border-gray-300 rounded-lg px-2.5 py-2 text-xs text-gray-700 disabled:opacity-50"
+    >
+      {endpointsLoading && <option>Loading devices…</option>}
+      {!endpointsLoading && !endpoints.length && <option>No devices found</option>}
+      {endpoints.map((ep) => (
+        <option key={ep.id} value={ep.id}>
+          {ep.name} {ep.ip ? `(${ep.ip})` : ""}
+        </option>
+      ))}
+    </select>
+  </div>
+)}
+
+{/* Info banner (antivirus: scan started in background) */}
+{status === "completed" && tool.id === "antivirus-scan" && infoMessage && (
+  <div className="bg-blue-50 border border-blue-200 rounded-lg p-2.5 flex items-start gap-2">
+    <svg className="w-4 h-4 text-blue-500 flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+    </svg>
+    <p className="text-[12px] text-blue-700 leading-snug">{infoMessage}</p>
+  </div>
+)}
+
+      {/* Action buttons — Run Tool is ALWAYS enabled (only `loading` disables it) */}
       {(status === "idle" || status === "failed") && (
         <button
           onClick={
@@ -671,9 +691,7 @@ function ToolCard({ tool, onNetworkRestartComplete, triggerRun }: ToolCardProps)
               ? () => navigate("/user/network-restart-guide")
               : handleRun
           }
-          disabled={
-            loading 
-          }
+          disabled={loading}
           className="w-full flex items-center justify-center gap-1.5 bg-green-500 hover:bg-green-600 text-white font-semibold text-xs py-2 rounded-lg transition-colors disabled:opacity-50"
         >
           {loading ? <SpinnerIcon /> : <PlayIcon />}

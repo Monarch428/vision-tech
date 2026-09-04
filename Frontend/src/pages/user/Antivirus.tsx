@@ -35,23 +35,55 @@ const statusIcons: Record<string, JSX.Element> = {
   ),
 };
 
-function formatRelativeTime(isoDate: string | null | undefined): string {
+function parseBitdefenderDate(dateString: string): Date {
+  // If Bitdefender already provides Z / +hh:mm / -hh:mm,
+  // don't modify it.
+  if (/Z$|[+-]\d{2}:\d{2}$/.test(dateString)) {
+    return new Date(dateString);
+  }
+
+  // Bitdefender Control Center timestamp is GMT-04:00
+  return new Date(`${dateString}-04:00`);
+}
+
+function formatRelativeTime(
+  isoDate: string | null | undefined
+): string {
   if (!isoDate) return "Never";
-  const diff = Date.now() - new Date(isoDate).getTime();
-  const mins = Math.floor(diff / 60000);
-  if (mins < 60) return `${mins} minute${mins !== 1 ? "s" : ""} ago`;
+
+  const scanTime = parseBitdefenderDate(isoDate);
+  const diff = Date.now() - scanTime.getTime();
+
+  const mins = Math.max(0, Math.floor(diff / 60000));
+
+  if (mins < 60) {
+    return `${mins} minute${mins !== 1 ? "s" : ""} ago`;
+  }
+
   const hrs = Math.floor(mins / 60);
-  if (hrs < 24) return `${hrs} hour${hrs !== 1 ? "s" : ""} ago`;
+
+  if (hrs < 24) {
+    return `${hrs} hour${hrs !== 1 ? "s" : ""} ago`;
+  }
+
   const days = Math.floor(hrs / 24);
+
   return `${days} day${days !== 1 ? "s" : ""} ago`;
 }
 
-function formatDate(isoDate: string | null | undefined): string {
+function formatDate(
+  isoDate: string | null | undefined
+): string {
   if (!isoDate) return "N/A";
-  return new Date(isoDate).toLocaleDateString("en-US", {
+
+  const date = parseBitdefenderDate(isoDate);
+
+  return date.toLocaleString("en-US", {
     month: "long",
     day: "numeric",
     year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
   });
 }
 
@@ -176,26 +208,16 @@ export default function Antivirus() {
     ]
     : [];
 
-  // Always surface the most recent scan's filesScanned/threatsDetected by
-  // pulling from the last (most recent, by startDate) entry in scans[],
-  // rather than only trusting userLastScan. The backend's report-matching
-  // fallback patches whichever entry in scans[] it identifies as matching —
-  // that isn't always the same record referenced by userLastScan.
-  const latestScanEntry = scanReport?.scans?.length
-    ? [...scanReport.scans].sort((a, b) => {
-        const aTime = a.startDate ? new Date(a.startDate).getTime() : 0;
-        const bTime = b.startDate ? new Date(b.startDate).getTime() : 0;
-        return bTime - aTime;
-      })[0]
-    : null;
-
-  const displayScan = latestScanEntry
+  // Trust the backend's recentScan directly — it already resolves to the
+  // correct tracked Quick Scan (taskId, filesScanned, scanDate all sourced
+  // from the same task on the backend now), so there's nothing to re-derive
+  // here. Falls back to userLastScan only when no completed scan exists yet.
+  const displayScan = scanReport?.recentScan
     ? {
-        status: latestScanEntry.status ?? "unknown",
-        filesScanned: latestScanEntry.filesScanned ?? null,
-        filesScannedAvailable:
-          latestScanEntry.filesScanned != null && latestScanEntry.filesScanned > 0,
-        threatsDetected: latestScanEntry.threatsDetected ?? 0,
+        status: "completed" as const,
+        filesScanned: scanReport.recentScan.filesScanned ?? null,
+        filesScannedAvailable: Boolean(scanReport.recentScan.filesScannedAvailable),
+        threatsDetected: scanReport.recentScan.threatsDetected ?? 0,
       }
     : scanReport?.userLastScan
     ? {
@@ -347,10 +369,7 @@ export default function Antivirus() {
 
                 <div className="flex justify-between text-sm border-t border-gray-100 pt-3">
                   <span className="text-gray-600">Threats detected</span>
-                  <span
-                    className={`font-bold ${(displayScan.threatsDetected ?? 0) > 0 ? "text-red-600" : "text-green-600"
-                      }`}
-                  >
+                  <span className={`font-bold ${(displayScan.threatsDetected ?? 0) > 0 ? "text-red-600" : "text-green-600"}`}>
                     {displayScan.threatsDetected ?? 0}
                   </span>
                 </div>
