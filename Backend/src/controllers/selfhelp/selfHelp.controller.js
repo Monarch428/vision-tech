@@ -58,6 +58,22 @@ async function matchEndpointForUser(userId) {
   return match || null;
 }
 
+// ─── matchEndpointById ────────────────────────────────────────────────────
+// Resolves a GravityZone endpoint directly by id, for screens that let a
+// user pick any company device (rather than the one tied to their own
+// account via DeviceAntivirus.hostname). includeScanLogs is requested so
+// the returned item carries lastSuccessfulScan, same as matchEndpointForUser.
+async function matchEndpointById(endpointId) {
+  const { items } = await gz.getEndpointsList({
+    parentId: process.env.CYBERSHIELD_SOLO_ID,
+    isManaged: true,
+    page: 1,
+    perPage: 100,
+    options: { includeScanLogs: true },
+  });
+  return (items || []).find((e) => e.id === endpointId) || null;
+}
+
 // ─── startTool ────────────────────────────────────────────────────────────────
 const startTool = async (req, res) => {
   try {
@@ -255,10 +271,23 @@ const getScanResults = async (req, res) => {
 };
 
 // ─── getScanReport ────────────────────────────────────────────────────────────
+// Accepts an optional ?endpointId= query param so callers can request the
+// scan report for any company device, not just the one tied to the
+// logged-in user's own DeviceAntivirus.hostname. Falls back to the
+// existing per-user lookup when no endpointId is given, so all previous
+// callers of this route keep working unchanged.
 const getScanReport = async (req, res) => {
   try {
     const userId = req.user?._id || req.user?.id;
-    const match = await matchEndpointForUser(userId);
+
+    const requestedEndpointId =
+      typeof req.query.endpointId === 'string' && req.query.endpointId.trim()
+        ? req.query.endpointId.trim()
+        : null;
+
+    const match = requestedEndpointId
+      ? await matchEndpointById(requestedEndpointId)
+      : await matchEndpointForUser(userId);
 
     if (!match) {
       return res.status(200).json({
@@ -300,7 +329,7 @@ const getScanReport = async (req, res) => {
     let gzTasks = [];
     try {
       const taskList = await gz.getScanTasksList();
-      gzTasks = taskList?.items || [];
+      gzTasks = (taskList?.items || []).filter((t) => taskTargetsEndpoint(t, match.id));
     } catch (e) {
       console.warn("[getScanReport] getScanTasksList failed:", e.message);
     }
@@ -308,6 +337,7 @@ const getScanReport = async (req, res) => {
 
     const selfHelpRecords = await SelfHelpTool.find({
       category: "security",
+      endpointId: match.id, 
       bitdefenderTaskId: { $exists: true, $ne: null },
     })
       .sort({ scanStartedAt: -1 })
@@ -391,6 +421,28 @@ const getScanReport = async (req, res) => {
           scannedBy: mostRecent.requestedBy,
         }
       : null;
+
+      // After recentScan is built:
+if (recentScan && !recentScan.filesScannedAvailable && match.lastSuccessfulScan?.date) {
+  try {
+    const csvRows = await gz.getOnDemandScanCsvRows([match.id]);
+    const scanDate = new Date(match.lastSuccessfulScan.date);
+    const candidate = [...csvRows]
+      .filter((r) => r.scanTime)
+      .sort(
+        (a, b) =>
+          Math.abs(new Date(a.scanTime) - scanDate) -
+          Math.abs(new Date(b.scanTime) - scanDate)
+      )[0];
+
+    if (candidate && Math.abs(new Date(candidate.scanTime) - scanDate) < 24 * 60 * 60 * 1000) {
+      recentScan.filesScanned = candidate.filesScanned;
+      recentScan.filesScannedAvailable = true;
+    }
+  } catch (e) {
+    console.warn("[getScanReport] direct CSV fallback failed:", e.message);
+  }
+}
 
     const userRecord = await SelfHelpTool.findOne({ user: userId, category: "security" }).sort({ scanStartedAt: -1 });
     const userLastScan = userRecord
@@ -596,13 +648,6 @@ const getBitdefenderDownloadLink = async (req, res) => {
   }
 };
 
-function getClientIp(req) {
-  const xff = req.headers['x-forwarded-for'];
-  let ip = xff ? xff.split(',')[0].trim() : req.socket.remoteAddress;
-  if (ip && ip.startsWith('::ffff:')) ip = ip.slice(7); // normalize IPv6-mapped IPv4
-  return ip;
-}
-
 async function matchEndpointByIp(req) {
   const clientIp = getClientIp(req);
   console.log('[matchEndpointByIp] clientIp:', clientIp);
@@ -649,8 +694,18 @@ const registerDeviceHostname = async (req, res) => {
   }
 };
 
+function getClientIp(req) {
+  const xff = req.headers['x-forwarded-for'];
+  let ip = xff ? xff.split(',')[0].trim() : req.socket.remoteAddress;
+  if (ip && ip.startsWith('::ffff:')) ip = ip.slice(7);
+  return ip;
+}
+
 const getBitdefenderEndpoint = async (req, res) => {
   try {
+    const clientIp = getClientIp(req);
+    console.log('[getBitdefenderEndpoint] clientIp:', clientIp);
+
     const result = await gz.getEndpointsList({
       parentId: process.env.CYBERSHIELD_SOLO_ID,
       isManaged: true,
@@ -658,39 +713,29 @@ const getBitdefenderEndpoint = async (req, res) => {
       perPage: 100,
     });
     const endpoints = result?.items || [];
+    console.log('[getBitdefenderEndpoint] endpoint ips:', endpoints.map((e) => `${e.name}:${e.ip}`));
 
-    if (!endpoints.length) {
-      return res.status(200).json({ success: true, installed: false, endpoint: null });
+    if (!clientIp || !endpoints.length) {
+      return res.status(200).json({ success: true, endpoint: null });
     }
 
-    let device = await DeviceAntivirus.findOne({ user: req.user.id });
+    const matches = endpoints.filter((item) => item.ip === clientIp);
 
-    // Try hostname match first (most precise)
-    let endpoint = device?.hostname
-      ? endpoints.find((item) => item.name?.toLowerCase() === device.hostname.toLowerCase())
-      : null;
-
-    // Fall back to IP match if hostname didn't resolve
-    if (!endpoint) {
-      const clientIp = getClientIp(req);
-      console.log('[getBitdefenderEndpoint] falling back to IP match, clientIp:', clientIp);
-      endpoint = endpoints.find((item) => item.ip === clientIp) || null;
+    if (matches.length !== 1) {
+      console.log('[getBitdefenderEndpoint] match count:', matches.length, '- not resolving');
+      return res.status(200).json({ success: true, endpoint: null });
     }
 
-    if (!endpoint) {
-      return res.status(200).json({ success: true, installed: false, endpoint: null });
-    }
+    const endpoint = matches[0];
 
-    if (!device) device = new DeviceAntivirus({ user: req.user.id });
-    device.bitdefenderEndpointId = endpoint.id;
-    device.hostname = endpoint.name; // backfill hostname from the matched endpoint
-    device.installStatus = 'installed';
-    device.installCompletedAt = new Date();
-    await device.save();
+    await DeviceAntivirus.findOneAndUpdate(
+      { user: req.user.id },
+      { user: req.user.id, bitdefenderEndpointId: endpoint.id },
+      { upsert: true }
+    ).catch((e) => console.warn('[getBitdefenderEndpoint] failed to persist device:', e.message));
 
     return res.status(200).json({
       success: true,
-      installed: true,
       endpoint: {
         id: endpoint.id,
         name: endpoint.name,
@@ -723,6 +768,7 @@ const runBitdefenderScan = async (req, res) => {
       scanStartedAt: new Date(),
       progress: 10,
       status: "running",
+      endpointId
     });
 
     const result = await gz.createScanTask({
@@ -868,6 +914,7 @@ const runScanOnEndpoint = async (req, res) => {
       scanStartedAt: new Date(),
       progress: 10,
       status: "running",
+      endpointId: device.bitdefenderEndpointId,  
     });
 
     const result = await gz.createScanTask({

@@ -41,6 +41,7 @@ const selfHelpToolSchema = new mongoose.Schema(
       type: Number,
       default: 0,
     },
+    endpointId: { type: String, default: null },
     backupPath: {
       type: String,
       default: null,

@@ -82,7 +82,7 @@ export interface ScanReport {
   signatureOutdated: boolean;
   productOutdated: boolean;
   updateDisabled: boolean;
-};
+} | null;
 recentScan: {
   taskId: string;
   taskName: string;
@@ -92,7 +92,7 @@ recentScan: {
   scanDate: string;
   threatsDetected: number;
   scannedBy: ScanUser | null;
-};
+} | null;
 scans: Array<{
   id: string;
   name: string;
@@ -114,8 +114,13 @@ scans: Array<{
   userLastScan: UserLastScan | null;
 }
 
-export const getScanReport = async (): Promise<ScanReport> => {
-  const response = await API.get<ScanReport>('/self-help/bitdefender/scan-report');
+// Pass an endpointId to get the scan report for a specific company device
+// (looked up directly by id). Omit it to get the report for the device
+// tied to the logged-in user's own account, same as before.
+export const getScanReport = async (endpointId?: string): Promise<ScanReport> => {
+  const response = await API.get<ScanReport>('/self-help/bitdefender/scan-report', {
+    params: endpointId ? { endpointId } : undefined,
+  });
   return response.data;
 };
 

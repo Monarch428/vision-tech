@@ -9,7 +9,7 @@ import {
   downloadBackup,
   getBitdefenderDownloadLink,
   runScanOnEndpoint,
-  getBitdefenderEndpoint,
+  listCompanyEndpoints,
 } from "../../services/user/selfhelp.service";
 import type {
   BackupRecord,
@@ -344,22 +344,14 @@ useEffect(() => {
   (async () => {
     try {
       setEndpointsLoading(true);
-      const res = await getBitdefenderEndpoint();
-      if (!cancelled && res.installed && res.endpoint) {
-        const matched: CompanyEndpoint = {
-          id: res.endpoint.id,
-          name: res.endpoint.name,
-          ip: res.endpoint.ip ?? null,
-          os: null,
-        };
-        setEndpoints([matched]);
-        setSelectedEndpointId(matched.id);
-      } else if (!cancelled) {
-        setEndpoints([]);
+      const allEndpoints = await listCompanyEndpoints();
+      if (!cancelled) {
+        setEndpoints(allEndpoints);
+        // No auto-selection — let the user pick their own device.
         setSelectedEndpointId("");
       }
     } catch (err) {
-      console.error("Failed to resolve your device:", err);
+      console.error("Failed to load devices:", err);
       if (!cancelled) {
         setEndpoints([]);
         setSelectedEndpointId("");
@@ -656,20 +648,23 @@ if (usesApi) {
     <label className="block text-[11px] font-semibold text-gray-600 mb-1">
       Device to scan
     </label>
-    <select
-      value={selectedEndpointId}
-      onChange={(e) => setSelectedEndpointId(e.target.value)}
-      disabled={endpointsLoading || !endpoints.length}
-      className="w-full border border-gray-300 rounded-lg px-2.5 py-2 text-xs text-gray-700 disabled:opacity-50"
-    >
-      {endpointsLoading && <option>Loading devices…</option>}
-      {!endpointsLoading && !endpoints.length && <option>No devices found</option>}
-      {endpoints.map((ep) => (
-        <option key={ep.id} value={ep.id}>
-          {ep.name} {ep.ip ? `(${ep.ip})` : ""}
-        </option>
-      ))}
-    </select>
+   <select
+  value={selectedEndpointId}
+  onChange={(e) => setSelectedEndpointId(e.target.value)}
+  disabled={endpointsLoading || !endpoints.length}
+  className="w-full border border-gray-300 rounded-lg px-2.5 py-2 text-xs text-gray-700 disabled:opacity-50"
+>
+  {endpointsLoading && <option>Loading devices…</option>}
+  {!endpointsLoading && !endpoints.length && <option>No devices found</option>}
+  {!endpointsLoading && endpoints.length > 0 && (
+    <option value="">Select your device…</option>
+  )}
+  {endpoints.map((ep) => (
+    <option key={ep.id} value={ep.id}>
+      {ep.name} {ep.ip ? `(${ep.ip})` : ""}
+    </option>
+  ))}
+</select>
   </div>
 )}
 

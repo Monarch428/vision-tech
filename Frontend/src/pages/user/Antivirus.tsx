@@ -4,6 +4,10 @@ import {
   getScanReport,
   type ScanReport,
 } from "../../services/user/antivirus.service";
+import {
+  listCompanyEndpoints,
+  type CompanyEndpoint,
+} from "../../services/user/selfhelp.service";
 
 type TabType = "status" | "schedule" | "assistance";
 
@@ -93,6 +97,11 @@ export default function Antivirus() {
   const [reportLoading, setReportLoading] = useState(true);
   const [reportError, setReportError] = useState("");
 
+  // ── Device picker (which device's results are being viewed) ──
+  const [endpoints, setEndpoints] = useState<CompanyEndpoint[]>([]);
+  const [endpointsLoading, setEndpointsLoading] = useState(false);
+  const [selectedEndpointId, setSelectedEndpointId] = useState(""); // "" = my own device
+
   // Schedule form state (scan-only)
   const [preferredDate, setPreferredDate] = useState("");
   const [preferredTime, setPreferredTime] = useState("");
@@ -120,25 +129,49 @@ export default function Antivirus() {
     container.scrollTo({ top: 0, behavior: "smooth" });
   }, []);
 
-  // ── GET: Fetch scan report ──
-  // Guards against React 18 StrictMode double-invoking this effect in dev.
-  const fetchedReportRef = useRef(false);
+  // ── GET: List company devices for the picker ──
+  const fetchedEndpointsRef = useRef(false);
   useEffect(() => {
-    if (fetchedReportRef.current) return;
-    fetchedReportRef.current = true;
+    if (fetchedEndpointsRef.current) return;
+    fetchedEndpointsRef.current = true;
+
+    (async () => {
+      try {
+        setEndpointsLoading(true);
+        const all = await listCompanyEndpoints();
+        setEndpoints(all);
+      } catch (err) {
+        console.error("Failed to load devices:", err);
+        setEndpoints([]);
+      } finally {
+        setEndpointsLoading(false);
+      }
+    })();
+  }, []);
+
+  // ── GET: Fetch scan report for whichever device is selected ──
+  // Re-runs whenever selectedEndpointId changes, including the initial
+  // "" (my own device) load.
+  useEffect(() => {
+    let cancelled = false;
 
     (async () => {
       try {
         setReportLoading(true);
-        const data = await getScanReport();
-        setScanReport(data);
+        setReportError("");
+        const data = await getScanReport(selectedEndpointId || undefined);
+        if (!cancelled) setScanReport(data);
       } catch {
-        setReportError("Failed to load scan report.");
+        if (!cancelled) setReportError("Failed to load scan report.");
       } finally {
-        setReportLoading(false);
+        if (!cancelled) setReportLoading(false);
       }
     })();
-  }, []);
+
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedEndpointId]);
 
   // ── POST: Schedule a scan ──
   const handleScheduleSubmit = async () => {
@@ -236,10 +269,33 @@ export default function Antivirus() {
         <p className="text-md text-gray-700 mt-1">Protect your devices with professional antivirus services</p>
       </div>
 
+      {/* Device picker — controls which device's results are shown below */}
+      <div className="bg-white rounded-2xl border border-gray-300 p-4 mb-6 flex flex-col sm:flex-row sm:items-center gap-3 sm:justify-between">
+        <div>
+          <p className="text-md font-bold text-gray-900">Device</p>
+          <p className="text-sm text-gray-500">Choose a device to view its scan results</p>
+        </div>
+        <select
+          value={selectedEndpointId}
+          onChange={(e) => setSelectedEndpointId(e.target.value)}
+          disabled={endpointsLoading}
+          className="w-full sm:w-72 px-4 py-2.5 rounded-xl bg-gray-100 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-green-400 disabled:opacity-50 appearance-none cursor-pointer"
+        >
+          <option value="">My device (default)</option>
+          {endpointsLoading && <option disabled>Loading devices…</option>}
+          {!endpointsLoading &&
+            endpoints.map((ep) => (
+              <option key={ep.id} value={ep.id}>
+                {ep.name} {ep.ip ? `(${ep.ip})` : ""}
+              </option>
+            ))}
+        </select>
+      </div>
+
       {/* Stat Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6 items-stretch">
         {/* Protection Status */}
-        <div className="bg-white rounded-2xl border border-gray-300 p-4 flex items-center justify-between">
+        <div className="bg-white rounded-2xl border border-gray-300 p-4 flex items-center justify-between h-full">
           <div>
             <p className="text-md text-gray-700 mb-1">Protection Status</p>
             <p className={`text-2xl font-bold ${protectionActive ? "text-green-600" : "text-red-500"}`}>
@@ -268,7 +324,7 @@ export default function Antivirus() {
           </div>
         </div>
 
-        {/* Total Scans Requested */}
+        {/* Total Scans Requested
         <div className="bg-white rounded-2xl border border-gray-300 p-4 flex items-center justify-between">
           <div>
             <p className="text-md text-gray-700 mb-1">Total Scans</p>
@@ -281,7 +337,7 @@ export default function Antivirus() {
               <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
             </svg>
           </div>
-        </div>
+        </div> */}
       </div>
 
       {/* Tab Switcher */}
@@ -376,10 +432,11 @@ export default function Antivirus() {
               </div>
             ) : (
               <p className="text-sm text-gray-400 text-center py-4">
-                You haven't requested a scan yet.
+                No scan has been run on this device yet.
               </p>
             )}
           </div>
+
         </div>
       )}
 

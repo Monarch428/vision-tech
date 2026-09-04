@@ -205,19 +205,17 @@ export interface BitdefenderEndpoint {
 
 export interface BitdefenderEndpointResponse {
   success: boolean;
-  installed: boolean;
   endpoint: BitdefenderEndpoint | null;
 }
 
-export const getBitdefenderEndpoint =
-  async (): Promise<BitdefenderEndpointResponse> => {
-
-    const response = await API.get(
-      "/self-help/bitdefender/endpoint"
-    );
-
-    return response.data;
-  };
+export const getBitdefenderEndpoint = async (
+  localIp?: string | null
+): Promise<BitdefenderEndpointResponse> => {
+  const response = await API.get("/self-help/bitdefender/endpoint", {
+    params: { localIp: localIp ?? undefined },
+  });
+  return response.data;
+};
 
   export const runBitdefenderScan = async () => {
   const response = await API.post(
