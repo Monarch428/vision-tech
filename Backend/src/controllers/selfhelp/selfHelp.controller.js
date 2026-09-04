@@ -74,6 +74,33 @@ async function matchEndpointById(endpointId) {
   return (items || []).find((e) => e.id === endpointId) || null;
 }
 
+// ─── taskTargetsEndpoint ───────────────────────────────────────────────────
+// Determines whether a GravityZone scan-task object (from getScanTasksList)
+// was targeted at a given endpointId. createScanTask() sends targetIds, so
+// that's checked first; a few other plausible field names are checked as
+// fallbacks since GravityZone's list response shape isn't fully documented.
+//
+// IMPORTANT: verify this against a real task object from your GravityZone
+// instance (console.log one raw item from getScanTasksList()) — if the
+// actual field name differs, update the `ids` line below accordingly.
+function taskTargetsEndpoint(task, endpointId) {
+  if (!task || !endpointId) return false;
+
+  const ids =
+    task.targetIds ||
+    task.targets ||
+    task.endpointIds ||
+    (task.machineId ? [task.machineId] : null) ||
+    (task.endpointId ? [task.endpointId] : null) ||
+    [];
+
+  if (Array.isArray(ids)) {
+    return ids.map(String).includes(String(endpointId));
+  }
+
+  return String(ids) === String(endpointId);
+}
+
 // ─── startTool ────────────────────────────────────────────────────────────────
 const startTool = async (req, res) => {
   try {
@@ -120,7 +147,7 @@ const startTool = async (req, res) => {
 
     const updated = await SelfHelpTool.findByIdAndUpdate(
       record._id,
-      { status: 'running', progress: 10, bitdefenderTaskId: taskId },
+      { status: 'running', progress: 10, bitdefenderTaskId: taskId, endpointId },
       { new: true }
     );
 
@@ -337,7 +364,7 @@ const getScanReport = async (req, res) => {
 
     const selfHelpRecords = await SelfHelpTool.find({
       category: "security",
-      endpointId: match.id, 
+      endpointId: match.id,
       bitdefenderTaskId: { $exists: true, $ne: null },
     })
       .sort({ scanStartedAt: -1 })
@@ -347,24 +374,27 @@ const getScanReport = async (req, res) => {
 
     const toScanUser = (u) => (u ? { id: u._id.toString(), name: u.name ?? null, email: u.email ?? null } : null);
 
-    const scans = selfHelpRecords
-  .filter((r) => gzTaskById.has(r.bitdefenderTaskId)) // drop orphaned records with no matching GravityZone task
-  .map((r) => {
-    const gzTask = gzTaskById.get(r.bitdefenderTaskId);
-    const isFinished = gzTask?.status === 3;
-    const filesScannedAvailable = r.filesScanned != null && r.filesScanned > 0;
-    return {
-      id: r._id.toString(),
-      taskId: r.bitdefenderTaskId || null,
-      name: gzTask?.name || `Scan ${r._id}`,
-      startDate: gzTask?.startDate || r.scanStartedAt,
-      filesScanned: filesScannedAvailable ? r.filesScanned : null,
-      filesScannedAvailable,
-      threatsDetected: r.threatsDetected ?? undefined,
-      status: isFinished ? "completed" : r.status === "running" ? "in progress" : "scheduled",
-      requestedBy: toScanUser(r.user),
-    };
-  });
+    // NOTE: records are now scoped to this endpoint via the endpointId
+    // filter above, so we no longer drop them just because the matching
+    // GravityZone task fell out of getScanTasksList()'s page/window —
+    // that used to zero out `scans` entirely for endpoints whose tasks
+    // weren't in the (possibly paginated/stale) global list.
+    const scans = selfHelpRecords.map((r) => {
+      const gzTask = gzTaskById.get(r.bitdefenderTaskId);
+      const isFinished = gzTask?.status === 3 || r.status === "completed";
+      const filesScannedAvailable = r.filesScanned != null && r.filesScanned > 0;
+      return {
+        id: r._id.toString(),
+        taskId: r.bitdefenderTaskId || null,
+        name: gzTask?.name || `Scan ${r._id}`,
+        startDate: gzTask?.startDate || r.scanStartedAt,
+        filesScanned: filesScannedAvailable ? r.filesScanned : null,
+        filesScannedAvailable,
+        threatsDetected: r.threatsDetected ?? undefined,
+        status: isFinished ? "completed" : r.status === "running" ? "in progress" : "scheduled",
+        requestedBy: toScanUser(r.user),
+      };
+    });
 
     // ─── Fill in missing scanned-file counts from the Reports API ────────────
     // getTaskStatus never returns file counts — only the Reports API does.
@@ -422,27 +452,30 @@ const getScanReport = async (req, res) => {
         }
       : null;
 
-      // After recentScan is built:
-if (recentScan && !recentScan.filesScannedAvailable && match.lastSuccessfulScan?.date) {
-  try {
-    const csvRows = await gz.getOnDemandScanCsvRows([match.id]);
-    const scanDate = new Date(match.lastSuccessfulScan.date);
-    const candidate = [...csvRows]
-      .filter((r) => r.scanTime)
-      .sort(
-        (a, b) =>
-          Math.abs(new Date(a.scanTime) - scanDate) -
-          Math.abs(new Date(b.scanTime) - scanDate)
-      )[0];
+    // Direct per-endpoint fallback for scanned-file count, sourced straight
+    // from GravityZone's report data rather than the local Mongo join —
+    // covers scans that were never recorded locally (e.g. run from
+    // Control Center directly) but that GravityZone still confirms happened.
+    if (recentScan && !recentScan.filesScannedAvailable && match.lastSuccessfulScan?.date) {
+      try {
+        const csvRows = await gz.getOnDemandScanCsvRows([match.id]);
+        const scanDate = new Date(match.lastSuccessfulScan.date);
+        const candidate = [...csvRows]
+          .filter((r) => r.scanTime)
+          .sort(
+            (a, b) =>
+              Math.abs(new Date(a.scanTime) - scanDate) -
+              Math.abs(new Date(b.scanTime) - scanDate)
+          )[0];
 
-    if (candidate && Math.abs(new Date(candidate.scanTime) - scanDate) < 24 * 60 * 60 * 1000) {
-      recentScan.filesScanned = candidate.filesScanned;
-      recentScan.filesScannedAvailable = true;
+        if (candidate && Math.abs(new Date(candidate.scanTime) - scanDate) < 24 * 60 * 60 * 1000) {
+          recentScan.filesScanned = candidate.filesScanned;
+          recentScan.filesScannedAvailable = true;
+        }
+      } catch (e) {
+        console.warn("[getScanReport] direct CSV fallback failed:", e.message);
+      }
     }
-  } catch (e) {
-    console.warn("[getScanReport] direct CSV fallback failed:", e.message);
-  }
-}
 
     const userRecord = await SelfHelpTool.findOne({ user: userId, category: "security" }).sort({ scanStartedAt: -1 });
     const userLastScan = userRecord
@@ -749,6 +782,13 @@ const getBitdefenderEndpoint = async (req, res) => {
   }
 };
 
+// ─── runBitdefenderScan ─────────────────────────────────────────────────────
+// Runs a scan on the LOGGED-IN USER's own registered device, resolved via
+// DeviceAntivirus.bitdefenderEndpointId. If that field isn't set yet (device
+// never IP-matched or hostname-registered successfully), this correctly
+// fails with "Bitdefender endpoint not found" — that's not a bug, it means
+// this user's own device hasn't completed setup. Use runScanOnEndpoint
+// instead for the "pick any company device" flow.
 const runBitdefenderScan = async (req, res) => {
   try {
     const device = await DeviceAntivirus.findOne({
@@ -768,7 +808,7 @@ const runBitdefenderScan = async (req, res) => {
       scanStartedAt: new Date(),
       progress: 10,
       status: "running",
-      endpointId
+      endpointId: device.bitdefenderEndpointId,
     });
 
     const result = await gz.createScanTask({
@@ -898,9 +938,13 @@ const listCompanyEndpoints = async (req, res) => {
 };
 
 // ─── runScanOnEndpoint ───────────────────────────────────────────────────
-// Runs a scan on an endpointId given directly in the request body, rather
-// than resolving it through DeviceAntivirus.hostname. Still logs to
-// SelfHelpTool so it shows up in scan history / getScanReport.
+// Runs a scan on an endpointId given directly in the request body (from the
+// "pick any company device" dropdown), rather than resolving it through
+// DeviceAntivirus.hostname/bitdefenderEndpointId for the logged-in user.
+// FIX: this had been overwritten to look up DeviceAntivirus by req.user.id
+// instead of reading endpointId from req.body — restored to its intended
+// behavior below. Still logs to SelfHelpTool (with endpointId set) so it
+// shows up in scan history / getScanReport for that specific device.
 const runScanOnEndpoint = async (req, res) => {
   try {
     const { endpointId } = req.body;
@@ -914,7 +958,7 @@ const runScanOnEndpoint = async (req, res) => {
       scanStartedAt: new Date(),
       progress: 10,
       status: "running",
-      endpointId: device.bitdefenderEndpointId,  
+      endpointId,
     });
 
     const result = await gz.createScanTask({
@@ -923,13 +967,13 @@ const runScanOnEndpoint = async (req, res) => {
       name: `Quick Scan ${scanRecord._id}`,
     });
 
-      const taskId = result?.taskId || result?.id || result;
-      console.log("[runScanOnEndpoint] about to set taskId:", taskId, "on record:", scanRecord._id);
-      scanRecord.bitdefenderTaskId = taskId;
-      const saved = await scanRecord.save();
-      console.log("[runScanOnEndpoint] AFTER SAVE:", JSON.stringify(saved));
+    const taskId = result?.taskId || result?.id || result;
+    console.log("[runScanOnEndpoint] about to set taskId:", taskId, "on record:", scanRecord._id);
+    scanRecord.bitdefenderTaskId = taskId;
+    const saved = await scanRecord.save();
+    console.log("[runScanOnEndpoint] AFTER SAVE:", JSON.stringify(saved));
 
-      return res.status(200).json({
+    return res.status(200).json({
       success: true,
       scan: { id: scanRecord._id, taskId, status: "running", progress: 10 },
     });
