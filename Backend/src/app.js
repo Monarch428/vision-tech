@@ -16,6 +16,7 @@ const systemConfig = require('./routes/system-config/systemConfig.route');
 const startSubscriptionReminder = require("./cron/subscriptionReminder");
 const selfHelpRoutes = require('./routes/selfHelp/selfHelp.route');
 const dataManagementRoutes = require('./routes/data-management/dataManagement.route')
+const startAntivirusScanScheduler = require("./cron/antivirusScanScheduler");
 // const systemHealthRoutes = require("./routes/systemHealth/systemHealth.route");
 // const deviceRoutes = require('./routes/rmm/device.route');
 const tacticalRmmRoutes = require('./routes/rmm/tacticalRmm.route');
@@ -157,5 +158,6 @@ app.use('/api/data-management',          dataManagementRoutes);
 app.use('/api/devices', tacticalRmmRoutes);
 
 startSubscriptionReminder();
+startAntivirusScanScheduler();
 
 module.exports = app;

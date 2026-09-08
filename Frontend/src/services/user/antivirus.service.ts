@@ -34,6 +34,7 @@ export interface AntivirusSchedulePayload {
   preferredDate: string;
   preferredTime: string;
   numberOfDevices: string;
+  endpointId?: string;
 }
 
 export interface AntivirusScheduleResponse {

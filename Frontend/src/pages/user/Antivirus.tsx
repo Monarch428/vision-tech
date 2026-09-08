@@ -100,12 +100,12 @@ export default function Antivirus() {
   // ── Device picker (which device's results are being viewed) ──
   const [endpoints, setEndpoints] = useState<CompanyEndpoint[]>([]);
   const [endpointsLoading, setEndpointsLoading] = useState(false);
-  const [selectedEndpointId, setSelectedEndpointId] = useState(""); // "" = my own device
+  const [selectedEndpointId, setSelectedEndpointId] = useState("");
+  const [scheduledEndpointId, setScheduledEndpointId] = useState("");
 
   // Schedule form state (scan-only)
   const [preferredDate, setPreferredDate] = useState("");
   const [preferredTime, setPreferredTime] = useState("");
-  const [numDevices, setNumDevices] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [submitSuccess, setSubmitSuccess] = useState("");
   const [submitError, setSubmitError] = useState("");
@@ -175,32 +175,39 @@ export default function Antivirus() {
 
   // ── POST: Schedule a scan ──
   const handleScheduleSubmit = async () => {
-    setSubmitError("");
-    setSubmitSuccess("");
+  setSubmitError("");
+  setSubmitSuccess("");
 
-    if (!preferredDate || !preferredTime || !numDevices) {
-      setSubmitError("Please fill in all fields before submitting.");
-      return;
-    }
+  if (!preferredDate || !preferredTime) {
+    setSubmitError("Please select a preferred date and time.");
+    return;
+  }
 
-    try {
-      setSubmitting(true);
-      await createAntivirusSchedule({
-        serviceType: "scan",
-        preferredDate,
-        preferredTime,
-        numberOfDevices: numDevices,
-      });
-      setSubmitSuccess("Scan scheduled successfully!");
-      setPreferredDate("");
-      setPreferredTime("");
-      setNumDevices("");
-    } catch {
-      setSubmitError("Server error. Please try again.");
-    } finally {
-      setSubmitting(false);
-    }
-  };
+  try {
+    setSubmitting(true);
+
+    await createAntivirusSchedule({
+      serviceType: "scan",
+      preferredDate,
+      preferredTime,
+      numberOfDevices: "1",
+
+      // This device is specifically for the cron/scheduled scan
+      endpointId: scheduledEndpointId || undefined,
+    });
+
+    setSubmitSuccess("Scan scheduled successfully!");
+
+    setPreferredDate("");
+    setPreferredTime("");
+    setScheduledEndpointId("");
+  } catch (err) {
+    console.error("Schedule scan failed:", err);
+    setSubmitError("Server error. Please try again.");
+  } finally {
+    setSubmitting(false);
+  }
+};
 
   // ── Request security assistance ──
   const handleRequestAssistance = async () => {
@@ -276,20 +283,24 @@ export default function Antivirus() {
           <p className="text-sm text-gray-500">Choose a device to view its scan results</p>
         </div>
         <select
-          value={selectedEndpointId}
-          onChange={(e) => setSelectedEndpointId(e.target.value)}
-          disabled={endpointsLoading}
-          className="w-full sm:w-72 px-4 py-2.5 rounded-xl bg-gray-100 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-green-400 disabled:opacity-50 appearance-none cursor-pointer"
-        >
-          <option value="">My device (default)</option>
-          {endpointsLoading && <option disabled>Loading devices…</option>}
-          {!endpointsLoading &&
-            endpoints.map((ep) => (
-              <option key={ep.id} value={ep.id}>
-                {ep.name} {ep.ip ? `(${ep.ip})` : ""}
-              </option>
-            ))}
-        </select>
+  value={selectedEndpointId}
+  onChange={(e) => setSelectedEndpointId(e.target.value)}
+  disabled={endpointsLoading}
+  className="w-full sm:w-72 px-4 py-2.5 rounded-xl bg-gray-100 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-green-400 disabled:opacity-50 appearance-none cursor-pointer"
+>
+  <option value="">My device (default)</option>
+
+  {endpointsLoading && (
+    <option disabled>Loading devices…</option>
+  )}
+
+  {!endpointsLoading &&
+    endpoints.map((ep) => (
+      <option key={ep.id} value={ep.id}>
+        {ep.name} {ep.ip ? `(${ep.ip})` : ""}
+      </option>
+    ))}
+</select>
       </div>
 
       {/* Stat Cards */}
@@ -465,39 +476,49 @@ export default function Antivirus() {
               </div>
             </div>
 
-            <div>
-              <label className="block text-md font-bold text-gray-900 mb-2">Preferred Time</label>
-              <select
-                value={preferredTime}
-                onChange={(e) => setPreferredTime(e.target.value)}
-                className="w-full px-4 py-3 rounded-xl bg-gray-100 text-sm text-gray-600 focus:outline-none focus:ring-2 focus:ring-green-400 appearance-none cursor-pointer"
-              >
-                <option value="">Select time</option>
-                <option value="09:00">09:00 AM</option>
-                <option value="10:00">10:00 AM</option>
-                <option value="11:00">11:00 AM</option>
-                <option value="12:00">12:00 PM</option>
-                <option value="14:00">02:00 PM</option>
-                <option value="15:00">03:00 PM</option>
-                <option value="16:00">04:00 PM</option>
-              </select>
-            </div>
+           <div>
+  <label className="block text-md font-bold text-gray-900 mb-2">
+    Preferred Time
+  </label>
 
-            <div>
-              <label className="block text-md font-bold text-gray-900 mb-2">Number of Devices</label>
-              <select
-                value={numDevices}
-                onChange={(e) => setNumDevices(e.target.value)}
-                className="w-full px-4 py-3 rounded-xl bg-gray-100 text-sm text-gray-600 focus:outline-none focus:ring-2 focus:ring-green-400 appearance-none cursor-pointer"
-              >
-                <option value="">Select devices</option>
-                <option value="1">1 Device</option>
-                <option value="2">2 Devices</option>
-                <option value="3">3 Devices</option>
-                <option value="5">5 Devices</option>
-                <option value="10">10+ Devices</option>
-              </select>
-            </div>
+  <input
+    type="time"
+    value={preferredTime}
+    onChange={(e) => setPreferredTime(e.target.value)}
+    className="w-full px-4 py-3 rounded-xl bg-gray-100 text-sm text-gray-600 focus:outline-none focus:ring-2 focus:ring-green-400"
+  />
+
+  <p className="mt-2 text-sm text-amber-700">
+    ⚠️ Kindly make sure your system is switched on and connected to the internet
+    at the scheduled time so the antivirus scan can run successfully.
+  </p>
+</div>
+
+           <div>
+  <label className="block text-md font-bold text-gray-900 mb-2">
+    Select device to schedule
+  </label>
+
+  <select
+    value={scheduledEndpointId}
+    onChange={(e) => setScheduledEndpointId(e.target.value)}
+    disabled={endpointsLoading}
+    className="w-full px-4 py-3 rounded-xl bg-gray-100 text-sm text-gray-600 focus:outline-none focus:ring-2 focus:ring-green-400 appearance-none cursor-pointer"
+  >
+    <option value="">My device (default)</option>
+
+    {endpointsLoading && (
+      <option disabled>Loading devices…</option>
+    )}
+
+    {!endpointsLoading &&
+      endpoints.map((ep) => (
+        <option key={ep.id} value={ep.id}>
+          {ep.name} {ep.ip ? `(${ep.ip})` : ""}
+        </option>
+      ))}
+  </select>
+</div>
 
             {submitSuccess && (
               <div className="flex items-center gap-2 bg-green-50 border border-green-200 text-green-700 text-sm font-medium px-4 py-3 rounded-xl">

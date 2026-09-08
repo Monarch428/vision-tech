@@ -10,6 +10,7 @@ const createAntivirusSchedule = async (req, res) => {
       preferredDate,
       preferredTime,
       numberOfDevices,
+      endpointId,
     } = req.body;
 
     const lastBooking = await Antivirus.findOne({
@@ -29,7 +30,8 @@ const createAntivirusSchedule = async (req, res) => {
       preferredDate,
       preferredTime,
       numberOfDevices,
-      createdBy: user
+      endpointId: endpointId || null,
+      createdBy: user,
     });
 
     await systemLogger({

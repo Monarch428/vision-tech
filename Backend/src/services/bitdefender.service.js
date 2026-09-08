@@ -31,6 +31,23 @@ const getInstallationLinks = (packageId) =>
   call("packages", "getInstallationLinks", { packageId });
 
 const createScanTask = (endpointIds, name, type = 2) =>
-  call("network", "createScanTask", { targetIds: endpointIds, name, type });
+  call("network", "createScanTask", {
+    targetIds: endpointIds,
+    name,
+    type,
+  });
 
-module.exports = { getEndpointsList, getManagedEndpointDetails, getScanTasksList, getInstallationLinks, createScanTask };
+
+const triggerScan = async (endpointId) => {
+  if (!endpointId) {
+    throw new Error("endpointId is required to trigger a scheduled scan");
+  }
+
+  return createScanTask(
+    [endpointId],
+    `Scheduled Quick Scan ${Date.now()}`,
+    1
+  );
+};
+
+module.exports = { getEndpointsList, getManagedEndpointDetails, getScanTasksList, getInstallationLinks, createScanTask,triggerScan };
