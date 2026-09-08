@@ -219,86 +219,6 @@ function Toast({
 }
 
 // ─────────────────────────────────────────────
-// System Actions
-// ─────────────────────────────────────────────
-function SystemActions() {
-  const actions = [
-    {
-      label: "Restart Services",
-      icon: (
-        <svg
-          className="w-6 h-6"
-          fill="none"
-          viewBox="0 0 24 24"
-          stroke="currentColor"
-          strokeWidth={1.5}
-        >
-          <path
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
-          />
-        </svg>
-      ),
-    },
-    {
-      label: "Backup Database",
-      icon: (
-        <svg
-          className="w-6 h-6"
-          fill="none"
-          viewBox="0 0 24 24"
-          stroke="currentColor"
-          strokeWidth={1.5}
-        >
-          <ellipse cx="12" cy="5" rx="9" ry="3" />
-          <path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3" />
-          <path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5" />
-        </svg>
-      ),
-    },
-    {
-      label: "Run Security Audit",
-      icon: (
-        <svg
-          className="w-6 h-6"
-          fill="none"
-          viewBox="0 0 24 24"
-          stroke="currentColor"
-          strokeWidth={1.5}
-        >
-          <path
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"
-          />
-        </svg>
-      ),
-    },
-  ];
-
-  return (
-    <div className="bg-white rounded-2xl border border-gray-300 p-5">
-      <h2 className="text-lg font-bold text-gray-900 mb-1">System Actions</h2>
-      <p className="text-md text-gray-700 mb-5">
-        Perform critical system operations
-      </p>
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-        {actions.map((action) => (
-          <button
-            key={action.label}
-            className="flex flex-col items-center justify-center gap-3 border border-gray-300 rounded-2xl px-4 py-6 hover:bg-gray-50 transition-colors text-sm font-semibold text-gray-800"
-          >
-            {action.icon}
-            {action.label}
-          </button>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-// ─────────────────────────────────────────────
 // Main Component
 // ─────────────────────────────────────────────
 export default function SystemConfig() {
@@ -714,7 +634,6 @@ export default function SystemConfig() {
                 />
               </div>
             </div>
-            <SystemActions />
           </div>
         )}
 
@@ -843,7 +762,6 @@ export default function SystemConfig() {
                 </div>
               </div>
             </div>
-            <SystemActions />
           </div>
         )}
 
@@ -908,7 +826,6 @@ export default function SystemConfig() {
                 />
               </div>
             </div>
-            <SystemActions />
           </div>
         )}
 
@@ -963,7 +880,6 @@ export default function SystemConfig() {
                 </div>
               </div>
             </div>
-            <SystemActions />
           </div>
         )}
       </div>
