@@ -20,7 +20,6 @@ const startAntivirusScanScheduler = require("./cron/antivirusScanScheduler");
 // const systemHealthRoutes = require("./routes/systemHealth/systemHealth.route");
 // const deviceRoutes = require('./routes/rmm/device.route');
 const tacticalRmmRoutes = require('./routes/rmm/tacticalRmm.route');
-const deviceRoutes = require('./routes/system-config/device.route');
 
 
 const app = express();
@@ -157,7 +156,6 @@ app.use('/api/self-help',          selfHelpRoutes);
 app.use('/api/system-config',          systemConfig);
 app.use('/api/data-management',          dataManagementRoutes);
 app.use('/api/devices', tacticalRmmRoutes);
-app.use("/api/device", deviceRoutes);
 
 startSubscriptionReminder();
 startAntivirusScanScheduler();

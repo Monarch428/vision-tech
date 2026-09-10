@@ -1,16 +1,16 @@
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const crypto = require('crypto');
+const { v4: uuidv4 } = require('uuid');
 const User = require('../../models/auth/User');
 const ManagementUser = require('../../models/user-management/User');
 const Plan = require('../../models/subscription/Plan');
 const systemConfig = require('../../models/system-config/SystemConfig');
 const Subscription = require('../../models/subscription/Subscription');
-const {destroySessionLogger, logger } = require("../../utils/logger");
+const { createSessionLogger, destroySessionLogger, logger } = require("../../utils/logger");
 const sendEmail = require('../../utils/sendEmail');
 const systemLogger = require("../../utils/systemLogger");
 const systemConfigModel = require('../../models/system-config/SystemConfig');
-const { saveDeviceInfo,  deleteDeviceInfo } = require('../../services/device.service');
 
 const LOCK_DURATION_MS = 24 * 60 * 60 * 1000;
 
@@ -27,18 +27,6 @@ const generateToken = async (user) => {
 };
 
 const generateOtp = () => crypto.randomInt(100000, 999999).toString();
-
-// Real client IP, respecting a reverse proxy / load balancer if one is in
-// front of this server (e.g. nginx, an AWS ALB). Falls back to the raw
-// socket address for direct connections.
-// NOTE: for x-forwarded-for to be trustworthy (not spoofable by the client),
-// `app.set('trust proxy', 1)` must be set on the Express app, and this must
-// only be trusted when actually running behind a known proxy.
-const getClientIp = (req) => {
-  const forwarded = req.headers['x-forwarded-for'];
-  if (forwarded) return forwarded.split(',')[0].trim();
-  return req.ip || req.socket?.remoteAddress || null;
-};
 
 // ── Controllers ───────────────────────────────────────────────────────────────
 
@@ -85,11 +73,6 @@ const register = async (req, res) => {
 
     const hashedPassword = await bcrypt.hash(password, 10);
 
-    // Captured at signup time — real device name isn't available to a web
-    // signup (that requires an installed agent), but IP + user-agent are.
-    const signupIp = getClientIp(req);
-    const signupUserAgent = req.headers['user-agent'] || null;
-
     const user = await ManagementUser.create({
       name: name.trim(),
       email: emailNormalized,
@@ -99,11 +82,6 @@ const register = async (req, res) => {
       isActive: isUserCreatedFlow ? false : true,
       avatar: '',
       plan: 'free',
-      signupMeta: {
-        ip: signupIp,
-        userAgent: signupUserAgent,
-        signedUpAt: new Date(),
-      },
     });
 
     // ── Assign free plan, same pattern as admin createUser ──────────────────
@@ -140,14 +118,6 @@ const register = async (req, res) => {
     user.plan = freePlan.name;
     await user.save();
 
-    // ── Log the signup itself, including where it came from ────────────────
-    await systemLogger({
-      type: 'success', action: 'USER_REGISTERED', user: user._id,
-      userEmail: user.email, details: 'New user account created',
-      module: 'auth', ipAddress: signupIp,
-      metadata: { userAgent: signupUserAgent, source: source || 'public' },
-    });
-
     // ── Notify admins, same as admin createUser ─────────────────────────────
     if (config?.notifications?.newUserRegistration) {
       const adminUsers = await ManagementUser.find({ role: 'admin' }).select('email name').lean();
@@ -165,7 +135,6 @@ const register = async (req, res) => {
                 <p style="margin: 4px 0;"><strong>Name:</strong> ${user.name}</p>
                 <p style="margin: 4px 0;"><strong>Email:</strong> ${user.email}</p>
                 <p style="margin: 4px 0;"><strong>Role:</strong> ${user.role}</p>
-                <p style="margin: 4px 0;"><strong>IP Address:</strong> ${signupIp || 'Unknown'}</p>
                 <p style="margin: 4px 0;"><strong>Registered At:</strong> ${new Date().toLocaleString()}</p>
               </div>
               <p style="color: #6b7280; font-size: 13px;">
@@ -341,45 +310,23 @@ const login = async (req, res) => {
     const twoFactorEnabled = config?.security?.requireTwoFactorAuth ?? true;
 
     if (!twoFactorEnabled) {
-  await user.save();
+      await user.save();
+      const token = await generateToken(user);
 
-  const token = await generateToken(user);
+      await systemLogger({
+        type: 'success', action: 'USER_LOGIN', user: user._id,
+        userEmail: user.email, details: 'Login complete (2FA disabled)',
+        module: 'auth', ipAddress: req.ip,
+        metadata: { role: user.role, userAgent: req.headers['user-agent'] },
+      });
 
-try {
-  await saveDeviceInfo(user._id);
-} catch (deviceError) {
-  console.error('[login] device save failed:', deviceError);
-}
-
-  // Save current device after successful login
-  await saveDeviceInfo(user._id);
-
-  await systemLogger({
-    type: 'success',
-    action: 'USER_LOGIN',
-    user: user._id,
-    userEmail: user.email,
-    details: 'Login complete (2FA disabled)',
-    module: 'auth',
-    ipAddress: req.ip,
-    metadata: {
-      role: user.role,
-      userAgent: req.headers['user-agent']
-    },
-  });
-
-  return res.status(200).json({
-    message: 'Login successful.',
-    requiresOtp: false,
-    token,
-    user: {
-      id: user._id,
-      name: user.name,
-      email: user.email,
-      role: user.role
-    },
-  });
-}
+      return res.status(200).json({
+        message: 'Login successful.',
+        requiresOtp: false,
+        token,
+        user: { id: user._id, name: user.name, email: user.email, role: user.role },
+      });
+    }
 
     // ── 2FA enabled — issue OTP ────────────────────────────────────────────
     const otp = generateOtp();
@@ -434,91 +381,53 @@ const verifyOtp = async (req, res) => {
       return res.status(400).json({ message: 'Email and OTP are required.' });
 
     const emailNormalized = email.toLowerCase().trim();
-
     const user = await User.findOne({ email: emailNormalized })
       .select('+otpCode +otpExpiry');
 
     if (!user || !user.otpCode || !user.otpExpiry) {
-      return res.status(400).json({
-        message: 'No pending verification found.'
-      });
+      return res.status(400).json({ message: 'No pending verification found.' });
     }
 
     // OTP expired
     if (user.otpExpiry < new Date()) {
       user.otpCode = undefined;
       user.otpExpiry = undefined;
-
       await user.save();
-
-      return res.status(400).json({
-        message: 'OTP has expired. Please log in again.'
-      });
+      return res.status(400).json({ message: 'OTP has expired. Please log in again.' });
     }
 
     const isValid = await bcrypt.compare(otp, user.otpCode);
-
     if (!isValid) {
-      return res.status(400).json({
-        message: 'Invalid OTP.'
-      });
+      return res.status(400).json({ message: 'Invalid OTP.' });
     }
 
-    // OTP verified
+    // Clear OTP and issue token
     user.otpCode = undefined;
     user.otpExpiry = undefined;
-    user.lastLogin = new Date();
-
     await user.save();
 
     const token = await generateToken(user);
 
-    // Save device after successful 2FA login
-    try {
-      await saveDeviceInfo(user._id);
-    } catch (deviceError) {
-      console.error('Failed to save device:', deviceError);
-    }
-
     await systemLogger({
-      type: 'success',
-      action: 'USER_LOGIN',
-      user: user._id,
-      userEmail: user.email,
-      details: '2FA verified — login complete',
-      module: 'auth',
-      ipAddress: req.ip,
-      metadata: {
-        role: user.role,
-        userAgent: req.headers['user-agent']
-      },
+      type: 'success', action: 'USER_LOGIN', user: user._id,
+      userEmail: user.email, details: '2FA verified — login complete',
+      module: 'auth', ipAddress: req.ip,
+      metadata: { role: user.role, userAgent: req.headers['user-agent'] },
     });
 
     return res.status(200).json({
       message: 'Login successful.',
       token,
-      user: {
-        id: user._id,
-        name: user.name,
-        email: user.email,
-        role: user.role
-      },
+      user: { id: user._id, name: user.name, email: user.email, role: user.role },
     });
 
   } catch (error) {
     await systemLogger({
-      type: 'error',
-      action: 'USER_OTP_ERROR',
-      userEmail: req.body?.email || '',
-      details: error.message,
-      module: 'auth',
-      ipAddress: req.ip,
+      type: 'error', action: 'USER_OTP_ERROR',
+      userEmail: req.body?.email || '', details: error.message,
+      module: 'auth', ipAddress: req.ip,
     });
-
-    return res.status(500).json({
-      message: 'OTP verification failed.',
-      error: error.message
-    });
+    return res.status(500).json({ message: 'OTP verification failed.', error: error.message });
   }
 };
 
@@ -640,8 +549,6 @@ const resetPassword = async (req, res) => {
 
 const logout = async (req, res) => {
   try {
-    const userId = req.user?.id || req.user?._id;
-    await deleteDeviceInfo(userId);
     logger.info(`User ${req.user?.email} logged out`);
     destroySessionLogger();
     res.status(200).json({ message: "Logged out successfully" });

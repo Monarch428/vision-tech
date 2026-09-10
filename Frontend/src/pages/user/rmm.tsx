@@ -2,16 +2,6 @@ import { useEffect, useMemo, useState } from "react";
 import { getDevices, generateInstaller } from "../../services/user/rmm.service";
 import type { Device, GenerateInstallerPayload } from "../../services/user/rmm.service";
 import { currentUserRole } from "../../services/admin/userManagement.service";
-import { listCompanyEndpoints } from "../../services/user/selfhelp.service";
-import type { CompanyEndpoint } from "../../services/user/selfhelp.service";
-import { getCurrentDevice } from "../../services/user/antivirus.service";
-
-// Client/site identifiers for this deployment, pulled from env so the
-// "Add New Device" form doesn't require an admin to look them up and
-// type them in every time. Must be prefixed VITE_ in .env for Vite to
-// expose them to client-side code.
-const DEFAULT_CLIENT_ID = (import.meta.env.VITE_CLIENT_ID as string | undefined) ?? "";
-const DEFAULT_SITE_ID = (import.meta.env.VITE_SITE_ID as string | undefined) ?? "";
 
 // ─── Icons ────────────────────────────────────────────────────────────────────
 
@@ -364,8 +354,8 @@ type ModalStep = "form" | "result";
 function AddDeviceModal({ onClose, onDeviceLikelyAdded }: { onClose: () => void; onDeviceLikelyAdded: () => void }) {
   const [step, setStep] = useState<ModalStep>("form");
 
-  // Client/site are not user-facing — sourced directly from env
-  // (VITE_CLIENT_ID / VITE_SITE_ID) and sent to the backend as-is.
+  const [clientId, setClientId] = useState("");
+  const [siteId, setSiteId] = useState("");
   const [plat, setPlat] = useState<GenerateInstallerPayload["plat"]>("windows");
   const [agentType, setAgentType] = useState<GenerateInstallerPayload["agentType"]>("workstation");
   const [arch, setArch] = useState<GenerateInstallerPayload["arch"]>("amd64");
@@ -378,16 +368,16 @@ function AddDeviceModal({ onClose, onDeviceLikelyAdded }: { onClose: () => void;
   const [copied, setCopied] = useState(false);
 
   const handleGenerate = async () => {
-    if (!DEFAULT_CLIENT_ID.trim() || !DEFAULT_SITE_ID.trim()) {
-      setError("Client/site is not configured for this deployment. Check VITE_CLIENT_ID and VITE_SITE_ID.");
+    if (!clientId.trim() || !siteId.trim()) {
+      setError("Client ID and Site ID are required.");
       return;
     }
     setError(null);
     setSubmitting(true);
     try {
       const data = await generateInstaller({
-        clientId: DEFAULT_CLIENT_ID.trim(),
-        siteId: DEFAULT_SITE_ID.trim(),
+        clientId: clientId.trim(),
+        siteId: siteId.trim(),
         plat,
         agentType,
         arch,
@@ -443,6 +433,29 @@ function AddDeviceModal({ onClose, onDeviceLikelyAdded }: { onClose: () => void;
             </p>
 
             <div className="flex flex-col gap-3">
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs font-semibold text-gray-700 mb-1 block">Client ID</label>
+                  <input
+                    type="text"
+                    value={clientId}
+                    onChange={(e) => setClientId(e.target.value)}
+                    placeholder="e.g. 12"
+                    className="w-full text-sm border border-gray-300 rounded-lg p-2"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs font-semibold text-gray-700 mb-1 block">Site ID</label>
+                  <input
+                    type="text"
+                    value={siteId}
+                    onChange={(e) => setSiteId(e.target.value)}
+                    placeholder="e.g. 53"
+                    className="w-full text-sm border border-gray-300 rounded-lg p-2"
+                  />
+                </div>
+              </div>
+
               <div>
                 <label className="text-xs font-semibold text-gray-700 mb-1 block">Operating System</label>
                 <div className="flex gap-4">
@@ -610,6 +623,70 @@ function AddDeviceModal({ onClose, onDeviceLikelyAdded }: { onClose: () => void;
   );
 }
 
+// ─── DeviceFilterBar ──────────────────────────────────────────────────────
+
+function DeviceFilterBar({
+  siteId,
+  clientId,
+  hostname,
+  onSiteIdChange,
+  onClientIdChange,
+  onHostnameChange,
+  resultCount,
+}: {
+  siteId: string;
+  clientId: string;
+  hostname: string;
+  onSiteIdChange: (v: string) => void;
+  onClientIdChange: (v: string) => void;
+  onHostnameChange: (v: string) => void;
+  resultCount: number;
+}) {
+  const hasFilter = siteId.trim() || clientId.trim() || hostname.trim();
+
+  return (
+    <div className="mt-6 bg-white border border-gray-300 rounded-2xl p-4 sm:p-5 flex flex-col gap-3">
+      <div className="flex flex-col sm:flex-row gap-3">
+        <div className="flex-1">
+          <label className="text-xs font-semibold text-gray-700 mb-1 block">Client Name</label>
+          <input
+            type="text"
+            value={clientId}
+            onChange={(e) => onClientIdChange(e.target.value)}
+            placeholder="e.g. CyberShield Solo"
+            className="w-full text-sm border border-gray-300 rounded-lg p-2"
+          />
+        </div>
+        <div className="flex-1">
+          <label className="text-xs font-semibold text-gray-700 mb-1 block">Site Name</label>
+          <input
+            type="text"
+            value={siteId}
+            onChange={(e) => onSiteIdChange(e.target.value)}
+            placeholder="e.g. Lolita"
+            className="w-full text-sm border border-gray-300 rounded-lg p-2"
+          />
+        </div>
+        <div className="flex-1">
+          <label className="text-xs font-semibold text-gray-700 mb-1 block">Hostname</label>
+          <input
+            type="text"
+            value={hostname}
+            onChange={(e) => onHostnameChange(e.target.value)}
+            placeholder="e.g. DESKTOP-3FH844G"
+            className="w-full text-sm border border-gray-300 rounded-lg p-2"
+          />
+        </div>
+      </div>
+      {hasFilter && (
+        <p className="text-xs text-gray-500">
+          {resultCount} device{resultCount === 1 ? "" : "s"} match{resultCount === 1 ? "es" : ""} this filter.
+        </p>
+      )}
+    </div>
+  );
+}
+
 // ─── Page ───────────────────────────────────────────────────────────────────
 
 export default function RMM() {
@@ -625,62 +702,12 @@ export default function RMM() {
       .catch(() => setRole(null));
   }, []);
   // "support" is the elevated/system role in this app's User schema
-  // (enum: ['admin', 'user', 'support']). Retained only for showing the
-  // banner/stat cards below — it no longer affects which devices are
-  // selectable, since every user (including support) is now restricted
-  // to their own hostname-matched device.
+  // (enum: ['admin', 'user', 'support']) — there is no separate "system" role.
   const isSystemRole = role === "support";
 
-  // ── Bitdefender company endpoints — used to restrict which RMM devices
-  // are selectable (hostname === endpoint.name) ─────────────────────────────
-  const [endpoints, setEndpoints] = useState<CompanyEndpoint[]>([]);
-  const [endpointsLoading, setEndpointsLoading] = useState(true);
-
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      try {
-        setEndpointsLoading(true);
-        const allEndpoints = await listCompanyEndpoints();
-        if (!cancelled) setEndpoints(allEndpoints);
-      } catch (err) {
-        console.error("Failed to load company endpoints:", err);
-        if (!cancelled) setEndpoints([]);
-      } finally {
-        if (!cancelled) setEndpointsLoading(false);
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
-  // ── Current logged-in user's own hostname (fetched for everyone now) ─────
-  const [currentHostname, setCurrentHostname] = useState<string | null>(null);
-  const [hostnameLoading, setHostnameLoading] = useState(true);
-
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      try {
-        setHostnameLoading(true);
-        const currentDevice = await getCurrentDevice();
-        if (!cancelled) {
-          setCurrentHostname(currentDevice.hostname?.trim().toLowerCase() ?? null);
-        }
-      } catch (err) {
-        console.error("Failed to get current device:", err);
-        if (!cancelled) setCurrentHostname(null);
-      } finally {
-        if (!cancelled) setHostnameLoading(false);
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
-  const [selectedDeviceId, setSelectedDeviceId] = useState("");
+  const [siteIdFilter, setSiteIdFilter] = useState("");
+  const [clientIdFilter, setClientIdFilter] = useState("");
+  const [hostnameFilter, setHostnameFilter] = useState("");
 
   const loadDevices = async () => {
     try {
@@ -704,33 +731,33 @@ export default function RMM() {
     return () => clearInterval(interval);
   }, []);
 
-  // Every user — including support/admin — only ever sees the single
-  // device matching BOTH their own hostname AND a Bitdefender endpoint name.
-  const matchedDevices = useMemo(() => {
-    if (!endpoints.length || !currentHostname) return [];
+const filteredDevices = useMemo(() => {
+  // "system" role sees every device without needing to filter.
+  if (isSystemRole) return devices;
 
-    const endpointNames = new Set(
-      endpoints.map((ep) => ep.name?.trim().toLowerCase()).filter(Boolean)
-    );
+  const site = siteIdFilter.trim();
+  const client = clientIdFilter.trim();
+  const host = hostnameFilter.trim();
+  const hasFilter = site || client || host;
 
-    return devices.filter((d) => {
-      const host = d.hostname?.trim().toLowerCase() ?? "";
-      return host === currentHostname && endpointNames.has(host);
-    });
-  }, [devices, endpoints, currentHostname]);
+  // Nothing to show until the user actually filters by at least one field.
+  if (!hasFilter) return [];
 
-  // Auto-select if there's exactly one match; otherwise let the user pick,
-  // or reset the selection if it's no longer in the matched set.
-  useEffect(() => {
-    if (matchedDevices.length === 1) {
-      setSelectedDeviceId(matchedDevices[0]._id);
-    } else if (!matchedDevices.some((d) => d._id === selectedDeviceId)) {
-      setSelectedDeviceId("");
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [matchedDevices]);
-
-  const selectedDevice = matchedDevices.find((d) => d._id === selectedDeviceId) ?? null;
+  return devices.filter((d) => {
+    const siteMatch = site
+      ? String(d.siteId ?? "") === site ||
+        d.siteName?.toLowerCase().includes(site.toLowerCase())
+      : false;
+    const clientMatch = client
+      ? String(d.clientId ?? "") === client ||
+        d.clientName?.toLowerCase().includes(client.toLowerCase())
+      : false;
+    const hostMatch = host
+      ? d.hostname?.toLowerCase().includes(host.toLowerCase())
+      : false;
+    return siteMatch || clientMatch || hostMatch;
+  });
+}, [devices, siteIdFilter, clientIdFilter, hostnameFilter, isSystemRole]);
 
   const stats = useMemo(() => {
     const total = devices.length;
@@ -745,8 +772,6 @@ export default function RMM() {
       : 0;
     return { total, online, monitored, warnings, avgHealth };
   }, [devices]);
-
-  const stillLoading = loading || endpointsLoading || hostnameLoading;
 
   return (
     <div className="min-h-screen bg-gray-50 px-4 sm:px-6 py-6 sm:py-8">
@@ -766,7 +791,7 @@ export default function RMM() {
         </button>
       </div>
 
-      {/* RMM Service Active banner — system role only (display only, doesn't affect device visibility) */}
+      {/* RMM Service Active banner — system role only */}
       {isSystemRole && (
         <div className="mt-6 bg-gradient-to-r from-green-50 to-white border border-green-200 rounded-2xl p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div className="flex items-center gap-3 min-w-0">
@@ -784,7 +809,7 @@ export default function RMM() {
         </div>
       )}
 
-      {/* Stat cards — system role only (display only, doesn't affect device visibility) */}
+      {/* Stat cards — system role only */}
       {isSystemRole && (
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mt-6">
           <StatCard label="Total Devices" value={stats.total} icon={<MonitorIcon color="#9ca3af" size={24} />} />
@@ -794,41 +819,32 @@ export default function RMM() {
         </div>
       )}
 
-      {/* Device select — every user only sees their own hostname-matched device */}
-      <div className="mt-6 bg-white border border-gray-300 rounded-2xl p-4 sm:p-5">
-        <label className="text-xs font-semibold text-gray-700 mb-1 block">Device</label>
-        <select
-          value={selectedDeviceId}
-          onChange={(e) => setSelectedDeviceId(e.target.value)}
-          disabled={stillLoading || !matchedDevices.length}
-          className="w-full sm:w-96 text-sm border border-gray-300 rounded-lg p-2 disabled:opacity-50"
-        >
-          {stillLoading && <option>Loading devices…</option>}
-          {!stillLoading && !matchedDevices.length && <option>No matching device found</option>}
-          {!stillLoading && matchedDevices.length > 0 && (
-            <option value="">Select a device…</option>
-          )}
-          {matchedDevices.map((d) => (
-            <option key={d._id} value={d._id}>
-              {d.name} {d.hostname ? `(${d.hostname})` : ""}
-            </option>
-          ))}
-        </select>
-      </div>
+      {/* Filter bar */}
+      <DeviceFilterBar
+        siteId={siteIdFilter}
+        clientId={clientIdFilter}
+        hostname={hostnameFilter}
+        onSiteIdChange={setSiteIdFilter}
+        onClientIdChange={setClientIdFilter}
+        onHostnameChange={setHostnameFilter}
+        resultCount={filteredDevices.length}
+      />
 
-      {/* Selected device */}
+      {/* Devices */}
       <div className="flex flex-col gap-4 mt-6">
-        {stillLoading ? (
-          <p className="text-sm text-gray-500">Loading devices...</p>
-        ) : !selectedDevice ? (
-          <p className="text-sm text-gray-500">
-            {matchedDevices.length
-              ? "Select a device above to view its details."
-              : "No device found matching your account."}
-          </p>
-        ) : (
-          <DeviceCard device={selectedDevice} />
-        )}
+        {loading ? (
+  <p className="text-sm text-gray-500">Loading devices...</p>
+) : filteredDevices.length === 0 ? (
+  <p className="text-sm text-gray-500">
+    {isSystemRole
+      ? "No devices found."
+      : siteIdFilter.trim() || clientIdFilter.trim() || hostnameFilter.trim()
+      ? "No devices match this filter."
+      : "Enter a client name, site name, or hostname above to see matching devices."}
+  </p>
+) : (
+  filteredDevices.map((device) => <DeviceCard key={device._id} device={device} />)
+)}
       </div>
 
       {showAddModal && (

@@ -11,7 +11,6 @@ import {
   runScanOnEndpoint,
   listCompanyEndpoints,
 } from "../../services/user/selfhelp.service";
-import { getCurrentDevice } from "../../services/user/antivirus.service";
 import type {
   BackupRecord,
   BitdefenderDownloadLinks,
@@ -345,39 +344,11 @@ useEffect(() => {
   (async () => {
     try {
       setEndpointsLoading(true);
-
       const allEndpoints = await listCompanyEndpoints();
-
-      let currentDevice;
-      try {
-        currentDevice = await getCurrentDevice();
-      } catch (error) {
-        console.error("Failed to get current device:", error);
-        if (!cancelled) setEndpoints([]);
-        return;
-      }
-
-      const hostname = currentDevice.hostname?.trim().toLowerCase();
-
-      if (!hostname) {
-        if (!cancelled) setEndpoints([]);
-        return;
-      }
-
-      const matchedEndpoints = allEndpoints.filter(
-        (ep) => ep.name?.trim().toLowerCase() === hostname
-      );
-
       if (!cancelled) {
-        setEndpoints(matchedEndpoints);
-        // Auto-select if exactly one match — nothing else to choose from.
-        setSelectedEndpointId(
-          matchedEndpoints.length === 1 ? matchedEndpoints[0].id : ""
-        );
-      }
-
-      if (!matchedEndpoints.length) {
-        console.warn(`No endpoint matched hostname: ${currentDevice.hostname}`);
+        setEndpoints(allEndpoints);
+        // No auto-selection — let the user pick their own device.
+        setSelectedEndpointId("");
       }
     } catch (err) {
       console.error("Failed to load devices:", err);
@@ -677,23 +648,23 @@ if (usesApi) {
     <label className="block text-[11px] font-semibold text-gray-600 mb-1">
       Device to scan
     </label>
-    <select
-      value={selectedEndpointId}
-      onChange={(e) => setSelectedEndpointId(e.target.value)}
-      disabled={endpointsLoading || !endpoints.length}
-      className="w-full border border-gray-300 rounded-lg px-2.5 py-2 text-xs text-gray-700 disabled:opacity-50"
-    >
-      {endpointsLoading && <option>Loading devices…</option>}
-      {!endpointsLoading && !endpoints.length && <option>No matching device found</option>}
-      {!endpointsLoading && endpoints.length > 0 && (
-        <option value="">Select your device…</option>
-      )}
-      {endpoints.map((ep) => (
-        <option key={ep.id} value={ep.id}>
-          {ep.name} {ep.ip ? `(${ep.ip})` : ""}
-        </option>
-      ))}
-    </select>
+   <select
+  value={selectedEndpointId}
+  onChange={(e) => setSelectedEndpointId(e.target.value)}
+  disabled={endpointsLoading || !endpoints.length}
+  className="w-full border border-gray-300 rounded-lg px-2.5 py-2 text-xs text-gray-700 disabled:opacity-50"
+>
+  {endpointsLoading && <option>Loading devices…</option>}
+  {!endpointsLoading && !endpoints.length && <option>No devices found</option>}
+  {!endpointsLoading && endpoints.length > 0 && (
+    <option value="">Select your device…</option>
+  )}
+  {endpoints.map((ep) => (
+    <option key={ep.id} value={ep.id}>
+      {ep.name} {ep.ip ? `(${ep.ip})` : ""}
+    </option>
+  ))}
+</select>
   </div>
 )}
 

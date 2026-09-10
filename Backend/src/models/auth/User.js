@@ -82,14 +82,6 @@ const userSchema = new mongoose.Schema(
       type: [String],
       default: [],
     },
-
-    // Captured once at account creation — where/what the signup request
-    // came from. Not updated on subsequent logins (see lastLogin for that).
-    signupMeta: {
-      ip: { type: String, default: null },
-      userAgent: { type: String, default: null },
-      signedUpAt: { type: Date, default: null },
-    },
   },
   {
     timestamps: true,

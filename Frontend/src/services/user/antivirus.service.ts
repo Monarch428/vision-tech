@@ -135,12 +135,3 @@ export const createAntivirusSchedule = async (
   );
   return response.data;
 };
-
-export interface CurrentDevice {
-  hostname: string;
-}
-
-export const getCurrentDevice = async (): Promise<CurrentDevice> => {
-  const response = await API.get<CurrentDevice>('/device/current');
-  return response.data;
-};
