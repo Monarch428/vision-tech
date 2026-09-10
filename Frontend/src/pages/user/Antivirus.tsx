@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, type JSX } from "react";
 import {
   createAntivirusSchedule,
   getScanReport,
+  getCurrentDevice,
   type ScanReport,
 } from "../../services/user/antivirus.service";
 import {
@@ -132,22 +133,64 @@ export default function Antivirus() {
   // ── GET: List company devices for the picker ──
   const fetchedEndpointsRef = useRef(false);
   useEffect(() => {
-    if (fetchedEndpointsRef.current) return;
-    fetchedEndpointsRef.current = true;
+  if (fetchedEndpointsRef.current) return;
+  fetchedEndpointsRef.current = true;
 
-    (async () => {
+  (async () => {
+    try {
+      setEndpointsLoading(true);
+
+      const allEndpoints = await listCompanyEndpoints();
+
+      let currentDevice;
+
       try {
-        setEndpointsLoading(true);
-        const all = await listCompanyEndpoints();
-        setEndpoints(all);
-      } catch (err) {
-        console.error("Failed to load devices:", err);
+        currentDevice = await getCurrentDevice();
+      } catch (error) {
+        console.error("Failed to get current device:", error);
         setEndpoints([]);
-      } finally {
-        setEndpointsLoading(false);
+        return;
       }
-    })();
-  }, []);
+
+      const hostname = currentDevice.hostname
+        ?.trim()
+        .toLowerCase();
+
+      if (!hostname) {
+        setEndpoints([]);
+        return;
+      }
+
+      const matchedEndpoints = allEndpoints.filter(
+        (ep) =>
+          ep.name?.trim().toLowerCase() === hostname
+      );
+
+      setEndpoints(matchedEndpoints);
+
+      if (matchedEndpoints.length > 0) {
+        setSelectedEndpointId(matchedEndpoints[0].id);
+        setScheduledEndpointId(matchedEndpoints[0].id);
+      } else {
+        setSelectedEndpointId("");
+        setScheduledEndpointId("");
+
+        console.warn(
+          `No endpoint matched hostname: ${currentDevice.hostname}`
+        );
+      }
+
+    } catch (err) {
+      console.error("Failed to load devices:", err);
+
+      setEndpoints([]);
+      setSelectedEndpointId("");
+      setScheduledEndpointId("");
+    } finally {
+      setEndpointsLoading(false);
+    }
+  })();
+}, []);
 
   // ── GET: Fetch scan report for whichever device is selected ──
   // Re-runs whenever selectedEndpointId changes, including the initial
