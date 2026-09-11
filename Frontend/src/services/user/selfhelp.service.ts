@@ -241,3 +241,16 @@ export const runScanOnEndpoint = async (endpointId: string) => {
   const res = await API.post("/self-help/bitdefender/scan-endpoint", { endpointId });
   return res.data;
 };
+
+export interface CurrentUser {
+  id: string;
+  name: string;
+  email: string;
+  role: string;
+  ipAddresses?: string[];
+}
+
+export const getCurrentUser = async (): Promise<CurrentUser> => {
+  const response = await API.get("/auth/me");
+  return response.data.user;
+};

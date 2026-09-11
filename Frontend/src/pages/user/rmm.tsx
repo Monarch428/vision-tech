@@ -2,6 +2,11 @@ import { useEffect, useMemo, useState } from "react";
 import { getDevices, generateInstaller } from "../../services/user/rmm.service";
 import type { Device, GenerateInstallerPayload } from "../../services/user/rmm.service";
 import { currentUserRole } from "../../services/admin/userManagement.service";
+import {
+  listCompanyEndpoints,
+  getCurrentUser,
+  type CompanyEndpoint,
+} from "../../services/user/selfhelp.service";
 
 // ─── Icons ────────────────────────────────────────────────────────────────────
 
@@ -164,6 +169,16 @@ function inferDeviceType(_platform?: string): "Laptop" | "Desktop" {
   return "Desktop";
 }
 
+// Loose normalization for cross-referencing a GravityZone endpoint name
+// against a Tactical RMM device's hostname/name — trims, lowercases, and
+// drops a trailing domain suffix (e.g. "DESKTOP-3FH844G.corp.local" →
+// "desktop-3fh844g") so minor formatting differences between the two
+// agents' reported names don't break the match.
+function normalizeDeviceName(value?: string | null): string {
+  if (!value) return "";
+  return value.trim().toLowerCase().split(".")[0];
+}
+
 // Detailed, OS-specific steps for running the generated installer command
 // on the target device.
 function getRunInstructions(plat: GenerateInstallerPayload["plat"]): {
@@ -172,30 +187,25 @@ function getRunInstructions(plat: GenerateInstallerPayload["plat"]): {
 } {
   if (plat === "windows") {
     return {
-      terminalName: "Command Prompt (Administrator)",
+      terminalName: "Command Prompt (Admin)",
       steps: [
-        'Log in to the target Windows device with an account that has administrator rights.',
-        'Click the Start menu, type "cmd", right-click "Command Prompt", and choose "Run as administrator". If prompted by User Account Control, click "Yes".',
-        'Navigate to a folder the installer can download into, e.g. type cd %USERPROFILE%\\Downloads and press Enter (the Downloads folder works well and avoids permission issues in system folders).',
-        "Copy the install command below using the Copy Command button.",
-        "Right-click inside the black Command Prompt window (or press Ctrl+V) to paste the command.",
-        "Press Enter to run it, and wait for the download and install to finish — this usually takes a minute or two and the window will show progress messages.",
-        "Do not close the window until it returns to a normal prompt, indicating the install finished.",
-        'Once it completes, the device should appear in your device list here within about a minute — refresh this page if it does not show up right away.',
+        'Search for "cmd", right-click Command Prompt, choose "Run as administrator".',
+        "Copy the command below.",
+        "Paste it into the black window and press Enter.",
+        "Wait about a minute for it to finish — don't close the window.",
+        "Done! The device shows up in your list here shortly after.",
       ],
     };
   }
   if (plat === "linux") {
     return {
-      terminalName: "Terminal (root or sudo)",
+      terminalName: "Terminal",
       steps: [
-        "Log in to the target Linux machine, either directly or over SSH.",
-        "Open a terminal window.",
-        "Navigate to a folder the installer can write to, e.g. run cd ~/Downloads (or cd /tmp) so the downloaded install files land somewhere you have write access.",
-        "Copy the install command below using the Copy Command button.",
-        "Paste it into the terminal (Ctrl+Shift+V, or right-click → Paste) and press Enter. The command already includes sudo, so you may be prompted for the local user's password.",
-        "Wait for the script to finish downloading and installing the agent — you'll see log output as it runs.",
-        "Once it finishes without errors, the device should appear in your device list here within about a minute.",
+        "Open a terminal on the machine (directly or over SSH).",
+        "Copy the command below.",
+        "Paste it in and press Enter. It may ask for your password.",
+        "Wait about a minute for it to finish.",
+        "Done! The device shows up in your list here shortly after.",
       ],
     };
   }
@@ -203,14 +213,11 @@ function getRunInstructions(plat: GenerateInstallerPayload["plat"]): {
   return {
     terminalName: "Terminal",
     steps: [
-      "Log in to the target Mac with an account that has administrator rights.",
-      'Open Terminal (press Cmd+Space, type "Terminal", and press Enter).',
-      "Navigate to a folder the installer can write to, e.g. run cd ~/Downloads so the downloaded files land in a folder you own.",
-      "Copy the install command below using the Copy Command button.",
-      "Paste it into Terminal (Cmd+V) and press Enter.",
-      "If prompted, enter the administrator password for the Mac (the characters won't appear as you type — that's normal).",
-      "Wait for the installer to finish downloading and running.",
-      "Once it completes, the device should appear in your device list here within about a minute.",
+      'Press Cmd+Space, type "Terminal", press Enter to open it.',
+      "Copy the command below.",
+      "Paste it in and press Enter. It may ask for your password.",
+      "Wait about a minute for it to finish.",
+      "Done! The device shows up in your list here shortly after.",
     ],
   };
 }
@@ -354,10 +361,10 @@ type ModalStep = "form" | "result";
 function AddDeviceModal({ onClose, onDeviceLikelyAdded }: { onClose: () => void; onDeviceLikelyAdded: () => void }) {
   const [step, setStep] = useState<ModalStep>("form");
 
-  const [clientId, setClientId] = useState("");
-  const [siteId, setSiteId] = useState("");
   const [plat, setPlat] = useState<GenerateInstallerPayload["plat"]>("windows");
-  const [agentType, setAgentType] = useState<GenerateInstallerPayload["agentType"]>("workstation");
+  // Only ever adding everyday computers here, not servers — no need to ask.
+  const agentType: GenerateInstallerPayload["agentType"] = "workstation";
+  const [showAdvanced, setShowAdvanced] = useState(false);
   const [arch, setArch] = useState<GenerateInstallerPayload["arch"]>("amd64");
   const [rdp, setRdp] = useState(true);
   const [ping, setPing] = useState(false);
@@ -367,17 +374,22 @@ function AddDeviceModal({ onClose, onDeviceLikelyAdded }: { onClose: () => void;
   const [result, setResult] = useState<any>(null);
   const [copied, setCopied] = useState(false);
 
+  // Client/Site are fixed for this deployment — configured once via
+  // environment variables rather than typed in by whoever adds a device.
+  const CLIENT_ID = import.meta.env.VITE_CLIENT_ID as string | undefined;
+  const SITE_ID = import.meta.env.VITE_SITE_ID as string | undefined;
+
   const handleGenerate = async () => {
-    if (!clientId.trim() || !siteId.trim()) {
-      setError("Client ID and Site ID are required.");
+    if (!CLIENT_ID || !SITE_ID) {
+      setError("This app isn't fully configured yet — contact support.");
       return;
     }
     setError(null);
     setSubmitting(true);
     try {
       const data = await generateInstaller({
-        clientId: clientId.trim(),
-        siteId: siteId.trim(),
+        clientId: CLIENT_ID,
+        siteId: SITE_ID,
         plat,
         agentType,
         arch,
@@ -428,91 +440,70 @@ function AddDeviceModal({ onClose, onDeviceLikelyAdded }: { onClose: () => void;
         {step === "form" && (
           <>
             <p className="text-sm text-gray-600 mb-4">
-              Fill in the details below to generate a Tactical RMM installer command for
-              the target device.
+              Pick the operating system and we'll generate a one-line install command
+              for the new device.
             </p>
 
-            <div className="flex flex-col gap-3">
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="text-xs font-semibold text-gray-700 mb-1 block">Client ID</label>
-                  <input
-                    type="text"
-                    value={clientId}
-                    onChange={(e) => setClientId(e.target.value)}
-                    placeholder="e.g. 12"
-                    className="w-full text-sm border border-gray-300 rounded-lg p-2"
-                  />
-                </div>
-                <div>
-                  <label className="text-xs font-semibold text-gray-700 mb-1 block">Site ID</label>
-                  <input
-                    type="text"
-                    value={siteId}
-                    onChange={(e) => setSiteId(e.target.value)}
-                    placeholder="e.g. 53"
-                    className="w-full text-sm border border-gray-300 rounded-lg p-2"
-                  />
-                </div>
-              </div>
-
+            <div className="flex flex-col gap-5">
+              {/* Operating system */}
               <div>
-                <label className="text-xs font-semibold text-gray-700 mb-1 block">Operating System</label>
-                <div className="flex gap-4">
+                <label className="text-sm font-semibold text-gray-900 mb-2 block">
+                  What operating system does it run?
+                </label>
+                <div className="grid grid-cols-3 gap-2">
                   {(["windows", "linux", "darwin"] as const).map((p) => (
-                    <label key={p} className="flex items-center gap-1.5 text-sm text-gray-700">
-                      <input
-                        type="radio"
-                        checked={plat === p}
-                        onChange={() => setPlat(p)}
-                      />
+                    <button
+                      key={p}
+                      type="button"
+                      onClick={() => setPlat(p)}
+                      className={`text-center border rounded-xl py-3 text-sm font-medium transition-colors ${
+                        plat === p
+                          ? "border-gray-900 bg-gray-50 text-gray-900"
+                          : "border-gray-300 text-gray-600 hover:bg-gray-50"
+                      }`}
+                    >
                       {p === "windows" ? "Windows" : p === "linux" ? "Linux" : "macOS"}
-                    </label>
+                    </button>
                   ))}
                 </div>
               </div>
 
+              {/* Advanced options — most people never need to touch these */}
               <div>
-                <label className="text-xs font-semibold text-gray-700 mb-1 block">Device Type</label>
-                <div className="flex gap-4">
-                  {(["server", "workstation"] as const).map((t) => (
-                    <label key={t} className="flex items-center gap-1.5 text-sm text-gray-700">
-                      <input
-                        type="radio"
-                        checked={agentType === t}
-                        onChange={() => setAgentType(t)}
-                      />
-                      {t === "server" ? "Server" : "Workstation"}
-                    </label>
-                  ))}
-                </div>
-              </div>
+                <button
+                  type="button"
+                  onClick={() => setShowAdvanced((v) => !v)}
+                  className="text-xs font-semibold text-gray-500 hover:text-gray-700"
+                >
+                  {showAdvanced ? "Hide advanced options" : "Show advanced options"}
+                </button>
 
-              <div>
-                <label className="text-xs font-semibold text-gray-700 mb-1 block">Architecture</label>
-                <div className="flex gap-4">
-                  {(["amd64", "386"] as const).map((a) => (
-                    <label key={a} className="flex items-center gap-1.5 text-sm text-gray-700">
-                      <input
-                        type="radio"
-                        checked={arch === a}
-                        onChange={() => setArch(a)}
-                      />
-                      {a === "amd64" ? "64 bit" : "32 bit"}
-                    </label>
-                  ))}
-                </div>
-              </div>
+                {showAdvanced && (
+                  <div className="mt-3 flex flex-col gap-3 border-t border-gray-100 pt-3">
+                    <div>
+                      <label className="text-xs font-semibold text-gray-700 mb-1 block">
+                        Processor type
+                      </label>
+                      <div className="flex gap-4">
+                        {(["amd64", "386"] as const).map((a) => (
+                          <label key={a} className="flex items-center gap-1.5 text-sm text-gray-700">
+                            <input type="radio" checked={arch === a} onChange={() => setArch(a)} />
+                            {a === "amd64" ? "64-bit (most computers)" : "32-bit (older computers)"}
+                          </label>
+                        ))}
+                      </div>
+                    </div>
 
-              <div className="flex gap-5">
-                <label className="flex items-center gap-1.5 text-sm text-gray-700">
-                  <input type="checkbox" checked={rdp} onChange={(e) => setRdp(e.target.checked)} />
-                  Enable RDP
-                </label>
-                <label className="flex items-center gap-1.5 text-sm text-gray-700">
-                  <input type="checkbox" checked={ping} onChange={(e) => setPing(e.target.checked)} />
-                  Enable Ping
-                </label>
+                    <label className="flex items-center gap-1.5 text-sm text-gray-700">
+                      <input type="checkbox" checked={rdp} onChange={(e) => setRdp(e.target.checked)} />
+                      Allow remote desktop access to this device
+                    </label>
+                    <label className="flex items-center gap-1.5 text-sm text-gray-700">
+                      <input type="checkbox" checked={ping} onChange={(e) => setPing(e.target.checked)} />
+                      Allow this device to respond to network pings
+                    </label>
+                  </div>
+                )}
               </div>
 
               {error && <p className="text-xs text-red-600">{error}</p>}
@@ -523,7 +514,7 @@ function AddDeviceModal({ onClose, onDeviceLikelyAdded }: { onClose: () => void;
                 className="w-full flex items-center justify-center gap-2 bg-gray-900 text-white font-semibold text-sm py-2.5 rounded-xl hover:bg-gray-800 transition-colors disabled:opacity-50 mt-1"
               >
                 {submitting && <SpinnerIcon />}
-                {submitting ? "Generating..." : "Generate Installer"}
+                {submitting ? "Generating..." : "Generate Install Command"}
               </button>
             </div>
           </>
@@ -531,28 +522,11 @@ function AddDeviceModal({ onClose, onDeviceLikelyAdded }: { onClose: () => void;
 
         {step === "result" && (
           <>
-            {(() => {
-              const { terminalName, steps } = getRunInstructions(plat);
-              return (
-                <div className="mb-4">
-                  <p className="text-sm text-gray-800 font-semibold mb-1">
-                    How to run this on the target device
-                  </p>
-                  <p className="text-xs text-gray-500 mb-2">
-                    You'll need: <span className="font-medium text-gray-700">{terminalName}</span>
-                  </p>
-                  <ol className="list-decimal list-inside flex flex-col gap-1.5 text-sm text-gray-700">
-                    {steps.map((s, i) => (
-                      <li key={i} className="leading-snug">
-                        {s}
-                      </li>
-                    ))}
-                  </ol>
-                </div>
-              );
-            })()}
+            <p className="text-sm text-gray-600 mb-4">
+              Run this on the new device to add it — takes about a minute.
+            </p>
 
-            <p className="text-sm text-gray-600 mb-3">Install command:</p>
+            <p className="text-sm text-gray-800 font-semibold mb-3">Install command:</p>
 
             {installCommand ? (
               <div className="bg-gray-900 text-gray-100 text-[11px] sm:text-xs rounded-lg p-3 font-mono break-all mb-2">
@@ -567,6 +541,30 @@ function AddDeviceModal({ onClose, onDeviceLikelyAdded }: { onClose: () => void;
                 </pre>
               </div>
             )}
+
+            {(() => {
+              const { terminalName, steps } = getRunInstructions(plat);
+              return (
+                <div className="mb-4 mt-4">
+                  <p className="text-sm text-gray-800 font-semibold mb-1">
+                    How to run it
+                  </p>
+                  <p className="text-xs text-gray-500 mb-3">
+                    You'll need: <span className="font-medium text-gray-700">{terminalName}</span>
+                  </p>
+                  <ol className="flex flex-col gap-2.5">
+                    {steps.map((s, i) => (
+                      <li key={i} className="flex items-start gap-2.5 text-sm text-gray-700">
+                        <span className="shrink-0 w-5 h-5 rounded-full bg-gray-900 text-white text-[11px] font-semibold flex items-center justify-center mt-0.5">
+                          {i + 1}
+                        </span>
+                        <span className="leading-snug">{s}</span>
+                      </li>
+                    ))}
+                  </ol>
+                </div>
+              );
+            })()}
 
             <div className="flex gap-2 mb-4">
               {installCommand && (
@@ -623,66 +621,63 @@ function AddDeviceModal({ onClose, onDeviceLikelyAdded }: { onClose: () => void;
   );
 }
 
-// ─── DeviceFilterBar ──────────────────────────────────────────────────────
+// ─── DeviceIpFilter ───────────────────────────────────────────────────────
+// Replaces the old text-based Client Name / Site Name / Hostname filters.
+//
+// Tactical RMM's /devices response has no IP field, so the IP data comes
+// from GravityZone instead (listCompanyEndpoints — same as the Self-Help
+// antivirus tool uses). We match GravityZone endpoints to the user's IP,
+// then cross-reference by (normalized) name/hostname to find which
+// Tactical devices those correspond to.
 
-function DeviceFilterBar({
-  siteId,
-  clientId,
-  hostname,
-  onSiteIdChange,
-  onClientIdChange,
-  onHostnameChange,
-  resultCount,
+function DeviceIpFilter({
+  loading,
+  matchedDevices,
+  selectedDeviceId,
+  onSelectedDeviceIdChange,
+  endpointIpByDeviceId,
 }: {
-  siteId: string;
-  clientId: string;
-  hostname: string;
-  onSiteIdChange: (v: string) => void;
-  onClientIdChange: (v: string) => void;
-  onHostnameChange: (v: string) => void;
-  resultCount: number;
+  loading: boolean;
+  matchedDevices: Device[];
+  selectedDeviceId: string;
+  onSelectedDeviceIdChange: (v: string) => void;
+  endpointIpByDeviceId: Map<string, string>;
 }) {
-  const hasFilter = siteId.trim() || clientId.trim() || hostname.trim();
-
   return (
-    <div className="mt-6 bg-white border border-gray-300 rounded-2xl p-4 sm:p-5 flex flex-col gap-3">
-      <div className="flex flex-col sm:flex-row gap-3">
-        <div className="flex-1">
-          <label className="text-xs font-semibold text-gray-700 mb-1 block">Client Name</label>
-          <input
-            type="text"
-            value={clientId}
-            onChange={(e) => onClientIdChange(e.target.value)}
-            placeholder="e.g. CyberShield Solo"
-            className="w-full text-sm border border-gray-300 rounded-lg p-2"
-          />
-        </div>
-        <div className="flex-1">
-          <label className="text-xs font-semibold text-gray-700 mb-1 block">Site Name</label>
-          <input
-            type="text"
-            value={siteId}
-            onChange={(e) => onSiteIdChange(e.target.value)}
-            placeholder="e.g. Lolita"
-            className="w-full text-sm border border-gray-300 rounded-lg p-2"
-          />
-        </div>
-        <div className="flex-1">
-          <label className="text-xs font-semibold text-gray-700 mb-1 block">Hostname</label>
-          <input
-            type="text"
-            value={hostname}
-            onChange={(e) => onHostnameChange(e.target.value)}
-            placeholder="e.g. DESKTOP-3FH844G"
-            className="w-full text-sm border border-gray-300 rounded-lg p-2"
-          />
-        </div>
-      </div>
-      {hasFilter && (
-        <p className="text-xs text-gray-500">
-          {resultCount} device{resultCount === 1 ? "" : "s"} match{resultCount === 1 ? "es" : ""} this filter.
+    <div className="mt-6 bg-white border border-gray-300 rounded-2xl p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center gap-3 sm:justify-between">
+      <div>
+        <p className="text-md font-bold text-gray-900">Device</p>
+        <p className="text-sm text-gray-500">
+          {loading
+            ? "Loading devices…"
+            : `${matchedDevices.length} device${matchedDevices.length === 1 ? "" : "s"} match your IP address`}
         </p>
-      )}
+      </div>
+      <select
+        value={selectedDeviceId}
+        onChange={(e) => onSelectedDeviceIdChange(e.target.value)}
+        disabled={loading || !matchedDevices.length}
+        className="w-full sm:w-72 px-4 py-2.5 rounded-xl bg-gray-100 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-green-400 disabled:opacity-50 appearance-none cursor-pointer"
+      >
+        {loading && <option value="">Loading devices…</option>}
+
+        {!loading && !matchedDevices.length && (
+          <option value="">No matching device found for your IP</option>
+        )}
+
+        {!loading && matchedDevices.length > 0 && (
+          <option value="">All matching devices</option>
+        )}
+
+        {matchedDevices.map((d) => {
+          const ip = endpointIpByDeviceId.get(d._id);
+          return (
+            <option key={d._id} value={d._id}>
+              {d.hostname ?? d.name} {ip ? `(${ip})` : ""}
+            </option>
+          );
+        })}
+      </select>
     </div>
   );
 }
@@ -703,11 +698,33 @@ export default function RMM() {
   }, []);
   // "support" is the elevated/system role in this app's User schema
   // (enum: ['admin', 'user', 'support']) — there is no separate "system" role.
-  const isSystemRole = role === "support";
+  // Stat cards / RMM banner are admin-only — everyone else (including
+  // support) just sees the IP-matched device list below.
+  const isAdminRole = role === "admin";
 
-  const [siteIdFilter, setSiteIdFilter] = useState("");
-  const [clientIdFilter, setClientIdFilter] = useState("");
-  const [hostnameFilter, setHostnameFilter] = useState("");
+  // ── IP data source: GravityZone company endpoints (Tactical devices carry no IP) ──
+  const [companyEndpoints, setCompanyEndpoints] = useState<CompanyEndpoint[]>([]);
+  const [userIps, setUserIps] = useState<string[]>([]);
+  const [ipDataLoading, setIpDataLoading] = useState(true);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const [endpoints, currentUser] = await Promise.all([
+          listCompanyEndpoints().catch(() => []),
+          getCurrentUser().catch(() => null),
+        ]);
+        setCompanyEndpoints(endpoints);
+        setUserIps(currentUser?.ipAddresses ?? []);
+      } finally {
+        setIpDataLoading(false);
+      }
+    })();
+  }, []);
+
+  const [selectedDeviceId, setSelectedDeviceId] = useState("");
+
+  const [devicesError, setDevicesError] = useState<string | null>(null);
 
   const loadDevices = async () => {
     try {
@@ -718,8 +735,17 @@ export default function RMM() {
           type: d.type ?? inferDeviceType(d.platform),
         }))
       );
-    } catch (err) {
+      setDevicesError(null);
+    } catch (err: any) {
       console.error("Failed to load devices:", err);
+      // A Tactical RMM API timeout/500 leaves `devices` at its previous
+      // (often empty) value with no visible signal — surface it instead of
+      // letting the page silently look like "no devices match your IP".
+      setDevicesError(
+        err?.response?.status === 500
+          ? "Couldn't reach the RMM service right now (it may be slow or temporarily down). Devices shown below may be out of date."
+          : "Failed to load devices. Retrying automatically."
+      );
     } finally {
       setLoading(false);
     }
@@ -731,33 +757,50 @@ export default function RMM() {
     return () => clearInterval(interval);
   }, []);
 
-const filteredDevices = useMemo(() => {
-  // "system" role sees every device without needing to filter.
-  if (isSystemRole) return devices;
+  // GravityZone endpoints whose IP matches the current user.
+  const matchedEndpoints = useMemo(
+    () => companyEndpoints.filter((ep) => ep.ip && userIps.includes(ep.ip)),
+    [companyEndpoints, userIps]
+  );
 
-  const site = siteIdFilter.trim();
-  const client = clientIdFilter.trim();
-  const host = hostnameFilter.trim();
-  const hasFilter = site || client || host;
+  // Cross-reference those endpoints to Tactical devices by normalized name,
+  // and remember which endpoint IP corresponds to which device (for display).
+  //
+  // Applies to every role, including "support" — unlike the stat cards and
+  // RMM banner above (which stay support-only), the device list itself is
+  // always IP-matched now, matching how Antivirus/Self-Help behave.
+  //
+  // IMPORTANT: normalizeDeviceName("") === normalizeDeviceName(undefined) === "".
+  // Without an explicit guard, any device with a missing hostname/name would
+  // match against any endpoint with a missing name (both normalize to ""),
+  // which silently pulled in unrelated devices. Empty keys are skipped below
+  // so a name can only ever match a real, non-empty name.
+  const { ipMatchedDevices, endpointIpByDeviceId } = useMemo(() => {
+    const ipByName = new Map<string, string>();
+    for (const ep of matchedEndpoints) {
+      const key = normalizeDeviceName(ep.name);
+      if (key && ep.ip) ipByName.set(key, ep.ip);
+    }
 
-  // Nothing to show until the user actually filters by at least one field.
-  if (!hasFilter) return [];
+    const ipById = new Map<string, string>();
+    const result = devices.filter((d) => {
+      const key = normalizeDeviceName(d.hostname ?? d.name);
+      if (!key) return false; // never match on an unknown/empty name
+      const ip = ipByName.get(key);
+      if (!ip) return false;
+      ipById.set(d._id, ip);
+      return true;
+    });
+    return { ipMatchedDevices: result, endpointIpByDeviceId: ipById };
+  }, [devices, matchedEndpoints, userIps, companyEndpoints]);
 
-  return devices.filter((d) => {
-    const siteMatch = site
-      ? String(d.siteId ?? "") === site ||
-        d.siteName?.toLowerCase().includes(site.toLowerCase())
-      : false;
-    const clientMatch = client
-      ? String(d.clientId ?? "") === client ||
-        d.clientName?.toLowerCase().includes(client.toLowerCase())
-      : false;
-    const hostMatch = host
-      ? d.hostname?.toLowerCase().includes(host.toLowerCase())
-      : false;
-    return siteMatch || clientMatch || hostMatch;
-  });
-}, [devices, siteIdFilter, clientIdFilter, hostnameFilter, isSystemRole]);
+  const filteredDevices = useMemo(() => {
+    if (selectedDeviceId) {
+      return ipMatchedDevices.filter((d) => d._id === selectedDeviceId);
+    }
+
+    return ipMatchedDevices;
+  }, [ipMatchedDevices, selectedDeviceId]);
 
   const stats = useMemo(() => {
     const total = devices.length;
@@ -791,8 +834,8 @@ const filteredDevices = useMemo(() => {
         </button>
       </div>
 
-      {/* RMM Service Active banner — system role only */}
-      {isSystemRole && (
+      {/* RMM Service Active banner — admin only */}
+      {isAdminRole && (
         <div className="mt-6 bg-gradient-to-r from-green-50 to-white border border-green-200 rounded-2xl p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div className="flex items-center gap-3 min-w-0">
             <div className="bg-green-100 p-2.5 rounded-xl shrink-0">
@@ -809,8 +852,8 @@ const filteredDevices = useMemo(() => {
         </div>
       )}
 
-      {/* Stat cards — system role only */}
-      {isSystemRole && (
+      {/* Stat cards — admin only */}
+      {isAdminRole && (
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mt-6">
           <StatCard label="Total Devices" value={stats.total} icon={<MonitorIcon color="#9ca3af" size={24} />} />
           <StatCard label="Online" value={stats.online} valueColorClass="text-green-600" icon={<CheckCircleIcon size={24} />} />
@@ -819,32 +862,39 @@ const filteredDevices = useMemo(() => {
         </div>
       )}
 
-      {/* Filter bar */}
-      <DeviceFilterBar
-        siteId={siteIdFilter}
-        clientId={clientIdFilter}
-        hostname={hostnameFilter}
-        onSiteIdChange={setSiteIdFilter}
-        onClientIdChange={setClientIdFilter}
-        onHostnameChange={setHostnameFilter}
-        resultCount={filteredDevices.length}
+      {devicesError && (
+        <div className="mt-6 bg-yellow-50 border border-yellow-200 text-yellow-800 text-sm px-4 py-3 rounded-xl">
+          {devicesError}
+        </div>
+      )}
+
+      {/* Device filter — IP-matched select box, for every role */}
+      <DeviceIpFilter
+        loading={loading || ipDataLoading}
+        matchedDevices={ipMatchedDevices}
+        selectedDeviceId={selectedDeviceId}
+        onSelectedDeviceIdChange={setSelectedDeviceId}
+        endpointIpByDeviceId={endpointIpByDeviceId}
       />
+      {isAdminRole && (
+        <p className="mt-2 text-xs text-gray-400">
+          Total Devices / Online / Warnings / Avg Health above still reflect all {stats.total} devices across the company.
+        </p>
+      )}
 
       {/* Devices */}
       <div className="flex flex-col gap-4 mt-6">
         {loading ? (
-  <p className="text-sm text-gray-500">Loading devices...</p>
-) : filteredDevices.length === 0 ? (
-  <p className="text-sm text-gray-500">
-    {isSystemRole
-      ? "No devices found."
-      : siteIdFilter.trim() || clientIdFilter.trim() || hostnameFilter.trim()
-      ? "No devices match this filter."
-      : "Enter a client name, site name, or hostname above to see matching devices."}
-  </p>
-) : (
-  filteredDevices.map((device) => <DeviceCard key={device._id} device={device} />)
-)}
+          <p className="text-sm text-gray-500">Loading devices...</p>
+        ) : filteredDevices.length === 0 ? (
+          <p className="text-sm text-gray-500">
+            {ipMatchedDevices.length === 0
+              ? "No company device matches your current IP address."
+              : "No device matches this selection."}
+          </p>
+        ) : (
+          filteredDevices.map((device) => <DeviceCard key={device._id} device={device} />)
+        )}
       </div>
 
       {showAddModal && (

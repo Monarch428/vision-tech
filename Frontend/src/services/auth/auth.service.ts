@@ -61,6 +61,7 @@ export interface RegisterPayload {
   email: string;
   password: string;
   source?: 'usercreated';
+  ipAddress?: string[];
 }
 
 export interface RegisterResponse {

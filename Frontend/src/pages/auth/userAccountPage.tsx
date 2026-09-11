@@ -8,13 +8,14 @@ interface FormState {
     email: string;
     password: string;
     confirmPassword: string;
+    ipAddress: string;
 }
 
 type FieldErrors = Partial<Record<keyof FormState, string>>;
 type Step = "form" | "otp";
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-const MIN_PASSWORD_LENGTH = 6;
+const MIN_PASSWORD_LENGTH = 8;
 const OTP_LENGTH = 6;
 const RESEND_COOLDOWN_SECONDS = 30;
 
@@ -23,6 +24,25 @@ const EMPTY_FORM: FormState = {
     email: "",
     password: "",
     confirmPassword: "",
+    ipAddress: "",
+};
+
+const IP_COMMANDS: Record<"windows" | "mac" | "linux", { label: string; command: string; note: string }> = {
+    windows: {
+    label: "Windows",
+    command: 'powershell -Command "Get-NetIPConfiguration | Where-Object {$_.IPv4DefaultGateway -ne $null} | Select-Object -ExpandProperty IPv4Address | Select-Object -ExpandProperty IPAddress"',
+    note: "Open Command Prompt (search 'cmd' in the Start menu), paste the command, and press Enter. It should return a single address.",
+},
+    mac: {
+        label: "macOS",
+        command: "ipconfig getifaddr en0",
+        note: "Open Terminal (Cmd+Space, type 'Terminal'), paste the command, and press Enter. If it returns nothing, try en1 instead of en0.",
+    },
+    linux: {
+        label: "Linux",
+        command: "hostname -I",
+        note: "Open a terminal, paste the command, and press Enter.",
+    },
 };
 
 function validate(form: FormState): FieldErrors {
@@ -45,6 +65,9 @@ function validate(form: FormState): FieldErrors {
     else if (form.password !== form.confirmPassword)
         errors.confirmPassword = "Passwords do not match.";
 
+    if (!form.ipAddress.trim())
+        errors.ipAddress = "Please enter your device's IP address.";
+
     return errors;
 }
 
@@ -55,6 +78,11 @@ export default function CreateAccountPage() {
     const [loading, setLoading] = useState(false);
     const [errorMessage, setErrorMessage] = useState("");
     const navigate = useNavigate();
+
+    // ── IP command reference state ─────────────────────────────────────────
+    const [activeOS, setActiveOS] = useState<"windows" | "mac" | "linux">("windows");
+    const [copied, setCopied] = useState(false);
+    const activeCommand = IP_COMMANDS[activeOS];
 
     // ── OTP step state ──────────────────────────────────────────────────────
     const [otp, setOtp] = useState("");
@@ -83,6 +111,16 @@ export default function CreateAccountPage() {
         }
     };
 
+    const handleCopyCommand = async () => {
+        try {
+            await navigator.clipboard.writeText(activeCommand.command);
+            setCopied(true);
+            setTimeout(() => setCopied(false), 2000);
+        } catch (err) {
+            console.error("Copy failed:", err);
+        }
+    };
+
     const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
         e.preventDefault();
         setErrorMessage("");
@@ -100,6 +138,7 @@ export default function CreateAccountPage() {
                 email: formData.email.trim(),
                 password: formData.password,
                 source: "usercreated",
+                ipAddress: formData.ipAddress.trim() ? [formData.ipAddress.trim()] : [],
             });
 
             if (res?.requiresOtp) {
@@ -178,7 +217,7 @@ export default function CreateAccountPage() {
 
     return (
         <div className="min-h-screen w-full bg-[#eef5ef] flex items-center justify-center p-4">
-            <div className="w-full max-w-full xs:max-w-sm sm:max-w-[420px]">
+            <div className="w-full max-w-full xs:max-w-sm sm:max-w-[460px]">
                 <div className="bg-white rounded-2xl shadow-md px-4 py-5 xs:px-6 xs:py-6 sm:px-7 sm:py-6">
 
                     {/* Logo */}
@@ -274,6 +313,59 @@ export default function CreateAccountPage() {
                                     />
                                     {errors.confirmPassword && (
                                         <p className="mt-1 text-[11px] text-red-500">{errors.confirmPassword}</p>
+                                    )}
+                                </div>
+
+                                {/* ── IP address ─────────────────────────────────────────── */}
+                                <div className="pt-1">
+                                    <label className="block mb-1 text-xs sm:text-sm font-semibold text-black">
+                                        Device IP Address
+                                    </label>
+                                    <p className="text-[11px] xs:text-xs text-gray-500 mb-2">
+                                        This helps us match your device to your antivirus records.
+                                        Run the command below, then paste the result.
+                                    </p>
+
+                                    <div className="flex gap-1 bg-gray-100 rounded-lg p-1 w-fit mb-2">
+                                        {(Object.keys(IP_COMMANDS) as Array<keyof typeof IP_COMMANDS>).map((os) => (
+                                            <button
+                                                key={os}
+                                                type="button"
+                                                onClick={() => setActiveOS(os)}
+                                                className={`px-3 py-1 rounded-md text-[11px] xs:text-xs font-semibold transition-colors ${
+                                                    activeOS === os ? "bg-white text-gray-900 shadow-sm" : "text-gray-500"
+                                                }`}
+                                            >
+                                                {IP_COMMANDS[os].label}
+                                            </button>
+                                        ))}
+                                    </div>
+
+                                    <div className="bg-gray-900 text-gray-100 rounded-lg p-2.5 font-mono text-[11px] xs:text-xs flex items-center justify-between gap-2 mb-1.5">
+                                        <code className="break-all">{activeCommand.command}</code>
+                                        <button
+                                            type="button"
+                                            onClick={handleCopyCommand}
+                                            className="text-[11px] xs:text-xs font-semibold text-green-400 hover:text-green-300 shrink-0"
+                                        >
+                                            {copied ? "Copied!" : "Copy"}
+                                        </button>
+                                    </div>
+
+                                    <p className="text-[10px] xs:text-[11px] text-gray-500 mb-2">
+                                        {activeCommand.note}
+                                    </p>
+
+                                    <input
+                                        type="text"
+                                        name="ipAddress"
+                                        placeholder="e.g. 192.168.1.42"
+                                        value={formData.ipAddress}
+                                        onChange={handleChange}
+                                        className={inputCls(errors.ipAddress)}
+                                    />
+                                    {errors.ipAddress && (
+                                        <p className="mt-1 text-[11px] text-red-500">{errors.ipAddress}</p>
                                     )}
                                 </div>
 

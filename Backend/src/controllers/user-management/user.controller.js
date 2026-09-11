@@ -217,7 +217,7 @@ const getUserById = async (req, res) => {
 // Update User
 const updateUser = async (req, res) => {
   try {
-    const { password, ...rest } = req.body;
+    const { password, currentPassword, ipAddress, ...rest } = req.body;
     const updateData = { ...rest };
 
     // Check if trying to assign support role to another user
@@ -233,6 +233,14 @@ const updateUser = async (req, res) => {
 
     if (password) {
       updateData.password = await bcrypt.hash(password, 10);
+    }
+
+    if (ipAddress !== undefined) {
+      updateData.ipAddresses = Array.isArray(ipAddress)
+        ? ipAddress.map((ip) => String(ip).trim()).filter(Boolean)
+        : ipAddress
+          ? [String(ipAddress).trim()]
+          : [];
     }
 
     const user = await User.findByIdAndUpdate(req.params.id, updateData, {
@@ -257,7 +265,6 @@ const updateUser = async (req, res) => {
     });
   }
 };
-
 // Delete User
 const deleteUser = async (req, res) => {
   try {
@@ -347,7 +354,6 @@ const getUserSB = async (req, res) => {
       data: users,
     });
   } catch (error) {
-    console.log("❌ ERROR:", error.message);
     res.status(500).json({
       success: false,
       error: error.message,

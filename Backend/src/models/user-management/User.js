@@ -1,5 +1,3 @@
-// Backend/src/models/user-management/User.js
-
 const mongoose = require('mongoose');
 
 const userSchema = new mongoose.Schema(
@@ -54,6 +52,10 @@ const userSchema = new mongoose.Schema(
     sub_id: {
       type: String,
       default: null,
+    },
+    ipAddresses: {
+      type: [String],
+      default: [],
     },
   },
   {

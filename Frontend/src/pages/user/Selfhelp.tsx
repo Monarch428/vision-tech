@@ -10,6 +10,7 @@ import {
   getBitdefenderDownloadLink,
   runScanOnEndpoint,
   listCompanyEndpoints,
+  getCurrentUser
 } from "../../services/user/selfhelp.service";
 import type {
   BackupRecord,
@@ -341,15 +342,26 @@ const [endpointsLoading, setEndpointsLoading] = useState(false);
 useEffect(() => {
   if (tool.id !== "antivirus-scan") return;
   let cancelled = false;
+
   (async () => {
     try {
       setEndpointsLoading(true);
-      const allEndpoints = await listCompanyEndpoints();
-      if (!cancelled) {
-        setEndpoints(allEndpoints);
-        // No auto-selection — let the user pick their own device.
-        setSelectedEndpointId("");
-      }
+
+      const [allEndpoints, currentUser] = await Promise.all([
+        listCompanyEndpoints(),
+        getCurrentUser().catch(() => null), // don't block the tool if this fails
+      ]);
+
+      if (cancelled) return;
+
+      const userIps = currentUser?.ipAddresses ?? [];
+      const matchedEndpoints = allEndpoints.filter(
+        (ep) => ep.ip && userIps.includes(ep.ip)
+      );
+
+      setEndpoints(matchedEndpoints);
+      // Auto-select when there's exactly one match; otherwise let the user choose
+      setSelectedEndpointId(matchedEndpoints.length === 1 ? matchedEndpoints[0].id : "");
     } catch (err) {
       console.error("Failed to load devices:", err);
       if (!cancelled) {
@@ -360,6 +372,7 @@ useEffect(() => {
       if (!cancelled) setEndpointsLoading(false);
     }
   })();
+
   return () => {
     cancelled = true;
   };
@@ -648,15 +661,15 @@ if (usesApi) {
     <label className="block text-[11px] font-semibold text-gray-600 mb-1">
       Device to scan
     </label>
-   <select
+<select
   value={selectedEndpointId}
   onChange={(e) => setSelectedEndpointId(e.target.value)}
   disabled={endpointsLoading || !endpoints.length}
   className="w-full border border-gray-300 rounded-lg px-2.5 py-2 text-xs text-gray-700 disabled:opacity-50"
 >
   {endpointsLoading && <option>Loading devices…</option>}
-  {!endpointsLoading && !endpoints.length && <option>No devices found</option>}
-  {!endpointsLoading && endpoints.length > 0 && (
+  {!endpointsLoading && !endpoints.length && <option>No matching device found for your IP</option>}
+  {!endpointsLoading && endpoints.length > 1 && (
     <option value="">Select your device…</option>
   )}
   {endpoints.map((ep) => (

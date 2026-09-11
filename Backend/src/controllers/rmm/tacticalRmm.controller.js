@@ -1,5 +1,4 @@
 const tacticalService = require('../../services/tacticalRmm.service');
-const ManagementUser = require('../../models/auth/User');
 
 exports.getDevices = async (req, res) => {
   try {
@@ -45,16 +44,21 @@ exports.getDevices = async (req, res) => {
   })
 );
 
-    // "admin" and "support" (the elevated/system-wide role in this app) see
-    // every device. Everyone else is scoped to their assigned rmmAgentIds.
-    let filteredDevices = devices;
-    if (req.user?.role !== 'admin' && req.user?.role !== 'support') {
-      const user = await ManagementUser.findById(req.user?.id).select('rmmAgentIds').lean();
-      const allowedIds = new Set(user?.rmmAgentIds || []);
-      filteredDevices = devices.filter((d) => allowedIds.has(d.deviceId));
-    }
-
-    res.json({ success: true, devices: filteredDevices });
+    // Every authenticated user (any role) gets the full device list here.
+    // Per-user visibility is enforced on the frontend instead, by matching
+    // each device's GravityZone-reported IP against the logged-in user's
+    // registered ipAddresses (same pattern as the Antivirus/Self-Help
+    // pages) — not by a server-side agent-ID allowlist. This intentionally
+    // mirrors how /self-help/bitdefender/company-endpoints already behaves
+    // (unfiltered server-side, filtered client-side by IP).
+    //
+    // NOTE: this means the full company device list (names, hostnames,
+    // CPU/memory/storage, etc.) is present in this API response for every
+    // authenticated user, even though the UI only displays IP-matched
+    // devices. If that data exposure isn't acceptable, per-user filtering
+    // needs to move back server-side (e.g. re-introduce an allowlist, or
+    // do the IP match here instead of trusting the client).
+    res.json({ success: true, devices });
   } catch (err) {
     console.error("TACTICAL RMM ERROR:", {
       message: err.message,

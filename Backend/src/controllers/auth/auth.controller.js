@@ -43,8 +43,10 @@ const refreshToken = async (req, res) => {
 };
 
 const register = async (req, res) => {
+  let createdUserId = null;
+
   try {
-    const { name, email, password, source } = req.body;
+    const { name, email, password, source, ipAddress } = req.body;
     const isUserCreatedFlow = source === 'usercreated';
 
     if (!name || !email || !password) {
@@ -73,6 +75,12 @@ const register = async (req, res) => {
 
     const hashedPassword = await bcrypt.hash(password, 10);
 
+    const ipAddresses = Array.isArray(ipAddress)
+  ? ipAddress.map((ip) => String(ip).trim()).filter(Boolean)
+  : ipAddress
+    ? [String(ipAddress).trim()]
+    : [];
+
     const user = await ManagementUser.create({
       name: name.trim(),
       email: emailNormalized,
@@ -82,7 +90,13 @@ const register = async (req, res) => {
       isActive: isUserCreatedFlow ? false : true,
       avatar: '',
       plan: 'free',
+      ipAddresses,
     });
+
+    // Track this so we can roll it back manually if anything below fails —
+    // there's no DB transaction here, so a failed subscription creation
+    // must not leave an orphaned user record behind.
+    createdUserId = user._id;
 
     // ── Assign free plan, same pattern as admin createUser ──────────────────
     const freePlan = await Plan.findOne({ name: /free/i });
@@ -91,7 +105,10 @@ const register = async (req, res) => {
       throw new Error('Free plan not found. Please ensure a Free plan exists in the database.');
     }
 
-    const lastSub = await Subscription.findOne({ sub_id: { $exists: true, $ne: null } })
+    // Only trust sub_id values that actually match the expected SUB-### format.
+    // A malformed/legacy value here (or a previous NaN bug) must not poison
+    // every future signup with a duplicate key error.
+    const lastSub = await Subscription.findOne({ sub_id: { $regex: /^SUB-\d+$/ } })
       .sort({ createdAt: -1 });
 
     let nextSubId = 'SUB-001';
@@ -196,6 +213,17 @@ const register = async (req, res) => {
       user: { id: user._id, name: user.name, email: user.email, role: user.role },
     });
   } catch (error) {
+    // Roll back the user record if it was created but something after it
+    // failed (e.g. subscription creation) — otherwise every failure here
+    // leaves a permanent orphaned account with sub_id: null, isActive: false.
+    if (createdUserId) {
+      try {
+        await ManagementUser.findByIdAndDelete(createdUserId);
+      } catch (cleanupError) {
+        console.error('Failed to roll back orphaned user after register error:', cleanupError);
+      }
+    }
+
     res.status(500).json({ message: 'Register failed', error: error.message });
   }
 };
