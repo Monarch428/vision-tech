@@ -40,24 +40,29 @@ exports.getDevices = async (req, res) => {
       clientId,
       clientName: a.client_name ?? null,
       siteName: a.site_name ?? null,
+      // Present directly on the agent-list response (confirmed in captured
+      // Tactical data — a single string, e.g. "8CG2122G5R"), so no extra
+      // per-agent detail call is needed for this field.
+      serialNumber: a.serial_number ?? null,
     };
   })
 );
 
     // Every authenticated user (any role) gets the full device list here.
     // Per-user visibility is enforced on the frontend instead, by matching
-    // each device's GravityZone-reported IP against the logged-in user's
-    // registered ipAddresses (same pattern as the Antivirus/Self-Help
-    // pages) — not by a server-side agent-ID allowlist. This intentionally
-    // mirrors how /self-help/bitdefender/company-endpoints already behaves
-    // (unfiltered server-side, filtered client-side by IP).
+    // each device's serialNumber against the logged-in user's registered
+    // serialNumbers (same pattern as the Antivirus/Self-Help pages) — not
+    // by a server-side agent-ID allowlist. This intentionally mirrors how
+    // /self-help/bitdefender/company-endpoints already behaves (unfiltered
+    // server-side, filtered client-side).
     //
     // NOTE: this means the full company device list (names, hostnames,
-    // CPU/memory/storage, etc.) is present in this API response for every
-    // authenticated user, even though the UI only displays IP-matched
-    // devices. If that data exposure isn't acceptable, per-user filtering
-    // needs to move back server-side (e.g. re-introduce an allowlist, or
-    // do the IP match here instead of trusting the client).
+    // CPU/memory/storage, serial numbers, etc.) is present in this API
+    // response for every authenticated user, even though the UI only
+    // displays serialNumber-matched devices. If that data exposure isn't
+    // acceptable, per-user filtering needs to move back server-side (e.g.
+    // re-introduce an allowlist, or do the serialNumber match here instead
+    // of trusting the client).
     res.json({ success: true, devices });
   } catch (err) {
     console.error("TACTICAL RMM ERROR:", {

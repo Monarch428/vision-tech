@@ -2,11 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { getDevices, generateInstaller } from "../../services/user/rmm.service";
 import type { Device, GenerateInstallerPayload } from "../../services/user/rmm.service";
 import { currentUserRole } from "../../services/admin/userManagement.service";
-import {
-  listCompanyEndpoints,
-  getCurrentUser,
-  type CompanyEndpoint,
-} from "../../services/user/selfhelp.service";
+import { getCurrentUser } from "../../services/user/selfhelp.service";
 
 // ─── Icons ────────────────────────────────────────────────────────────────────
 
@@ -167,16 +163,6 @@ function computeHealth(cpu: number, memory: number, storage: number) {
 
 function inferDeviceType(_platform?: string): "Laptop" | "Desktop" {
   return "Desktop";
-}
-
-// Loose normalization for cross-referencing a GravityZone endpoint name
-// against a Tactical RMM device's hostname/name — trims, lowercases, and
-// drops a trailing domain suffix (e.g. "DESKTOP-3FH844G.corp.local" →
-// "desktop-3fh844g") so minor formatting differences between the two
-// agents' reported names don't break the match.
-function normalizeDeviceName(value?: string | null): string {
-  if (!value) return "";
-  return value.trim().toLowerCase().split(".")[0];
 }
 
 // Detailed, OS-specific steps for running the generated installer command
@@ -621,27 +607,24 @@ function AddDeviceModal({ onClose, onDeviceLikelyAdded }: { onClose: () => void;
   );
 }
 
-// ─── DeviceIpFilter ───────────────────────────────────────────────────────
-// Replaces the old text-based Client Name / Site Name / Hostname filters.
+// ─── DeviceSerialFilter ─────────────────────────────────────────────────────
+// Replaces the old text-based Client Name / Site Name / Hostname filters
+// (and, before that, the IP-address-based matcher).
 //
-// Tactical RMM's /devices response has no IP field, so the IP data comes
-// from GravityZone instead (listCompanyEndpoints — same as the Self-Help
-// antivirus tool uses). We match GravityZone endpoints to the user's IP,
-// then cross-reference by (normalized) name/hostname to find which
-// Tactical devices those correspond to.
+// The Tactical RMM /devices response now carries serialNumber directly, so
+// matching is a straight comparison against the current user's known serial
+// numbers — no cross-referencing against a second data source needed.
 
-function DeviceIpFilter({
+function DeviceSerialFilter({
   loading,
   matchedDevices,
   selectedDeviceId,
   onSelectedDeviceIdChange,
-  endpointIpByDeviceId,
 }: {
   loading: boolean;
   matchedDevices: Device[];
   selectedDeviceId: string;
   onSelectedDeviceIdChange: (v: string) => void;
-  endpointIpByDeviceId: Map<string, string>;
 }) {
   return (
     <div className="mt-6 bg-white border border-gray-300 rounded-2xl p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center gap-3 sm:justify-between">
@@ -650,7 +633,7 @@ function DeviceIpFilter({
         <p className="text-sm text-gray-500">
           {loading
             ? "Loading devices…"
-            : `${matchedDevices.length} device${matchedDevices.length === 1 ? "" : "s"} match your IP address`}
+            : `${matchedDevices.length} device${matchedDevices.length === 1 ? "" : "s"} match your serial number`}
         </p>
       </div>
       <select
@@ -662,21 +645,18 @@ function DeviceIpFilter({
         {loading && <option value="">Loading devices…</option>}
 
         {!loading && !matchedDevices.length && (
-          <option value="">No matching device found for your IP</option>
+          <option value="">No matching device found for your serial number</option>
         )}
 
         {!loading && matchedDevices.length > 0 && (
           <option value="">All matching devices</option>
         )}
 
-        {matchedDevices.map((d) => {
-          const ip = endpointIpByDeviceId.get(d._id);
-          return (
-            <option key={d._id} value={d._id}>
-              {d.hostname ?? d.name} {ip ? `(${ip})` : ""}
-            </option>
-          );
-        })}
+        {matchedDevices.map((d) => (
+          <option key={d._id} value={d._id}>
+            {d.hostname ?? d.name} {d.serialNumber ? `(${d.serialNumber})` : ""}
+          </option>
+        ))}
       </select>
     </div>
   );
@@ -699,25 +679,22 @@ export default function RMM() {
   // "support" is the elevated/system role in this app's User schema
   // (enum: ['admin', 'user', 'support']) — there is no separate "system" role.
   // Stat cards / RMM banner are admin-only — everyone else (including
-  // support) just sees the IP-matched device list below.
+  // support) just sees the serial-number-matched device list below.
   const isAdminRole = role === "admin";
 
-  // ── IP data source: GravityZone company endpoints (Tactical devices carry no IP) ──
-  const [companyEndpoints, setCompanyEndpoints] = useState<CompanyEndpoint[]>([]);
-  const [userIps, setUserIps] = useState<string[]>([]);
-  const [ipDataLoading, setIpDataLoading] = useState(true);
+  // ── Serial numbers the current user is associated with. Devices now carry
+  // their own serialNumber directly (from /devices), so matching is a plain
+  // membership check against this list — no second data source needed. ──
+  const [userSerialNumbers, setUserSerialNumbers] = useState<string[]>([]);
+  const [userDataLoading, setUserDataLoading] = useState(true);
 
   useEffect(() => {
     (async () => {
       try {
-        const [endpoints, currentUser] = await Promise.all([
-          listCompanyEndpoints().catch(() => []),
-          getCurrentUser().catch(() => null),
-        ]);
-        setCompanyEndpoints(endpoints);
-        setUserIps(currentUser?.ipAddresses ?? []);
+        const currentUser = await getCurrentUser().catch(() => null);
+        setUserSerialNumbers(currentUser?.serialNumbers ?? []);
       } finally {
-        setIpDataLoading(false);
+        setUserDataLoading(false);
       }
     })();
   }, []);
@@ -740,7 +717,7 @@ export default function RMM() {
       console.error("Failed to load devices:", err);
       // A Tactical RMM API timeout/500 leaves `devices` at its previous
       // (often empty) value with no visible signal — surface it instead of
-      // letting the page silently look like "no devices match your IP".
+      // letting the page silently look like "no devices match your serial number".
       setDevicesError(
         err?.response?.status === 500
           ? "Couldn't reach the RMM service right now (it may be slow or temporarily down). Devices shown below may be out of date."
@@ -757,50 +734,27 @@ export default function RMM() {
     return () => clearInterval(interval);
   }, []);
 
-  // GravityZone endpoints whose IP matches the current user.
-  const matchedEndpoints = useMemo(
-    () => companyEndpoints.filter((ep) => ep.ip && userIps.includes(ep.ip)),
-    [companyEndpoints, userIps]
-  );
-
-  // Cross-reference those endpoints to Tactical devices by normalized name,
-  // and remember which endpoint IP corresponds to which device (for display).
+  // Devices whose own serialNumber matches one of the current user's known
+  // serial numbers.
   //
   // Applies to every role, including "support" — unlike the stat cards and
   // RMM banner above (which stay support-only), the device list itself is
-  // always IP-matched now, matching how Antivirus/Self-Help behave.
+  // always serial-number-matched, matching how Antivirus/Self-Help behave.
   //
-  // IMPORTANT: normalizeDeviceName("") === normalizeDeviceName(undefined) === "".
-  // Without an explicit guard, any device with a missing hostname/name would
-  // match against any endpoint with a missing name (both normalize to ""),
-  // which silently pulled in unrelated devices. Empty keys are skipped below
-  // so a name can only ever match a real, non-empty name.
-  const { ipMatchedDevices, endpointIpByDeviceId } = useMemo(() => {
-    const ipByName = new Map<string, string>();
-    for (const ep of matchedEndpoints) {
-      const key = normalizeDeviceName(ep.name);
-      if (key && ep.ip) ipByName.set(key, ep.ip);
-    }
-
-    const ipById = new Map<string, string>();
-    const result = devices.filter((d) => {
-      const key = normalizeDeviceName(d.hostname ?? d.name);
-      if (!key) return false; // never match on an unknown/empty name
-      const ip = ipByName.get(key);
-      if (!ip) return false;
-      ipById.set(d._id, ip);
-      return true;
-    });
-    return { ipMatchedDevices: result, endpointIpByDeviceId: ipById };
-  }, [devices, matchedEndpoints, userIps, companyEndpoints]);
+  // A device with no serialNumber (not yet reported, or an older agent) can
+  // never match — it's simply excluded rather than treated as a wildcard.
+  const serialMatchedDevices = useMemo(
+    () => devices.filter((d) => d.serialNumber && userSerialNumbers.includes(d.serialNumber)),
+    [devices, userSerialNumbers]
+  );
 
   const filteredDevices = useMemo(() => {
     if (selectedDeviceId) {
-      return ipMatchedDevices.filter((d) => d._id === selectedDeviceId);
+      return serialMatchedDevices.filter((d) => d._id === selectedDeviceId);
     }
 
-    return ipMatchedDevices;
-  }, [ipMatchedDevices, selectedDeviceId]);
+    return serialMatchedDevices;
+  }, [serialMatchedDevices, selectedDeviceId]);
 
   const stats = useMemo(() => {
     const total = devices.length;
@@ -868,13 +822,12 @@ export default function RMM() {
         </div>
       )}
 
-      {/* Device filter — IP-matched select box, for every role */}
-      <DeviceIpFilter
-        loading={loading || ipDataLoading}
-        matchedDevices={ipMatchedDevices}
+      {/* Device filter — serial-number-matched select box, for every role */}
+      <DeviceSerialFilter
+        loading={loading || userDataLoading}
+        matchedDevices={serialMatchedDevices}
         selectedDeviceId={selectedDeviceId}
         onSelectedDeviceIdChange={setSelectedDeviceId}
-        endpointIpByDeviceId={endpointIpByDeviceId}
       />
       {isAdminRole && (
         <p className="mt-2 text-xs text-gray-400">
@@ -888,8 +841,8 @@ export default function RMM() {
           <p className="text-sm text-gray-500">Loading devices...</p>
         ) : filteredDevices.length === 0 ? (
           <p className="text-sm text-gray-500">
-            {ipMatchedDevices.length === 0
-              ? "No company device matches your current IP address."
+            {serialMatchedDevices.length === 0
+              ? "No company device matches your serial number."
               : "No device matches this selection."}
           </p>
         ) : (

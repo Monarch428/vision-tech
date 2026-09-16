@@ -83,10 +83,16 @@ const userSchema = new mongoose.Schema(
       default: [],
     },
 
-    ipAddresses: {
+    deviceNames: {
   type: [String],
   default: [],
 },
+
+    serialNumbers: {
+  type: [String],
+  default: [],
+},
+
   },
   {
     timestamps: true,

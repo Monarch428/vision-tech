@@ -130,7 +130,7 @@ export default function Antivirus() {
     container.scrollTo({ top: 0, behavior: "smooth" });
   }, []);
 
-  // ── GET: List company devices matching the user's IP, for the picker ──
+  // ── GET: List company devices matching the user's device names, for the picker ──
   const fetchedEndpointsRef = useRef(false);
   useEffect(() => {
     if (fetchedEndpointsRef.current) return;
@@ -145,8 +145,12 @@ export default function Antivirus() {
           getCurrentUser().catch(() => null), // don't block the page if this fails
         ]);
 
-        const userIps = currentUser?.ipAddresses ?? [];
-        const matched = all.filter((ep) => ep.ip && userIps.includes(ep.ip));
+        // Match endpoints by name against the current user's known device
+        // names (not ipAddresses — that field isn't actually declared on
+        // CurrentUser; deviceNames is the field that corresponds to a
+        // GravityZone endpoint's `name`).
+        const userDeviceNames = currentUser?.deviceNames ?? [];
+        const matched = all.filter((ep) => ep.name && userDeviceNames.includes(ep.name));
 
         setEndpoints(matched);
       } catch (err) {
@@ -294,23 +298,23 @@ export default function Antivirus() {
         <select
           value={selectedEndpointId}
           onChange={(e) => setSelectedEndpointId(e.target.value)}
-          disabled={endpointsLoading}
+          disabled={endpointsLoading || !endpoints.length}
           className="w-full sm:w-72 px-4 py-2.5 rounded-xl bg-gray-100 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-green-400 disabled:opacity-50 appearance-none cursor-pointer"
         >
-          <option value="">My device (default)</option>
-
-          {endpointsLoading && (
-            <option disabled>Loading devices…</option>
-          )}
+          {endpointsLoading && <option>Loading devices…</option>}
 
           {!endpointsLoading && !endpoints.length && (
-            <option disabled>No other matching devices found</option>
+            <option>No matching device found</option>
+          )}
+
+          {!endpointsLoading && endpoints.length > 0 && (
+            <option value="">Select your device…</option>
           )}
 
           {!endpointsLoading &&
             endpoints.map((ep) => (
               <option key={ep.id} value={ep.id}>
-                {ep.name} {ep.ip ? `(${ep.ip})` : ""}
+                {ep.name}
               </option>
             ))}
         </select>
@@ -515,23 +519,23 @@ export default function Antivirus() {
               <select
                 value={scheduledEndpointId}
                 onChange={(e) => setScheduledEndpointId(e.target.value)}
-                disabled={endpointsLoading}
-                className="w-full px-4 py-3 rounded-xl bg-gray-100 text-sm text-gray-600 focus:outline-none focus:ring-2 focus:ring-green-400 appearance-none cursor-pointer"
+                disabled={endpointsLoading || !endpoints.length}
+                className="w-full px-4 py-3 rounded-xl bg-gray-100 text-sm text-gray-600 focus:outline-none focus:ring-2 focus:ring-green-400 appearance-none cursor-pointer disabled:opacity-50"
               >
-                <option value="">My device (default)</option>
-
-                {endpointsLoading && (
-                  <option disabled>Loading devices…</option>
-                )}
+                {endpointsLoading && <option>Loading devices…</option>}
 
                 {!endpointsLoading && !endpoints.length && (
-                  <option disabled>No other matching devices found</option>
+                  <option>No matching device found</option>
+                )}
+
+                {!endpointsLoading && endpoints.length > 0 && (
+                  <option value="">Select your device…</option>
                 )}
 
                 {!endpointsLoading &&
                   endpoints.map((ep) => (
                     <option key={ep.id} value={ep.id}>
-                      {ep.name} {ep.ip ? `(${ep.ip})` : ""}
+                      {ep.name}
                     </option>
                   ))}
               </select>

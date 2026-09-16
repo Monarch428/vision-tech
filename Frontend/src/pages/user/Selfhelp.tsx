@@ -354,9 +354,13 @@ useEffect(() => {
 
       if (cancelled) return;
 
-      const userIps = currentUser?.ipAddresses ?? [];
+      // Match endpoints by name against the current user's known device
+      // names (not serialNumbers — a GravityZone endpoint's `name` is a
+      // device/hostname, not a serial, so it should be compared against
+      // deviceNames, the field that's actually the same kind of value).
+      const userDeviceNames = currentUser?.deviceNames ?? [];
       const matchedEndpoints = allEndpoints.filter(
-        (ep) => ep.ip && userIps.includes(ep.ip)
+        (ep) => ep.name && userDeviceNames.includes(ep.name)
       );
 
       setEndpoints(matchedEndpoints);
@@ -668,13 +672,13 @@ if (usesApi) {
   className="w-full border border-gray-300 rounded-lg px-2.5 py-2 text-xs text-gray-700 disabled:opacity-50"
 >
   {endpointsLoading && <option>Loading devices…</option>}
-  {!endpointsLoading && !endpoints.length && <option>No matching device found for your IP</option>}
+  {!endpointsLoading && !endpoints.length && <option>No matching device found</option>}
   {!endpointsLoading && endpoints.length > 1 && (
     <option value="">Select your device…</option>
   )}
   {endpoints.map((ep) => (
     <option key={ep.id} value={ep.id}>
-      {ep.name} {ep.ip ? `(${ep.ip})` : ""}
+      {ep.name}
     </option>
   ))}
 </select>

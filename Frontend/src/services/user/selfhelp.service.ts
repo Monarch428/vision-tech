@@ -247,7 +247,10 @@ export interface CurrentUser {
   name: string;
   email: string;
   role: string;
-  ipAddresses?: string[];
+  serialNumbers?: string[];
+  // Confirmed present on the /auth/me response (e.g. ["DESKTOP-3FH844G"]) —
+  // the field that actually corresponds to a GravityZone endpoint's `name`.
+  deviceNames?: string[];
 }
 
 export const getCurrentUser = async (): Promise<CurrentUser> => {

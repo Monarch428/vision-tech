@@ -217,7 +217,7 @@ const getUserById = async (req, res) => {
 // Update User
 const updateUser = async (req, res) => {
   try {
-    const { password, currentPassword, ipAddress, ...rest } = req.body;
+    const { password, currentPassword, deviceName,serialNumber, ...rest } = req.body;
     const updateData = { ...rest };
 
     // Check if trying to assign support role to another user
@@ -235,11 +235,19 @@ const updateUser = async (req, res) => {
       updateData.password = await bcrypt.hash(password, 10);
     }
 
-    if (ipAddress !== undefined) {
-      updateData.ipAddresses = Array.isArray(ipAddress)
-        ? ipAddress.map((ip) => String(ip).trim()).filter(Boolean)
-        : ipAddress
-          ? [String(ipAddress).trim()]
+    if (deviceName !== undefined) {
+      updateData.deviceNames = Array.isArray(deviceName)
+        ? deviceName.map((name) => String(name).trim()).filter(Boolean)
+        : deviceName
+          ? [String(deviceName).trim()]
+          : [];
+    }
+
+    if (serialNumber !== undefined) {
+      updateData.serialNumbers = Array.isArray(serialNumber)
+        ? serialNumber.map((num) => String(num).trim()).filter(Boolean)
+        : serialNumber
+          ? [String(serialNumber).trim()]
           : [];
     }
 

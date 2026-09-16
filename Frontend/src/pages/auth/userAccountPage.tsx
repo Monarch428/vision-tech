@@ -8,7 +8,8 @@ interface FormState {
     email: string;
     password: string;
     confirmPassword: string;
-    ipAddress: string;
+    deviceName: string;
+    serialNumber: string;
 }
 
 type FieldErrors = Partial<Record<keyof FormState, string>>;
@@ -24,24 +25,44 @@ const EMPTY_FORM: FormState = {
     email: "",
     password: "",
     confirmPassword: "",
-    ipAddress: "",
+    deviceName: "",
+    serialNumber: "",
 };
 
-const IP_COMMANDS: Record<"windows" | "mac" | "linux", { label: string; command: string; note: string }> = {
+const HOSTNAME_COMMANDS: Record<"windows" | "mac" | "linux", { label: string; command: string; note: string }> = {
     windows: {
-    label: "Windows",
-    command: 'powershell -Command "Get-NetIPConfiguration | Where-Object {$_.IPv4DefaultGateway -ne $null} | Select-Object -ExpandProperty IPv4Address | Select-Object -ExpandProperty IPAddress"',
-    note: "Open Command Prompt (search 'cmd' in the Start menu), paste the command, and press Enter. It should return a single address.",
-},
+        label: "Windows",
+        command: "hostname",
+        note: "Open Command Prompt (search 'cmd' in the Start menu), paste the command, and press Enter. It should return your device's hostname.",
+    },
     mac: {
         label: "macOS",
-        command: "ipconfig getifaddr en0",
-        note: "Open Terminal (Cmd+Space, type 'Terminal'), paste the command, and press Enter. If it returns nothing, try en1 instead of en0.",
+        command: "hostname",
+        note: "Open Terminal (Cmd+Space, type 'Terminal'), paste the command, and press Enter. If you'd prefer the friendly device name instead, use 'scutil --get ComputerName'.",
     },
     linux: {
         label: "Linux",
-        command: "hostname -I",
+        command: "hostname",
         note: "Open a terminal, paste the command, and press Enter.",
+    },
+};
+
+// ── Serial number command reference ─────────────────────────────────────────
+const SERIAL_COMMANDS: Record<"windows" | "mac" | "linux", { label: string; command: string; note: string }> = {
+    windows: {
+        label: "Windows",
+        command: 'powershell -Command "(Get-CimInstance Win32_BIOS).SerialNumber"',
+        note: "Open Command Prompt or PowerShell (search 'cmd' or 'powershell' in the Start menu), paste the command, and press Enter. It should return your device's serial number.",
+    },
+    mac: {
+        label: "macOS",
+        command: "system_profiler SPHardwareDataType | awk '/Serial/ {print $4}'",
+        note: "Open Terminal (Cmd+Space, type 'Terminal'), paste the command, and press Enter. It should return your Mac's serial number.",
+    },
+    linux: {
+        label: "Linux",
+        command: "sudo dmidecode -s system-serial-number",
+        note: "Open a terminal, paste the command, and press Enter (you may be prompted for your password). If dmidecode isn't available, try 'cat /sys/class/dmi/id/product_serial' with sudo instead.",
     },
 };
 
@@ -65,8 +86,11 @@ function validate(form: FormState): FieldErrors {
     else if (form.password !== form.confirmPassword)
         errors.confirmPassword = "Passwords do not match.";
 
-    if (!form.ipAddress.trim())
-        errors.ipAddress = "Please enter your device's IP address.";
+    if (!form.deviceName.trim())
+        errors.deviceName = "Please enter your device's name.";
+
+    if (!form.serialNumber.trim())
+        errors.serialNumber = "Please enter your device's serial number.";
 
     return errors;
 }
@@ -79,10 +103,15 @@ export default function CreateAccountPage() {
     const [errorMessage, setErrorMessage] = useState("");
     const navigate = useNavigate();
 
-    // ── IP command reference state ─────────────────────────────────────────
+    // ── Hostname command reference state ────────────────────────────────────
     const [activeOS, setActiveOS] = useState<"windows" | "mac" | "linux">("windows");
     const [copied, setCopied] = useState(false);
-    const activeCommand = IP_COMMANDS[activeOS];
+    const activeCommand = HOSTNAME_COMMANDS[activeOS];
+
+    // ── Serial number command reference state ───────────────────────────────
+    const [activeSerialOS, setActiveSerialOS] = useState<"windows" | "mac" | "linux">("windows");
+    const [serialCopied, setSerialCopied] = useState(false);
+    const activeSerialCommand = SERIAL_COMMANDS[activeSerialOS];
 
     // ── OTP step state ──────────────────────────────────────────────────────
     const [otp, setOtp] = useState("");
@@ -121,6 +150,16 @@ export default function CreateAccountPage() {
         }
     };
 
+    const handleCopySerialCommand = async () => {
+        try {
+            await navigator.clipboard.writeText(activeSerialCommand.command);
+            setSerialCopied(true);
+            setTimeout(() => setSerialCopied(false), 2000);
+        } catch (err) {
+            console.error("Copy failed:", err);
+        }
+    };
+
     const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
         e.preventDefault();
         setErrorMessage("");
@@ -138,7 +177,8 @@ export default function CreateAccountPage() {
                 email: formData.email.trim(),
                 password: formData.password,
                 source: "usercreated",
-                ipAddress: formData.ipAddress.trim() ? [formData.ipAddress.trim()] : [],
+                deviceName: formData.deviceName.trim() ? [formData.deviceName.trim()] : [],
+                serialNumber: formData.serialNumber.trim() ? [formData.serialNumber.trim()] : []
             });
 
             if (res?.requiresOtp) {
@@ -316,10 +356,10 @@ export default function CreateAccountPage() {
                                     )}
                                 </div>
 
-                                {/* ── IP address ─────────────────────────────────────────── */}
+                                {/* ── Device Name ─────────────────────────────────────────── */}
                                 <div className="pt-1">
                                     <label className="block mb-1 text-xs sm:text-sm font-semibold text-black">
-                                        Device IP Address
+                                        Device Name
                                     </label>
                                     <p className="text-[11px] xs:text-xs text-gray-500 mb-2">
                                         This helps us match your device to your antivirus records.
@@ -327,7 +367,7 @@ export default function CreateAccountPage() {
                                     </p>
 
                                     <div className="flex gap-1 bg-gray-100 rounded-lg p-1 w-fit mb-2">
-                                        {(Object.keys(IP_COMMANDS) as Array<keyof typeof IP_COMMANDS>).map((os) => (
+                                        {(Object.keys(HOSTNAME_COMMANDS) as Array<keyof typeof HOSTNAME_COMMANDS>).map((os) => (
                                             <button
                                                 key={os}
                                                 type="button"
@@ -336,7 +376,7 @@ export default function CreateAccountPage() {
                                                     activeOS === os ? "bg-white text-gray-900 shadow-sm" : "text-gray-500"
                                                 }`}
                                             >
-                                                {IP_COMMANDS[os].label}
+                                                {HOSTNAME_COMMANDS[os].label}
                                             </button>
                                         ))}
                                     </div>
@@ -358,14 +398,67 @@ export default function CreateAccountPage() {
 
                                     <input
                                         type="text"
-                                        name="ipAddress"
-                                        placeholder="e.g. 192.168.1.42"
-                                        value={formData.ipAddress}
+                                        name="deviceName"
+                                        placeholder="e.g. DESKTOP-4J8K2QP"
+                                        value={formData.deviceName}
                                         onChange={handleChange}
-                                        className={inputCls(errors.ipAddress)}
+                                        className={inputCls(errors.deviceName)}
                                     />
-                                    {errors.ipAddress && (
-                                        <p className="mt-1 text-[11px] text-red-500">{errors.ipAddress}</p>
+                                    {errors.deviceName && (
+                                        <p className="mt-1 text-[11px] text-red-500">{errors.deviceName}</p>
+                                    )}
+                                </div>
+
+                                {/* ── Serial Number ───────────────────────────────────────── */}
+                                <div className="pt-1">
+                                    <label className="block mb-1 text-xs sm:text-sm font-semibold text-black">
+                                        Serial Number
+                                    </label>
+                                    <p className="text-[11px] xs:text-xs text-gray-500 mb-2">
+                                        This helps us uniquely identify your device. Run the
+                                        command below, then paste the result.
+                                    </p>
+
+                                    <div className="flex gap-1 bg-gray-100 rounded-lg p-1 w-fit mb-2">
+                                        {(Object.keys(SERIAL_COMMANDS) as Array<keyof typeof SERIAL_COMMANDS>).map((os) => (
+                                            <button
+                                                key={os}
+                                                type="button"
+                                                onClick={() => setActiveSerialOS(os)}
+                                                className={`px-3 py-1 rounded-md text-[11px] xs:text-xs font-semibold transition-colors ${
+                                                    activeSerialOS === os ? "bg-white text-gray-900 shadow-sm" : "text-gray-500"
+                                                }`}
+                                            >
+                                                {SERIAL_COMMANDS[os].label}
+                                            </button>
+                                        ))}
+                                    </div>
+
+                                    <div className="bg-gray-900 text-gray-100 rounded-lg p-2.5 font-mono text-[11px] xs:text-xs flex items-center justify-between gap-2 mb-1.5">
+                                        <code className="break-all">{activeSerialCommand.command}</code>
+                                        <button
+                                            type="button"
+                                            onClick={handleCopySerialCommand}
+                                            className="text-[11px] xs:text-xs font-semibold text-green-400 hover:text-green-300 shrink-0"
+                                        >
+                                            {serialCopied ? "Copied!" : "Copy"}
+                                        </button>
+                                    </div>
+
+                                    <p className="text-[10px] xs:text-[11px] text-gray-500 mb-2">
+                                        {activeSerialCommand.note}
+                                    </p>
+
+                                    <input
+                                        type="text"
+                                        name="serialNumber"
+                                        placeholder="e.g. 5CD1234ABC"
+                                        value={formData.serialNumber}
+                                        onChange={handleChange}
+                                        className={inputCls(errors.serialNumber)}
+                                    />
+                                    {errors.serialNumber && (
+                                        <p className="mt-1 text-[11px] text-red-500">{errors.serialNumber}</p>
                                     )}
                                 </div>
 

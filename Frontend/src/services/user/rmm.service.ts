@@ -52,6 +52,9 @@ export interface Device {
   clientId?: number | null;    // NEW
   clientName?: string | null;  // NEW
   siteName?: string | null;    // NEW
+  // Tactical reports this as a single string per agent (e.g. "8CG2122G5R"),
+  // present directly on the agent-list response — not an array.
+  serialNumber?: string | null;
 }
 
 export const getDevices = async (): Promise<Device[]> => {

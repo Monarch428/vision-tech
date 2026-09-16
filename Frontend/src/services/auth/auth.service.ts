@@ -61,7 +61,8 @@ export interface RegisterPayload {
   email: string;
   password: string;
   source?: 'usercreated';
-  ipAddress?: string[];
+  deviceName?: string[];
+  serialNumber?: string[];
 }
 
 export interface RegisterResponse {

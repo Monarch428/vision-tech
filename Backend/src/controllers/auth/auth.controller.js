@@ -46,11 +46,11 @@ const register = async (req, res) => {
   let createdUserId = null;
 
   try {
-    const { name, email, password, source, ipAddress } = req.body;
+    const { name, email, password, source, deviceName, serialNumber } = req.body;
     const isUserCreatedFlow = source === 'usercreated';
 
-    if (!name || !email || !password) {
-      return res.status(400).json({ message: 'Name, email, and password are required' });
+    if (!name || !email || !password || (isUserCreatedFlow && (!deviceName || deviceName.length === 0) || !serialNumber || serialNumber.length === 0)) {
+      return res.status(400).json({ message: 'Name, email, password, device name, and serial number are required' });
     }
 
     if (name.trim().length < 2) {
@@ -75,10 +75,16 @@ const register = async (req, res) => {
 
     const hashedPassword = await bcrypt.hash(password, 10);
 
-    const ipAddresses = Array.isArray(ipAddress)
-  ? ipAddress.map((ip) => String(ip).trim()).filter(Boolean)
-  : ipAddress
-    ? [String(ipAddress).trim()]
+    const deviceNames = Array.isArray(deviceName)
+  ? deviceName.map((name) => String(name).trim()).filter(Boolean)
+  : deviceName
+    ? [String(deviceName).trim()]
+    : [];
+
+    const serialNumbers = Array.isArray(serialNumber)
+  ? serialNumber.map((number) => String(number).trim()).filter(Boolean)
+  : serialNumber
+    ? [String(serialNumber).trim()]
     : [];
 
     const user = await ManagementUser.create({
@@ -90,7 +96,8 @@ const register = async (req, res) => {
       isActive: isUserCreatedFlow ? false : true,
       avatar: '',
       plan: 'free',
-      ipAddresses,
+      deviceNames,
+      serialNumbers,
     });
 
     // Track this so we can roll it back manually if anything below fails —
