@@ -291,10 +291,16 @@ export default function Antivirus() {
 
       {/* Device picker — controls which device's results are shown below */}
       <div className="bg-white rounded-2xl border border-gray-300 p-4 mb-6 flex flex-col sm:flex-row sm:items-center gap-3 sm:justify-between">
-        <div>
-          <p className="text-md font-bold text-gray-900">Device</p>
-          <p className="text-sm text-gray-500">Choose a device to view its scan results</p>
-        </div>
+       <div>
+  <p className="text-md font-bold text-gray-900">Device</p>
+  <p className="text-sm text-gray-500">
+    {endpointsLoading
+      ? "Loading devices…"
+      : endpoints.length
+      ? "Choose a device to view its scan results"
+      : "No matching device found — update your hostname in the Profile tab"}
+  </p>
+</div>
         <select
           value={selectedEndpointId}
           onChange={(e) => setSelectedEndpointId(e.target.value)}
@@ -304,8 +310,8 @@ export default function Antivirus() {
           {endpointsLoading && <option>Loading devices…</option>}
 
           {!endpointsLoading && !endpoints.length && (
-            <option>No matching device found</option>
-          )}
+  <option>No matching device found — update your hostname in the Profile tab</option>
+)}
 
           {!endpointsLoading && endpoints.length > 0 && (
             <option value="">Select your device…</option>
@@ -525,8 +531,8 @@ export default function Antivirus() {
                 {endpointsLoading && <option>Loading devices…</option>}
 
                 {!endpointsLoading && !endpoints.length && (
-                  <option>No matching device found</option>
-                )}
+  <option>No matching device found — update your hostname in the Profile tab</option>
+)}
 
                 {!endpointsLoading && endpoints.length > 0 && (
                   <option value="">Select your device…</option>

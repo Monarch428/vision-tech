@@ -56,10 +56,12 @@ const userSchema = new mongoose.Schema(
     deviceNames: {
       type: [String],
       default: [],
+      required: [true, 'Device name is required'],
     },
         serialNumbers: {
   type: [String],
   default: [],
+  required: [true, 'Serial number is required'],
 },
   },
   {

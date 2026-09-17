@@ -630,11 +630,13 @@ function DeviceSerialFilter({
     <div className="mt-6 bg-white border border-gray-300 rounded-2xl p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center gap-3 sm:justify-between">
       <div>
         <p className="text-md font-bold text-gray-900">Device</p>
-        <p className="text-sm text-gray-500">
-          {loading
-            ? "Loading devices…"
-            : `${matchedDevices.length} device${matchedDevices.length === 1 ? "" : "s"} match your serial number`}
-        </p>
+       <p className="text-sm text-gray-500">
+  {loading
+    ? "Loading devices…"
+    : matchedDevices.length
+    ? `${matchedDevices.length} device${matchedDevices.length === 1 ? "" : "s"} match your serial number`
+    : "No matching device found — kindly check your serial number and update it in the Profile tab"}
+</p>
       </div>
       <select
         value={selectedDeviceId}
@@ -644,9 +646,9 @@ function DeviceSerialFilter({
       >
         {loading && <option value="">Loading devices…</option>}
 
-        {!loading && !matchedDevices.length && (
-          <option value="">No matching device found for your serial number</option>
-        )}
+       {!loading && !matchedDevices.length && (
+  <option value="">Kindly check your serial number and update it in the Profile tab</option>
+)}
 
         {!loading && matchedDevices.length > 0 && (
           <option value="">All matching devices</option>
@@ -840,12 +842,12 @@ export default function RMM() {
         {loading ? (
           <p className="text-sm text-gray-500">Loading devices...</p>
         ) : filteredDevices.length === 0 ? (
-          <p className="text-sm text-gray-500">
-            {serialMatchedDevices.length === 0
-              ? "No company device matches your serial number."
-              : "No device matches this selection."}
-          </p>
-        ) : (
+  <p className="text-sm text-gray-500">
+    {serialMatchedDevices.length === 0
+      ? "No company device matches your serial number. Kindly check your serial number and update it in the Profile tab."
+      : "No device matches this selection."}
+  </p>
+) : (
           filteredDevices.map((device) => <DeviceCard key={device._id} device={device} />)
         )}
       </div>

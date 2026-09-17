@@ -672,7 +672,9 @@ if (usesApi) {
   className="w-full border border-gray-300 rounded-lg px-2.5 py-2 text-xs text-gray-700 disabled:opacity-50"
 >
   {endpointsLoading && <option>Loading devices…</option>}
-  {!endpointsLoading && !endpoints.length && <option>No matching device found</option>}
+  {!endpointsLoading && !endpoints.length && (
+  <option>No matching device found — update your hostname in the Profile tab</option>
+)}
   {!endpointsLoading && endpoints.length > 1 && (
     <option value="">Select your device…</option>
   )}
