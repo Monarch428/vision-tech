@@ -127,68 +127,83 @@ export default function Profile() {
   };
 
   const handleSubmit = async () => {
-    const wantsPasswordChange =
-      form.currentPassword || form.newPassword || form.confirmPassword;
+  const wantsPasswordChange =
+    form.currentPassword || form.newPassword || form.confirmPassword;
+
+  if (wantsPasswordChange) {
+    if (!form.currentPassword || !form.newPassword || !form.confirmPassword) {
+      alert("Please fill all password fields.");
+      return;
+    }
+
+    if (form.newPassword !== form.confirmPassword) {
+      alert("Passwords do not match.");
+      return;
+    }
+  }
+
+  // Pick up values still typed in the input
+  const pendingDeviceName = deviceNameInput.trim();
+  const finalDeviceNames = pendingDeviceName
+    ? Array.from(new Set([...deviceNames, pendingDeviceName]))
+    : deviceNames;
+
+  const pendingSerialNumber = serialNumberInput.trim();
+  const finalSerialNumbers = pendingSerialNumber
+    ? Array.from(new Set([...serialNumbers, pendingSerialNumber]))
+    : serialNumbers;
+
+  // REQUIRED VALIDATION
+  if (finalDeviceNames.length === 0) {
+    alert("Please add at least one device name.");
+    return;
+  }
+
+  if (finalSerialNumbers.length === 0) {
+    alert("Please add at least one serial number.");
+    return;
+  }
+
+  try {
+    setLoading(true);
+
+    const payload: Record<string, any> = {
+      name: user.name,
+      email: user.email,
+      deviceNames: finalDeviceNames,
+      serialNumbers: finalSerialNumbers,
+    };
 
     if (wantsPasswordChange) {
-      if (!form.currentPassword || !form.newPassword || !form.confirmPassword) {
-        alert("Please fill all password fields.");
-        return;
-      }
-      if (form.newPassword !== form.confirmPassword) {
-        alert("Passwords do not match.");
-        return;
-      }
+      payload.currentPassword = form.currentPassword;
+      payload.password = form.newPassword;
     }
 
-    try {
-      setLoading(true);
+    await updateUser(user.id, payload);
 
-      // Pick up anything still sitting in the input boxes (typed but not
-      // yet added via Enter/click) so it isn't silently dropped on save.
-      const pendingDeviceName = deviceNameInput.trim();
-      const finalDeviceNames = pendingDeviceName
-        ? Array.from(new Set([...deviceNames, pendingDeviceName]))
-        : deviceNames;
+    setDeviceNames(finalDeviceNames);
+    setDeviceNameInput("");
+    setSerialNumbers(finalSerialNumbers);
+    setSerialNumberInput("");
 
-      const pendingSerialNumber = serialNumberInput.trim();
-      const finalSerialNumbers = pendingSerialNumber
-        ? Array.from(new Set([...serialNumbers, pendingSerialNumber]))
-        : serialNumbers;
+    alert(
+      wantsPasswordChange
+        ? "Profile updated and password changed."
+        : "Profile updated."
+    );
 
-      const payload: Record<string, any> = {
-        name: user.name,
-        email: user.email,
-        deviceNames: finalDeviceNames,
-        serialNumbers: finalSerialNumbers,
-      };
-
-      if (wantsPasswordChange) {
-        payload.currentPassword = form.currentPassword;
-        payload.password = form.newPassword;
-      }
-
-      await updateUser(user.id, payload);
-
-      setDeviceNames(finalDeviceNames);
-      setDeviceNameInput("");
-      setSerialNumbers(finalSerialNumbers);
-      setSerialNumberInput("");
-
-      alert(wantsPasswordChange ? "Profile updated and password changed." : "Profile updated.");
-
-      setForm({
-        currentPassword: "",
-        newPassword: "",
-        confirmPassword: "",
-      });
-    } catch (err) {
-      console.error(err);
-      alert("Unable to update profile.");
-    } finally {
-      setLoading(false);
-    }
-  };
+    setForm({
+      currentPassword: "",
+      newPassword: "",
+      confirmPassword: "",
+    });
+  } catch (err) {
+    console.error(err);
+    alert("Unable to update profile.");
+  } finally {
+    setLoading(false);
+  }
+};
 
   return (
     <div className="max-w-3xl mx-auto">
@@ -225,7 +240,9 @@ export default function Profile() {
         {/* Device Names (multiple) */}
         <div className="mb-5">
           <div className="flex items-center justify-between mb-2">
-            <label className="font-semibold">Device Names</label>
+            <label className="font-semibold">
+  Device Names <span className="text-red-500">*</span>
+</label>
             <button
               type="button"
               onClick={() => setShowDeviceHelp(!showDeviceHelp)}
@@ -326,7 +343,9 @@ export default function Profile() {
         {/* Service Numbers (multiple) */}
         <div className="mb-5">
           <div className="flex items-center justify-between mb-2">
-            <label className="font-semibold">Service Numbers</label>
+           <label className="font-semibold">
+  Serial Numbers <span className="text-red-500">*</span>
+</label>
             <button
               type="button"
               onClick={() => setShowServiceHelp(!showServiceHelp)}
@@ -500,7 +519,7 @@ export default function Profile() {
           disabled={loading}
           className="bg-green-600 text-white px-6 py-3 rounded-lg"
         >
-          {loading ? "Saving..." : "Save Changes"}
+          {loading ? "Saving..." : "Save"}
         </button>
 
       </div>
