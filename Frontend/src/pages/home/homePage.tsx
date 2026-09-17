@@ -492,7 +492,7 @@ const SoloLandingPage: React.FC = () => {
 
                         <div className="leading-tight">
                             <div className="font-bold text-base">
-                                NVT System Essentials
+                                NVTSE
                                 <span className="block text-[12px] font-normal text-slate-400 -mt-1">
                                     Dashboard
                                 </span>
@@ -653,7 +653,7 @@ const SoloLandingPage: React.FC = () => {
                                         VISIONtech
                                     </div>
                                     <div className="font-bold text-xs">
-                                        NVT System Essentials
+                                        NVTSE
                                         <span className="block text-[9px] font-normal text-slate-400 -mt-1">
                                             Dashboard Platform
                                         </span>

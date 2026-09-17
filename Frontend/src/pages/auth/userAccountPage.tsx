@@ -277,7 +277,7 @@ export default function CreateAccountPage() {
                                     Create your account
                                 </h1>
                                 <p className="mt-0.5 text-[11px] xs:text-xs sm:text-sm text-gray-500">
-                                    Sign up to get started with SOLO
+                                    Sign up to get started with NVTSE
                                 </p>
                             </div>
 
