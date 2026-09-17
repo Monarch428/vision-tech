@@ -310,7 +310,7 @@ export default function Antivirus() {
           {endpointsLoading && <option>Loading devices…</option>}
 
           {!endpointsLoading && !endpoints.length && (
-  <option>No matching device found — update your hostname in the Profile tab</option>
+  <option>Update your hostname in the Profile tab</option>
 )}
 
           {!endpointsLoading && endpoints.length > 0 && (

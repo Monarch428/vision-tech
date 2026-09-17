@@ -392,5 +392,56 @@ const getUserRole = async (req, res) => {
     });
   }
 };
+// Remove a single serial number from the current user's record
+// (used by the RMM page's "stop monitoring / remove device" action —
+// this does NOT touch Tactical RMM itself, it just unlinks the serial
+// number from this user so the device no longer matches their list).
+const removeMySerialNumber = async (req, res) => {
+  try {
+    const { serialNumber } = req.params;
 
-module.exports = { createUser, getAllUsers, getUserById, updateUser, deleteUser, getUserSB, getUserRole };
+    if (!serialNumber) {
+      return res.status(400).json({
+        success: false,
+        message: 'Serial number is required',
+      });
+    }
+
+    const user = await User.findById(req.user.id);
+
+    if (!user) {
+      return res.status(404).json({ success: false, message: 'User not found' });
+    }
+
+    const before = user.serialNumbers?.length || 0;
+
+    user.serialNumbers = (user.serialNumbers || []).filter(
+      (s) => s.toLowerCase() !== serialNumber.toLowerCase()
+    );
+
+    if (user.serialNumbers.length === before) {
+      return res.status(404).json({
+        success: false,
+        message: 'That serial number is not registered to your account',
+      });
+    }
+
+    await user.save();
+
+    const updatedUser = await User.findById(user._id).select('-password');
+
+    res.status(200).json({
+      success: true,
+      message: 'Serial number removed successfully',
+      data: updatedUser,
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: 'Error removing serial number',
+      error: error.message,
+    });
+  }
+};
+
+module.exports = { createUser, getAllUsers, getUserById, updateUser, deleteUser, getUserSB, getUserRole,removeMySerialNumber };

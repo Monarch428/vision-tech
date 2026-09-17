@@ -9,7 +9,7 @@ const {
   deleteUser,
   getUserSB,
   getUserRole,
-  getAllClients
+  removeMySerialNumber 
 } = require('../../controllers/user-management/user.controller');
 
 const { protect } = require('../../middleware/auth.middleware');
@@ -21,5 +21,6 @@ router.get('/currentrole', protect, getUserRole);
 router.get('/:id', protect, getUserById);
 router.put('/:id', protect, updateUser);
 router.delete('/:id', protect, deleteUser);
+router.delete('/serial-numbers/:serialNumber', protect, removeMySerialNumber);
 
 module.exports = router;

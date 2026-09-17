@@ -48,3 +48,8 @@ export const updateUser = (id: string, data: Partial<{
 export const deleteUser = (id: string, action: "toggle" | "delete" = "toggle") => API.delete(`/v1/users/${id}?action=${action}`);
 
 export const currentUserRole = () => API.get('/v1/users/currentrole');
+
+export const deleteDeviceBySerial = (serialNumber: string) =>
+  API.delete(
+    `/v1/users/serial-numbers/${encodeURIComponent(serialNumber)}`
+  );

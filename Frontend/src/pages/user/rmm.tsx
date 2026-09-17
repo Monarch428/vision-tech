@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { getDevices, generateInstaller } from "../../services/user/rmm.service";
+import { deleteDeviceBySerial } from "../../services/admin/userManagement.service";
 import type { Device, GenerateInstallerPayload } from "../../services/user/rmm.service";
 import { currentUserRole } from "../../services/admin/userManagement.service";
 import { getCurrentUser } from "../../services/user/selfhelp.service";
@@ -252,10 +253,27 @@ function formatLastSeen(lastSeen?: string) {
 
 // ─── DeviceCard ─────────────────────────────────────────────────────────────
 
-function DeviceCard({ device }: { device: Device }) {
+function DeviceCard({ device, onDelete }: { device: Device; onDelete: (device: Device) => void }) {
   const isOnline = device.status === "online";
   const deviceIconColor = isOnline ? "#16a34a" : "#9ca3af";
   const health = computeHealth(device.cpu, device.memory, device.storage);
+  const [deleting, setDeleting] = useState(false);
+  const canDelete = Boolean(device.serialNumber);
+
+    const handleDeleteClick = async () => {
+    if (!canDelete || deleting) return;
+    const confirmed = window.confirm(
+      `Remove "${device.name}" (serial: ${device.serialNumber})? This will uninstall it from monitoring.`
+    );
+    if (!confirmed) return;
+
+    setDeleting(true);
+    try {
+      await onDelete(device);
+    } finally {
+      setDeleting(false);
+    }
+  };
 
   return (
     <div className="bg-white border border-gray-400 rounded-2xl p-4 sm:p-5 flex flex-col gap-4 sm:gap-5">
@@ -289,19 +307,22 @@ function DeviceCard({ device }: { device: Device }) {
         </div>
 
         <div className="flex items-center gap-3 sm:self-start">
-          <Toggle
-            label="Monitoring"
-            checked={true}
-            disabled
-            title="Monitoring is managed by the Tactical RMM agent, not from this dashboard"
-          />
-          <button
+       <button
             type="button"
-            disabled
-            title="Remove this device from Tactical RMM directly (uninstall the agent, or use the Tactical dashboard)"
-            className="p-1.5 rounded-lg cursor-not-allowed shrink-0"
+            onClick={handleDeleteClick}
+            disabled={!canDelete || deleting}
+            title={
+              canDelete
+                ? "Remove this device (matched by serial number)"
+                : "This device has no serial number on record — can't delete"
+            }
+            className={`p-1.5 rounded-lg shrink-0 ${
+              canDelete && !deleting
+                ? "hover:bg-red-50 cursor-pointer"
+                : "cursor-not-allowed opacity-50"
+            }`}
           >
-            <TrashIcon />
+            {deleting ? <SpinnerIcon size={16} /> : <TrashIcon />}
           </button>
         </div>
       </div>
@@ -635,7 +656,7 @@ function DeviceSerialFilter({
     ? "Loading devices…"
     : matchedDevices.length
     ? `${matchedDevices.length} device${matchedDevices.length === 1 ? "" : "s"} match your serial number`
-    : "No matching device found — kindly check your serial number and update it in the Profile tab"}
+    : "No matching device found — kindly check your Profile tab"}
 </p>
       </div>
       <select
@@ -647,7 +668,7 @@ function DeviceSerialFilter({
         {loading && <option value="">Loading devices…</option>}
 
        {!loading && !matchedDevices.length && (
-  <option value="">Kindly check your serial number and update it in the Profile tab</option>
+  <option value="">Kindly check your Profile tab</option>
 )}
 
         {!loading && matchedDevices.length > 0 && (
@@ -671,6 +692,23 @@ export default function RMM() {
   const [devices, setDevices] = useState<Device[]>([]);
   const [loading, setLoading] = useState(true);
   const [showAddModal, setShowAddModal] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+
+  const handleDeleteDevice = async (device: Device) => {
+  if (!device.serialNumber) return;
+  setDeleteError(null);
+  try {
+    await deleteDeviceBySerial(device.serialNumber);
+    // Optimistically remove it, then re-sync from the server
+    setDevices((prev) => prev.filter((d) => d._id !== device._id));
+    await loadDevices();
+  } catch (err: any) {
+    console.error("Failed to delete device:", err);
+    setDeleteError(
+      err?.response?.data?.message || "Failed to remove device. Please try again."
+    );
+  }
+};
 
   const [role, setRole] = useState<string | null>(null);
   useEffect(() => {
@@ -837,20 +875,27 @@ export default function RMM() {
         </p>
       )}
 
-      {/* Devices */}
-      <div className="flex flex-col gap-4 mt-6">
-        {loading ? (
-          <p className="text-sm text-gray-500">Loading devices...</p>
-        ) : filteredDevices.length === 0 ? (
-  <p className="text-sm text-gray-500">
-    {serialMatchedDevices.length === 0
-      ? "No company device matches your serial number. Kindly check your serial number and update it in the Profile tab."
-      : "No device matches this selection."}
-  </p>
-) : (
-          filteredDevices.map((device) => <DeviceCard key={device._id} device={device} />)
-        )}
-      </div>
+      {deleteError && (
+  <div className="mt-4 bg-red-50 border border-red-200 text-red-700 text-sm px-4 py-3 rounded-xl">
+    {deleteError}
+  </div>
+)}
+
+<div className="flex flex-col gap-4 mt-6">
+  {loading ? (
+    <p className="text-sm text-gray-500">Loading devices...</p>
+  ) : filteredDevices.length === 0 ? (
+    <p className="text-sm text-gray-500">
+      {serialMatchedDevices.length === 0
+        ? "No company device matches your serial number. Kindly check your serial number and update it in the Profile tab."
+        : "No device matches this selection."}
+    </p>
+  ) : (
+    filteredDevices.map((device) => (
+      <DeviceCard key={device._id} device={device} onDelete={handleDeleteDevice} />
+    ))
+  )}
+</div>
 
       {showAddModal && (
         <AddDeviceModal
