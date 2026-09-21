@@ -12,6 +12,7 @@ export default function Profile() {
     id: "",
     name: "",
     email: "",
+    plan: "free",
   });
 
   const [deviceNames, setDeviceNames] = useState<string[]>([]);
@@ -65,6 +66,7 @@ export default function Profile() {
         id: data.id ?? data._id,
         name: data.name,
         email: data.email,
+        plan: data.plan ?? "free",
       });
       setDeviceNames(data.deviceNames ?? []);
       setSerialNumbers(data.serialNumbers ?? []);
@@ -80,17 +82,53 @@ export default function Profile() {
     });
   };
 
-  // ── Device names (multi) ──────────────────────────────────────────────
+  const getDeviceLimit = () => {
+  switch (user.plan?.toLowerCase()) {
+    case "free":
+      return 1;
+
+    case "pro":
+      return 5;
+
+    case "enterprise":
+      return Infinity;
+
+    default:
+      return 1;
+  }
+};
+
+const deviceLimit = getDeviceLimit();
+
   const addDeviceName = () => {
-    const value = deviceNameInput.trim();
-    if (!value) return;
-    if (deviceNames.some((d) => d.toLowerCase() === value.toLowerCase())) {
-      setDeviceNameInput("");
-      return;
-    }
-    setDeviceNames([...deviceNames, value]);
+  const value = deviceNameInput.trim();
+
+  if (!value) return;
+
+  if (
+    deviceNames.some(
+      (d) => d.toLowerCase() === value.toLowerCase()
+    )
+  ) {
     setDeviceNameInput("");
-  };
+    return;
+  }
+
+  if (deviceNames.length >= deviceLimit) {
+    alert(
+      user.plan === "enterprise"
+        ? "Unable to add device."
+        : `Your ${user.plan} plan allows maximum ${deviceLimit} device${
+            deviceLimit > 1 ? "s" : ""
+          }.`
+    );
+
+    return;
+  }
+
+  setDeviceNames([...deviceNames, value]);
+  setDeviceNameInput("");
+};
 
   const removeDeviceName = (value: string) => {
     setDeviceNames(deviceNames.filter((d) => d !== value));
@@ -104,16 +142,35 @@ export default function Profile() {
   };
 
   // ── Serial numbers (multi) ────────────────────────────────────────────
-  const addSerialNumber = () => {
-    const value = serialNumberInput.trim();
-    if (!value) return;
-    if (serialNumbers.some((s) => s.toLowerCase() === value.toLowerCase())) {
-      setSerialNumberInput("");
-      return;
-    }
-    setSerialNumbers([...serialNumbers, value]);
+ const addSerialNumber = () => {
+  const value = serialNumberInput.trim();
+
+  if (!value) return;
+
+  if (
+    serialNumbers.some(
+      (s) => s.toLowerCase() === value.toLowerCase()
+    )
+  ) {
     setSerialNumberInput("");
-  };
+    return;
+  }
+
+  if (serialNumbers.length >= deviceLimit) {
+    alert(
+      user.plan === "enterprise"
+        ? "Unable to add serial number."
+        : `Your ${user.plan} plan allows maximum ${deviceLimit} device${
+            deviceLimit > 1 ? "s" : ""
+          }.`
+    );
+
+    return;
+  }
+
+  setSerialNumbers([...serialNumbers, value]);
+  setSerialNumberInput("");
+};
 
   const removeSerialNumber = (value: string) => {
     setSerialNumbers(serialNumbers.filter((s) => s !== value));
@@ -152,6 +209,29 @@ export default function Profile() {
   const finalSerialNumbers = pendingSerialNumber
     ? Array.from(new Set([...serialNumbers, pendingSerialNumber]))
     : serialNumbers;
+
+    if (finalDeviceNames.length > deviceLimit) {
+  alert(
+    `Your ${user.plan} plan allows maximum ${deviceLimit} device${
+      deviceLimit > 1 ? "s" : ""
+    }.`
+  );
+  return;
+}
+
+if (finalSerialNumbers.length > deviceLimit) {
+  alert(
+    `Your ${user.plan} plan allows maximum ${deviceLimit} device${
+      deviceLimit > 1 ? "s" : ""
+    }.`
+  );
+  return;
+}
+
+if (finalDeviceNames.length !== finalSerialNumbers.length) {
+  alert("Each device must have a corresponding serial number.");
+  return;
+}
 
   // REQUIRED VALIDATION
   if (finalDeviceNames.length === 0) {
@@ -290,16 +370,21 @@ export default function Profile() {
             <button
               type="button"
               onClick={addDeviceName}
-              disabled={!deviceNameInput.trim()}
+              disabled={
+  !deviceNameInput.trim() ||
+  deviceNames.length >= deviceLimit
+}
               className="flex items-center gap-1 px-4 rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed"
             >
               <Plus size={16} />
               Add
             </button>
           </div>
-          <p className="mt-1.5 text-xs text-gray-500">
-            Add one device at a time — press Enter or click Add. You can register multiple devices.
-          </p>
+         <p className="mt-1.5 text-xs text-gray-500">
+  {user.plan?.toLowerCase() === "enterprise"
+    ? "Enterprise plan — unlimited devices."
+    : `${user.plan} plan — ${deviceNames.length}/${deviceLimit} devices registered.`}
+</p>
 
           {showDeviceHelp && (
             <div className="mt-3 bg-gray-50 border rounded-lg p-4 text-sm text-gray-700 space-y-3">
@@ -393,7 +478,10 @@ export default function Profile() {
             <button
               type="button"
               onClick={addSerialNumber}
-              disabled={!serialNumberInput.trim()}
+              disabled={
+  !serialNumberInput.trim() ||
+  serialNumbers.length >= deviceLimit
+}
               className="flex items-center gap-1 px-4 rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed"
             >
               <Plus size={16} />
@@ -401,8 +489,10 @@ export default function Profile() {
             </button>
           </div>
           <p className="mt-1.5 text-xs text-gray-500">
-            Add one serial number at a time — press Enter or click Add. You can register multiple devices.
-          </p>
+  {user.plan?.toLowerCase() === "enterprise"
+    ? "Enterprise plan — unlimited devices."
+    : `${user.plan} plan — ${serialNumbers.length}/${deviceLimit} serial numbers registered.`}
+</p>
 
           {showServiceHelp && (
             <div className="mt-3 bg-gray-50 border rounded-lg p-4 text-sm text-gray-700 space-y-3">

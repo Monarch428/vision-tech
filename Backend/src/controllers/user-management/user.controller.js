@@ -217,12 +217,33 @@ const getUserById = async (req, res) => {
 // Update User
 const updateUser = async (req, res) => {
   try {
-    const { password, currentPassword, deviceName,serialNumber, ...rest } = req.body;
+    const {
+      password,
+      currentPassword,
+      deviceName,
+      serialNumber,
+      ...rest
+    } = req.body;
+
     const updateData = { ...rest };
+
+    // Get current user first
+    const existingUser = await User.findById(req.params.id);
+
+    if (!existingUser) {
+      return res.status(404).json({
+        success: false,
+        message: 'User not found',
+      });
+    }
 
     // Check if trying to assign support role to another user
     if (rest.role === 'support') {
-      const existingSupport = await User.findOne({ role: 'support', _id: { $ne: req.params.id } });
+      const existingSupport = await User.findOne({
+        role: 'support',
+        _id: { $ne: req.params.id },
+      });
+
       if (existingSupport) {
         return res.status(400).json({
           success: false,
@@ -235,30 +256,118 @@ const updateUser = async (req, res) => {
       updateData.password = await bcrypt.hash(password, 10);
     }
 
+    // ------------------------------------
+    // PLAN DEVICE LIMIT
+    // ------------------------------------
+
+    const plan = (existingUser.plan || 'free').toLowerCase();
+
+    let deviceLimit;
+
+    switch (plan) {
+      case 'free':
+        deviceLimit = 1;
+        break;
+
+      case 'pro':
+        deviceLimit = 5;
+        break;
+
+      case 'enterprise':
+        deviceLimit = Infinity;
+        break;
+
+      default:
+        deviceLimit = 1;
+    }
+
+    // ------------------------------------
+    // DEVICE NAMES
+    // ------------------------------------
+
     if (deviceName !== undefined) {
-      updateData.deviceNames = Array.isArray(deviceName)
-        ? deviceName.map((name) => String(name).trim()).filter(Boolean)
+      const deviceNames = Array.isArray(deviceName)
+        ? deviceName
+            .map((name) => String(name).trim())
+            .filter(Boolean)
         : deviceName
           ? [String(deviceName).trim()]
           : [];
+
+      if (deviceNames.length > deviceLimit) {
+        return res.status(400).json({
+          success: false,
+          message:
+            plan === 'enterprise'
+              ? 'Invalid device limit'
+              : `${plan} plan allows maximum ${deviceLimit} device${
+                  deviceLimit > 1 ? 's' : ''
+                }.`,
+        });
+      }
+
+      updateData.deviceNames = deviceNames;
     }
 
+    // ------------------------------------
+    // SERIAL NUMBERS
+    // ------------------------------------
+
     if (serialNumber !== undefined) {
-      updateData.serialNumbers = Array.isArray(serialNumber)
-        ? serialNumber.map((num) => String(num).trim()).filter(Boolean)
+      const serialNumbers = Array.isArray(serialNumber)
+        ? serialNumber
+            .map((num) => String(num).trim())
+            .filter(Boolean)
         : serialNumber
           ? [String(serialNumber).trim()]
           : [];
+
+      if (serialNumbers.length > deviceLimit) {
+        return res.status(400).json({
+          success: false,
+          message:
+            plan === 'enterprise'
+              ? 'Invalid device limit'
+              : `${plan} plan allows maximum ${deviceLimit} device${
+                  deviceLimit > 1 ? 's' : ''
+                }.`,
+        });
+      }
+
+      updateData.serialNumbers = serialNumbers;
     }
 
-    const user = await User.findByIdAndUpdate(req.params.id, updateData, {
-      new: true,
-      runValidators: true,
-    }).select('-password');
+    // ------------------------------------
+    // Device name + serial number count
+    // should match
+    // ------------------------------------
 
-    if (!user) {
-      return res.status(404).json({ success: false, message: 'User not found' });
+    const finalDeviceNames =
+      updateData.deviceNames ?? existingUser.deviceNames ?? [];
+
+    const finalSerialNumbers =
+      updateData.serialNumbers ?? existingUser.serialNumbers ?? [];
+
+    if (finalDeviceNames.length !== finalSerialNumbers.length) {
+      return res.status(400).json({
+        success: false,
+        message:
+          'Each device must have a corresponding serial number.',
+      });
     }
+
+    // ------------------------------------
+    // UPDATE
+    // ------------------------------------
+
+    const user = await User.findByIdAndUpdate(
+      req.params.id,
+      updateData,
+      {
+        new: true,
+        runValidators: true,
+      }
+    ).select('-password');
 
     res.status(200).json({
       success: true,
@@ -273,6 +382,7 @@ const updateUser = async (req, res) => {
     });
   }
 };
+
 // Delete User
 const deleteUser = async (req, res) => {
   try {
