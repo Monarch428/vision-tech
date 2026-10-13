@@ -6,6 +6,7 @@ const { runBackup, backupDir } = require('../../cron/autoBackup');
 const systemLogger = require("../../utils/systemLogger");
 const rmm = require('../../utils/tacticalRmmClient');
 const gz = require('../../utils/gravityZoneClient');
+const { agentsForUser, userOwnsAgent, filterEndpointsForUser } = require('../../utils/deviceOwnership');
 const categoryMap = {
   'browser-cleanup': 'browser',
   'network-restart': 'network',
@@ -38,7 +39,6 @@ const resolveSafeBackupPath = (storedPath) => {
 async function matchEndpointForUser(userId) {
   console.log("[matchEndpointForUser] called with userId:", userId);
   const device = await DeviceAntivirus.findOne({ user: userId });
-  console.log("[matchEndpointForUser] device found:", JSON.stringify(device));
   if (!device?.hostname) {
     console.log("[matchEndpointForUser] no hostname, returning null");
     return null;
@@ -54,7 +54,6 @@ async function matchEndpointForUser(userId) {
   });
   console.log("[matchEndpointForUser] gz returned items count:", items?.length);
   const match = (items || []).find((e) => e.name?.toLowerCase() === device.hostname.toLowerCase());
-  console.log("[matchEndpointForUser] match:", JSON.stringify(match));
   return match || null;
 }
 
@@ -275,8 +274,8 @@ if (isFinished) {
 // used by the user-facing Self-Help antivirus card.
 const getEndpoints = async (req, res) => {
   try {
-    const response = await rmm.get('/agents/');
-    return res.json({ success: true, agents: response.data });
+    const agents = await agentsForUser(req);
+    return res.json({ success: true, agents });
   } catch (err) {
     return res.status(500).json({ success: false, message: err.message });
   }
@@ -613,6 +612,9 @@ const getReportData = async (req, res) => {
       return res.status(400).json({ message: 'agentId query param is required' });
     }
     const agentRes = await rmm.get(`/agents/${agentId}/`);
+    if (!(await userOwnsAgent(req, agentRes.data))) {
+      return res.status(404).json({ message: 'Device not found' });
+    }
     return res.json(agentRes.data);
   } catch (err) {
     return res.status(500).json({ message: err.message });
@@ -686,12 +688,7 @@ async function matchEndpointByIp(req) {
   console.log('[matchEndpointByIp] clientIp:', clientIp);
   if (!clientIp) return null;
 
-  const { items } = await gz.getEndpointsList({
-    parentId: process.env.CYBERSHIELD_SOLO_ID,
-    isManaged: true,
-    page: 1,
-    perPage: 100,
-  });
+  const items = await gz.getAllEndpoints({ parentId: process.env.CYBERSHIELD_SOLO_ID, isManaged: true });
 
   const endpoints = items || [];
   console.log('[matchEndpointByIp] endpoint ips:', endpoints.map(e => `${e.name}:${e.ip}`));
@@ -739,12 +736,7 @@ const getBitdefenderEndpoint = async (req, res) => {
     const clientIp = getClientIp(req);
     console.log('[getBitdefenderEndpoint] clientIp:', clientIp);
 
-    const result = await gz.getEndpointsList({
-      parentId: process.env.CYBERSHIELD_SOLO_ID,
-      isManaged: true,
-      page: 1,
-      perPage: 100,
-    });
+    const result = { items: await gz.getAllEndpoints({ parentId: process.env.CYBERSHIELD_SOLO_ID, isManaged: true }) };
     const endpoints = result?.items || [];
     console.log('[getBitdefenderEndpoint] endpoint ips:', endpoints.map((e) => `${e.name}:${e.ip}`));
 
@@ -916,19 +908,14 @@ const CYBERSHIELD_SOLO_ID = "66475704f09a97869c028180"; // Cybershield Solo comp
 // and scan it" UI.
 const listCompanyEndpoints = async (req, res) => {
   try {
-    const result = await gz.getEndpointsList({
-      parentId: process.env.CYBERSHIELD_SOLO_ID,
-      isManaged: true,
-      page: 1,
-      perPage: 100,
-    });
+    const result = { items: await gz.getAllEndpoints({ parentId: process.env.CYBERSHIELD_SOLO_ID, isManaged: true }) };
 
-    const endpoints = (result?.items || []).map((e) => ({
+    const endpoints = await filterEndpointsForUser(req, (result?.items || []).map((e) => ({
       id: e.id,
       name: e.name,
       ip: e.ip || null,
       os: e.operatingSystemVersion || null,
-    }));
+    })));
 
     return res.status(200).json({ success: true, endpoints });
   } catch (error) {
@@ -952,6 +939,13 @@ const runScanOnEndpoint = async (req, res) => {
       return res.status(400).json({ success: false, message: "endpointId is required" });
     }
 
+    // Only allow scans on endpoints that belong to the requesting user.
+    const listed = { items: await gz.getAllEndpoints({ parentId: process.env.CYBERSHIELD_SOLO_ID, isManaged: true }) };
+    const owned = await filterEndpointsForUser(req, listed?.items || []);
+    if (!owned.some((e) => e.id === endpointId)) {
+      return res.status(404).json({ success: false, message: "Endpoint not found" });
+    }
+
     const scanRecord = await SelfHelpTool.create({
       user: req.user.id,
       category: "security",
@@ -968,10 +962,8 @@ const runScanOnEndpoint = async (req, res) => {
     });
 
     const taskId = result?.taskId || result?.id || result;
-    console.log("[runScanOnEndpoint] about to set taskId:", taskId, "on record:", scanRecord._id);
     scanRecord.bitdefenderTaskId = taskId;
-    const saved = await scanRecord.save();
-    console.log("[runScanOnEndpoint] AFTER SAVE:", JSON.stringify(saved));
+    await scanRecord.save();
 
     return res.status(200).json({
       success: true,

@@ -1,6 +1,9 @@
 const Payment = require('../../models/subscription/Payment');
 const Subscription = require('../../models/subscription/Subscription');
+const Plan = require('../../models/subscription/Plan');
 const PDFDocument = require('pdfkit');
+const { activatePlan } = require('../../utils/planActivation');
+const { isStaff } = require('../../middleware/auth.middleware');
 const { paypal, client } = require('../../utils/paypal');
 const systemLogger = require("../../utils/systemLogger");
 
@@ -86,6 +89,10 @@ const getPaymentById = async (req, res) => {
 
     if (!payment) {
       return res.status(404).json({ success: false, message: 'Payment not found' });
+    }
+
+    if (String(payment.user?._id) !== String(req.user.id) && !isStaff(req)) {
+      return res.status(403).json({ success: false, message: 'Unauthorized to view this payment' });
     }
 
     res.status(200).json({ success: true, data: payment });
@@ -183,7 +190,7 @@ const downloadInvoicePdf = async (req, res) => {
       });
     }
 
-    if (String(payment.user._id) !== String(req.user.id)) {
+    if (String(payment.user._id) !== String(req.user.id) && !isStaff(req)) {
       await systemLogger({
         type: "error",
         action: "INVOICE_DOWNLOAD_UNAUTHORIZED",
@@ -269,13 +276,24 @@ const downloadInvoicePdf = async (req, res) => {
   }
 };
 
+// ─── POST /api/payments/paypal/create-order ───────────────────────────────────
+// The price always comes from the Plan collection, never from the client.
 const createPaypalOrder = async (req, res) => {
   try {
-    const { amount } = req.body;
+    const planName = String(req.body.planName || '').toLowerCase();
+    const plan = await Plan.findOne({ name: planName });
+    if (!plan || plan.price <= 0) {
+      return res.status(400).json({ message: 'Choose a valid paid plan' });
+    }
+
     const request = new paypal.orders.OrdersCreateRequest();
     request.requestBody({
       intent: 'CAPTURE',
-      purchase_units: [{ amount: { currency_code: 'USD', value: String(amount) } }],
+      purchase_units: [{
+        custom_id: `${req.user.id}:${plan.name}`,
+        description: `Vision Tech ${plan.name} plan (${plan.billingCycle})`,
+        amount: { currency_code: 'USD', value: plan.price.toFixed(2) },
+      }],
     });
     const order = await client.execute(request);
 
@@ -284,7 +302,7 @@ const createPaypalOrder = async (req, res) => {
       action: "PAYPAL_ORDER_CREATED",
       user: req.user?._id,
       userEmail: req.user?.email,
-      details: `PayPal order created: ${order.result.id} — $${amount}`,
+      details: `PayPal order created: ${order.result.id} — ${plan.name} $${plan.price}`,
       module: "payments",
       ipAddress: req.ip,
     });
@@ -305,30 +323,77 @@ const createPaypalOrder = async (req, res) => {
   }
 };
 
+// ─── POST /api/payments/paypal/capture-order ──────────────────────────────────
+// Captures the order, verifies payer, plan and amount, then activates the plan.
 const capturePaypalOrder = async (req, res) => {
+  const orderId = req.params.orderId || req.body?.orderId;
   try {
-    const { orderId } = req.body;
-    const request = new paypal.orders.OrdersCaptureRequest(orderId);
-    const capture = await client.execute(request);
+    if (!orderId) {
+      return res.status(400).json({ message: 'orderId is required' });
+    }
+
+    const capture = await client.execute(new paypal.orders.OrdersCaptureRequest(orderId));
+    const unit = capture.result.purchase_units?.[0];
+    const captured = unit?.payments?.captures?.[0];
+    const [orderUserId, planName] = String(unit?.custom_id || captured?.custom_id || '').split(':');
+
+    if (capture.result.status !== 'COMPLETED' || captured?.status !== 'COMPLETED') {
+      return res.status(402).json({ message: `Payment not completed (status: ${capture.result.status})` });
+    }
+    if (orderUserId !== String(req.user.id)) {
+      return res.status(403).json({ message: 'This order belongs to a different user' });
+    }
+
+    const plan = await Plan.findOne({ name: planName });
+    const paidAmount = Number(captured.amount?.value);
+    if (!plan || captured.amount?.currency_code !== 'USD' || paidAmount < plan.price) {
+      throw new Error(`Captured amount ${captured.amount?.value} does not match plan ${planName}`);
+    }
+
+    const alreadyRecorded = await Payment.findOne({ transactionId: captured.id });
+    if (alreadyRecorded) {
+      return res.status(409).json({ message: 'This payment was already processed' });
+    }
+
+    const { subscription, payment } = await activatePlan({
+      userId: req.user.id,
+      plan,
+      payment: { amount: paidAmount, method: 'paypal', transactionId: captured.id },
+    });
 
     await systemLogger({
       type: "success",
       action: "PAYPAL_ORDER_CAPTURED",
       user: req.user?._id,
       userEmail: req.user?.email,
-      details: `PayPal order captured: ${orderId} (status: ${capture.result.status})`,
+      details: `PayPal order ${orderId} captured (${captured.id}) — ${plan.name} activated, invoice ${payment.invoiceNumber}`,
       module: "payments",
       ipAddress: req.ip,
     });
 
-    res.json(capture.result);
+    const populated = await Subscription.findById(subscription._id).populate('plan', 'name price');
+    res.json({
+      success: true,
+      subscription: {
+        _id: populated._id,
+        sub_id: populated.sub_id,
+        user: populated.user,
+        planName: populated.plan?.name,
+        status: populated.status,
+        startDate: populated.startDate,
+        endDate: populated.cancelledAt || null,
+        nextRenewalDate: populated.nextRenewalDate,
+        amount: populated.amount,
+      },
+      payment,
+    });
   } catch (error) {
     await systemLogger({
       type: "error",
       action: "PAYPAL_ORDER_CAPTURE_ERROR",
       user: req.user?._id,
       userEmail: req.user?.email,
-      details: `Failed to capture PayPal order ${req.body?.orderId}: ${error.message}`,
+      details: `Failed to capture PayPal order ${orderId}: ${error.message}`,
       module: "payments",
       ipAddress: req.ip,
     });

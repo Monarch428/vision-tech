@@ -8,6 +8,7 @@ import {
   getSystemConfig,
 } from "../../services/admin/userManagement.service";
 import { createPortal } from "react-dom";
+import RmmSiteLink from "../../components/RmmSiteLink";
 import Paper from "@mui/material/Paper";
 import Table from "@mui/material/Table";
 import TableBody from "@mui/material/TableBody";
@@ -1209,6 +1210,7 @@ export default function UserManagement() {
                           {STATUSES.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
                         </select>
                       </Field>
+                      {editForm.role === "user" && <RmmSiteLink userId={editId} />}
                     </div>
                   )}
                   {editStep === 2 && (

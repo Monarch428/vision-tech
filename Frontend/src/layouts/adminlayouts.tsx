@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { jwtDecode } from 'jwt-decode';
 import Sidebar from '../components/Sidebar';
-import { checkTokenValidity } from '../utils/auth';
+import { checkTokenValidity, refreshTokenIfExpiring } from '../utils/auth';
 import { getUserById } from '../services/admin/userManagement.service';
 
 export default function AdminLayout() {
@@ -13,7 +13,7 @@ export default function AdminLayout() {
   const location = useLocation();
 
   useEffect(() => {
-    checkTokenValidity();
+    if (checkTokenValidity()) refreshTokenIfExpiring();
   }, [location.pathname]);
 
   useEffect(() => {

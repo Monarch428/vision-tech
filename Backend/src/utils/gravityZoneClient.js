@@ -85,10 +85,9 @@ const call = async (
     id: ++rpcId,
   };
 
-  console.log(
-    `[gz call] -> ${api}.${method}`,
-    JSON.stringify(body)
-  );
+  // Full request/response bodies include customer device data; log them only when debugging.
+  const debug = process.env.DEBUG_GRAVITYZONE === 'true';
+  if (debug) console.log(`[gz call] -> ${api}.${method}`, JSON.stringify(body));
 
   const { data } = await http.post(
     url,
@@ -100,10 +99,7 @@ const call = async (
     }
   );
 
-  console.log(
-    `[gz call] <- ${api}.${method}`,
-    JSON.stringify(data)
-  );
+  if (debug) console.log(`[gz call] <- ${api}.${method}`, JSON.stringify(data));
 
   if (data?.error) {
     const error = new Error(
@@ -264,19 +260,19 @@ const getEndpointsList = (
 };
 
 
+// All endpoints matching `params`, following pagination (GravityZone allows at most 100 per page).
+const getAllEndpoints = async (params = {}) => {
+  const items = [];
+  for (let page = 1; ; page += 1) {
+    const response = await getEndpointsList({ ...params, page, perPage: 100 });
+    items.push(...(response?.items || []));
+    if (!response?.pagesCount || page >= response.pagesCount) break;
+  }
+  return items;
+};
+
 // Get all managed endpoints
-const getManagedEndpoints =
-  async () => {
-
-    const response =
-      await getEndpointsList({
-        isManaged: true,
-        page: 1,
-        perPage: 1000,
-      });
-
-    return response?.items || [];
-  };
+const getManagedEndpoints = () => getAllEndpoints({ isManaged: true });
 
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -510,6 +506,7 @@ module.exports = {
 
   // Endpoint
   getEndpointsList,
+  getAllEndpoints,
   getManagedEndpoints,
   getManagedEndpointDetails,  
   getTaskStatus,

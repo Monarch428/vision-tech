@@ -1,6 +1,8 @@
 const express = require("express");
 const multer = require("multer");
-const { protect } = require("../../middleware/auth.middleware");
+const { protect, authorize, STAFF_ROLES } = require('../../middleware/auth.middleware');
+
+const staffOnly = authorize(...STAFF_ROLES);
 const {
   uploadLogFile,
   getLogFiles,
@@ -26,8 +28,8 @@ const upload = multer({
   },
 });
 
-router.post("/upload", protect, upload.single("file"), uploadLogFile);
-router.get("/files", protect, getLogFiles);
-router.delete("/files/:publicId", protect, deleteLogFile);
+router.post("/upload", protect, staffOnly, upload.single("file"), uploadLogFile);
+router.get("/files", protect, staffOnly, getLogFiles);
+router.delete("/files/:publicId", protect, staffOnly, deleteLogFile);
 
 module.exports = router;

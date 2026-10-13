@@ -1,6 +1,7 @@
 const express = require('express');
 const cors = require('cors');
 const { logger } = require("./utils/logger");
+const { protect, authorize, STAFF_ROLES } = require("./middleware/auth.middleware");
 require("dotenv").config();
 const { v2: cloudinary } = require("cloudinary");
 
@@ -17,6 +18,8 @@ const startSubscriptionReminder = require("./cron/subscriptionReminder");
 const selfHelpRoutes = require('./routes/selfHelp/selfHelp.route');
 const dataManagementRoutes = require('./routes/data-management/dataManagement.route')
 const startAntivirusScanScheduler = require("./cron/antivirusScanScheduler");
+const { startRmmDeviceSync } = require("./cron/rmmDeviceSync");
+const { startSubscriptionLifecycle } = require("./cron/subscriptionLifecycle");
 // const systemHealthRoutes = require("./routes/systemHealth/systemHealth.route");
 // const deviceRoutes = require('./routes/rmm/device.route');
 const tacticalRmmRoutes = require('./routes/rmm/tacticalRmm.route');
@@ -32,7 +35,6 @@ const allowedOrigins = [
   ...(process.env.CORS_ALLOWED_ORIGINS || "").split(","),
   "http://localhost:5173",
   "http://127.0.0.1:5173",
-  "https://depletion-cartoon-nephew.ngrok-free.dev",
 ]
   .map(normalizeOrigin)
   .filter(Boolean);
@@ -43,9 +45,9 @@ cloudinary.config({
   api_secret: process.env.CLOUDINARY_API_SECRET,
 });
 
-console.log("Bitdefender key loaded:", !!process.env.BITDEFENDER_API_KEY);
-console.log("Length:", process.env.BITDEFENDER_API_KEY?.length);
-console.log("Last 4:", process.env.BITDEFENDER_API_KEY?.slice(-4));
+if (!process.env.BITDEFENDER_API_KEY) {
+  logger.warn("BITDEFENDER_API_KEY is not set; antivirus features will fail.");
+}
 
 const corsOptions = {
   origin(origin, callback) {
@@ -88,7 +90,7 @@ app.use((req, res, next) => {
 });
 
 // ✅ System logs routes
-app.get("/api/system-logs", async (req, res) => {
+app.get("/api/system-logs", protect, authorize(...STAFF_ROLES), async (req, res) => {
   try {
     const { page = 1, limit = 10, type = "all", search = "" } = req.query;
 
@@ -128,7 +130,7 @@ app.get("/api/system-logs", async (req, res) => {
   }
 });
 
-app.get("/api/system-logs/stats", async (req, res) => {
+app.get("/api/system-logs/stats", protect, authorize(...STAFF_ROLES), async (req, res) => {
   try {
     const [totalLogs, errors, warnings, success, info] = await Promise.all([
       SystemLog.countDocuments(),
@@ -149,7 +151,6 @@ app.use('/api/auth',               authRoutes);
 app.use('/api/support-requests', supportRequestRoutes);
 app.use('/api/v1/users',           userRoutes);
 app.use('/api/user-subscriptions', userSubscriptionRoutes);
-app.use('/api/admin',              userSubscriptionRoutes);
 app.use('/api/payments',           paymentRoutes);
 app.use('/api/antivirus-schedules', antivirusScheduleRoutes);
 app.use('/api/self-help',          selfHelpRoutes);
@@ -157,7 +158,12 @@ app.use('/api/system-config',          systemConfig);
 app.use('/api/data-management',          dataManagementRoutes);
 app.use('/api/devices', tacticalRmmRoutes);
 
-startSubscriptionReminder();
-startAntivirusScanScheduler();
+// DISABLE_CRON=true (automated tests) loads the app without background jobs.
+if (process.env.DISABLE_CRON !== 'true') {
+  startSubscriptionReminder();
+  startAntivirusScanScheduler();
+  startRmmDeviceSync();
+  startSubscriptionLifecycle();
+}
 
 module.exports = app;

@@ -22,7 +22,10 @@ const {
   runScanOnEndpoint,        // ← added
 } = require("../../controllers/selfhelp/selfHelp.controller");
 
-const { protect } = require("../../middleware/auth.middleware");
+const { protect, authorize, STAFF_ROLES } = require("../../middleware/auth.middleware");
+
+// Full-database backups contain every user's data, so they are staff-only.
+const staffOnly = authorize(...STAFF_ROLES);
 
 
 // ─── Self-help tools ─────────────────────────────────────────────
@@ -82,13 +85,14 @@ router.get("/scan-report", protect, getScanReport);
 
 // ─── Backup ──────────────────────────────────────────────────────
 
-router.post("/backup", protect, startBackup);
+router.post("/backup", protect, staffOnly, startBackup);
 
-router.get("/backups", protect, listBackups);
+router.get("/backups", protect, staffOnly, listBackups);
 
 router.get(
   "/backups/:id/download",
   protect,
+  staffOnly,
   downloadBackup
 );
 

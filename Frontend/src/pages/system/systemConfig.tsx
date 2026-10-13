@@ -245,6 +245,8 @@ export default function SystemConfig() {
   const [smtpPort, setSmtpPort] = useState("");
   const [smtpUsername, setSmtpUsername] = useState("");
   const [smtpPassword, setSmtpPassword] = useState("");
+  // The API never returns the saved password; it only says whether one is set.
+  const [smtpPasswordSet, setSmtpPasswordSet] = useState(false);
   const [fromEmail, setFromEmail] = useState("");
   const [fromName, setFromName] = useState("");
   const [emailNotifications, setEmailNotifications] = useState(true);
@@ -262,6 +264,7 @@ export default function SystemConfig() {
   const [systemErrors, setSystemErrors] = useState(false);
   const [securityAlerts, setSecurityAlerts] = useState(false);
   const [subscriptionRenewals, setSubscriptionRenewals] = useState(false);
+  const [deviceAlerts, setDeviceAlerts] = useState(true);
 
   // ── Health ──
   const [health, setHealth] = useState<any>(null);
@@ -299,7 +302,7 @@ export default function SystemConfig() {
         smtpHost.trim() !== "" &&
         smtpPort.trim() !== "" &&
         smtpUsername.trim() !== "" &&
-        smtpPassword.trim() !== "" &&
+        (smtpPassword.trim() !== "" || smtpPasswordSet) &&
         fromEmail.trim() !== "" &&
         EMAIL_RE.test(fromEmail.trim()) &&
         fromName.trim() !== "",
@@ -316,6 +319,7 @@ export default function SystemConfig() {
       smtpPort,
       smtpUsername,
       smtpPassword,
+      smtpPasswordSet,
       fromEmail,
       fromName,
       sessionTimeout,
@@ -343,7 +347,8 @@ export default function SystemConfig() {
       setSmtpHost(c.email?.smtpHost ?? "");
       setSmtpPort(String(c.email?.smtpPort ?? ""));
       setSmtpUsername(c.email?.smtpUsername ?? "");
-      setSmtpPassword(c.email?.smtpPassword ?? "");
+      setSmtpPassword("");
+      setSmtpPasswordSet(Boolean(c.email?.smtpPasswordSet));
       setFromEmail(c.email?.fromEmail ?? "");
       setFromName(c.email?.fromName ?? "");
       setEmailNotifications(Boolean(c.email?.emailNotificationsEnabled ?? true));
@@ -359,6 +364,7 @@ export default function SystemConfig() {
       setSystemErrors(Boolean(c.notifications?.systemErrors ?? false));
       setSecurityAlerts(Boolean(c.notifications?.securityAlerts ?? false));
       setSubscriptionRenewals(Boolean(c.notifications?.subscriptionRenewals ?? false));
+      setDeviceAlerts(Boolean(c.notifications?.deviceAlerts ?? true));
 
       setIsExisting(true);
     } catch (err: any) {
@@ -407,6 +413,7 @@ export default function SystemConfig() {
       systemErrors,
       securityAlerts,
       subscriptionRenewals,
+      deviceAlerts,
     },
   });
 
@@ -680,7 +687,7 @@ export default function SystemConfig() {
                     type="password"
                     value={smtpPassword}
                     onChange={(e) => setSmtpPassword(e.target.value)}
-                    placeholder="••••••••"
+                    placeholder={smtpPasswordSet ? "Saved — leave blank to keep" : "••••••••"}
                     className={inputClass}
                   />
                 </Field>
@@ -869,6 +876,12 @@ export default function SystemConfig() {
                   description="Notify users before subscription renewal"
                   enabled={subscriptionRenewals}
                   onChange={() => setSubscriptionRenewals((prev) => !prev)}
+                />
+                <ToggleRow
+                  title="Device Alerts"
+                  description="Email customers and staff when a monitored device goes offline or fails a check"
+                  enabled={deviceAlerts}
+                  onChange={() => setDeviceAlerts((prev) => !prev)}
                 />
                 <div className="pt-2">
                   <SaveButton

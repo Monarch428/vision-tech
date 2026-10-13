@@ -40,6 +40,8 @@ export interface Subscription {
   startDate: string;
   endDate: string | null;
   nextRenewalDate: string | null;
+  // Set while a paid plan that ended is in its 7-day grace period.
+  graceUntil?: string | null;
 }
 
 export interface Invoice {
@@ -143,18 +145,19 @@ export const downloadInvoice = async (
 
 // PayPal
 
-export const createPaypalOrder = async (amount: number) => {
+// The server looks up the plan price; the client only names the plan.
+export const createPaypalOrder = async (planName: string) => {
   const response = await API.post("/payments/paypal/create-order", {
-    amount,
+    planName,
   });
 
   return response.data;
 };
 
 export const capturePaypalOrder = async (orderId: string) => {
-  const response = await API.post(
-    `/payments/paypal/capture-order/${orderId}`
-  );
+  const response = await API.post("/payments/paypal/capture-order", {
+    orderId,
+  });
 
   return response.data;
 };

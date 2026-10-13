@@ -20,3 +20,4 @@ rmm/dist/
 
 # Logs
 *.log
+.archify/

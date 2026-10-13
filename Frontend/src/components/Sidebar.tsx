@@ -22,6 +22,7 @@ const PLATFORM_ITEMS = [
 const ADMIN_ITEMS = [
   { id: 'admin dashboard', label: 'Admin Dashboard', path: '/admin/adminManagement', icon: 'dashboard' },
   { id: 'users', label: 'User Management', path: '/admin/users', icon: 'users' },
+  { id: 'devices', label: 'Devices', path: '/admin/devices', icon: 'monitor-check' },
   { id: 'subscriptions', label: 'Subscriptions', path: '/admin/subscriptions', icon: 'card' },
   { id: 'servicerequest', label: 'Support Request', path: '/admin/serviceRequest', icon: 'settings' },
   // { id: 'supportBookings', label: 'Support Booking', path: '/admin/supportBookings', icon: 'booking' },

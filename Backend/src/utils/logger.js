@@ -7,6 +7,8 @@ const logger = winston.createLogger({
     winston.format.json()
   ),
   transports: [new winston.transports.Console()],
+  // Automated tests set NODE_ENV=test; request logs would drown out the results.
+  silent: process.env.NODE_ENV === 'test',
 });
 
 module.exports = { logger };

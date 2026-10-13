@@ -36,6 +36,13 @@ const paymentSchema = new mongoose.Schema(
       default: 'card',
     },
 
+    // Gateway capture/charge id; unique so a capture can't be recorded twice.
+    transactionId: {
+      type: String,
+      unique: true,
+      sparse: true,
+    },
+
     paidAt: {
       type: Date,
       default: Date.now,

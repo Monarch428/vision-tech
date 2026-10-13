@@ -67,6 +67,12 @@ const userSchema = new mongoose.Schema(
       type: Date,
       select: false,
     },
+    // Wrong guesses for the current emailed code; the code is voided after 5.
+    otpAttempts: {
+      type: Number,
+      default: 0,
+      select: false,
+    },
     otpCode: {
       type: String,
       select: false,

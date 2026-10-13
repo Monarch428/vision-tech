@@ -5,6 +5,8 @@ const User = require('../../models/auth/User');
 const { v4: uuidv4 } = require('uuid');
 const { getSupportUsage } = require('../../utils/supportUserHelper');
 const systemLogger = require("../../utils/systemLogger");
+const { activatePlan } = require('../../utils/planActivation');
+const { isStaff } = require('../../middleware/auth.middleware');
 
 // ─── Helper: transform DB doc → frontend shape ────────────────────────────────
 const toClientShape = (sub) => {
@@ -19,6 +21,7 @@ const toClientShape = (sub) => {
     endDate: plain.cancelledAt || null,
     nextRenewalDate: plain.nextRenewalDate,
     amount: plain.amount,
+    graceUntil: plain.graceUntil || null,
   };
 };
 
@@ -66,18 +69,7 @@ const getMySubscription = async (req, res) => {
 // ─── POST /api/user-subscriptions ────────────────────────────────────────────
 const createUserSubscription = async (req, res) => {
   try {
-    const { user, planName, startDate } = req.body;
-
-    const lastSub = await Subscription.findOne({
-      sub_id: { $exists: true, $ne: null },
-    }).sort({ createdAt: -1 });
-
-    let nextSubId = 'SUB-001';
-    if (lastSub && lastSub.sub_id) {
-      const lastNumber = parseInt(lastSub.sub_id.split('-')[1], 10);
-      const newNumber = lastNumber + 1;
-      nextSubId = `SUB-${String(newNumber).padStart(3, '0')}`;
-    }
+    const { user, planName } = req.body;
 
     const userExists = await User.findById(user);
     if (!userExists) {
@@ -100,41 +92,15 @@ const createUserSubscription = async (req, res) => {
       });
     }
 
-    const now = startDate ? new Date(startDate) : new Date();
-    const nextRenewal = new Date(now);
-    if (plan.price === 0) {
-      nextRenewal.setFullYear(nextRenewal.getFullYear() + 100);
-    } else {
-      nextRenewal.setMonth(nextRenewal.getMonth() + 1);
-    }
-
-    const subscription = await Subscription.create({
-      sub_id: nextSubId,
-      user,
-      plan: plan._id,
-      amount: plan.price,
-      status: 'active',
-      startDate: now,
-      nextRenewalDate: nextRenewal,
-    });
-
-    if (plan.price > 0) {
-      await Payment.create({
-        user,
-        subscription: subscription._id,
-        amount: plan.price,
-        status: 'success',
-        paymentMethod: 'paypal',
-        paidAt: new Date(),
-      });
-    }
+    // Staff-assigned plan: no payment is recorded (paid upgrades go through the gateway).
+    const { subscription } = await activatePlan({ userId: user, plan });
 
     await systemLogger({
       type: "success",
       action: "SUBSCRIPTION_CREATED",
       user: req.user?._id,
       userEmail: req.user?.email,
-      details: `Subscription created: ${nextSubId} — plan "${planName}" for user ${user} ($${plan.price})`,
+      details: `Subscription created: ${subscription.sub_id} — plan "${planName}" for user ${user} ($${plan.price})`,
       module: "subscriptions",
       ipAddress: req.ip,
     });
@@ -170,10 +136,27 @@ const createUserSubscription = async (req, res) => {
 const updateUserSubscription = async (req, res) => {
   try {
     const { planName, status, cancelledAt } = req.body;
+    const staff = isStaff(req);
 
     const subscription = await Subscription.findById(req.params.id).populate('plan', 'name price');
     if (!subscription) {
       return res.status(404).json({ success: false, message: 'Subscription not found' });
+    }
+
+    if (!staff) {
+      // Customers may only cancel or reactivate their own subscription;
+      // plan changes happen through a verified payment.
+      if (String(subscription.user) !== String(req.user.id)) {
+        return res.status(403).json({ success: false, message: 'You can only manage your own subscription' });
+      }
+      if (planName || req.body.pendingPlanName) {
+        return res.status(403).json({ success: false, message: 'Plan changes require a payment' });
+      }
+      const allowed = (status === 'cancelled' && subscription.status === 'active')
+        || (status === 'active' && subscription.status === 'cancelled' && subscription.nextRenewalDate > new Date());
+      if (!allowed) {
+        return res.status(400).json({ success: false, message: 'This subscription change is not allowed' });
+      }
     }
 
     let planChanged = false;
@@ -185,41 +168,32 @@ const updateUserSubscription = async (req, res) => {
         return res.status(400).json({ success: false, message: `Plan '${planName}' not found` });
       }
 
-      subscription.plan = plan._id;
-      subscription.amount = plan.price;
       newPlan = plan;
       planChanged = true;
-
-      const nextRenewal = new Date();
-      nextRenewal.setMonth(nextRenewal.getMonth() + 1);
-      subscription.nextRenewalDate = nextRenewal;
     }
 
     const previousStatus = subscription.status;
 
-    if (status) {
-      subscription.status = status;
-
-      if (status === 'cancelled') {
-        subscription.cancelledAt = cancelledAt ? new Date(cancelledAt) : new Date();
-      }
-
-      if (status === 'active' && subscription.cancelledAt) {
-        subscription.cancelledAt = null;
-      }
+    // Staff plan change: keeps the subscription and the user's plan (device limit) in sync.
+    // Runs before the status change so an explicit status in the same request wins.
+    let target = subscription;
+    if (planChanged) {
+      const { subscription: activated } = await activatePlan({ userId: subscription.user, plan: newPlan });
+      target = activated;
     }
 
-    await subscription.save();
+    if (status) {
+      target.status = status;
 
-    if (planChanged && newPlan.price > 0) {
-      await Payment.create({
-        user: subscription.user,
-        subscription: subscription._id,
-        amount: newPlan.price,
-        status: 'success',
-        paymentMethod: 'paypal',
-        paidAt: new Date(),
-      });
+      if (status === 'cancelled') {
+        target.cancelledAt = cancelledAt ? new Date(cancelledAt) : new Date();
+      }
+
+      if (status === 'active' && target.cancelledAt) {
+        target.cancelledAt = null;
+      }
+
+      await target.save();
     }
 
     // Build a meaningful details string based on what changed
@@ -237,7 +211,7 @@ const updateUserSubscription = async (req, res) => {
       ipAddress: req.ip,
     });
 
-    const updated = await Subscription.findById(subscription._id).populate('plan', 'name price');
+    const updated = await Subscription.findById(target._id).populate('plan', 'name price');
 
     res.status(200).json({
       success: true,
@@ -304,6 +278,10 @@ const getUserSubscriptionById = async (req, res) => {
 
     if (!subscription) {
       return res.status(404).json({ success: false, message: 'Subscription not found' });
+    }
+
+    if (!isStaff(req) && String(subscription.user?._id) !== String(req.user.id)) {
+      return res.status(403).json({ success: false, message: 'You can only view your own subscription' });
     }
 
     res.status(200).json({

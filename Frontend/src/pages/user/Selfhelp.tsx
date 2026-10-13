@@ -1,5 +1,6 @@
 import { useState, useRef } from "react";
 import { useNavigate } from "react-router-dom";
+import { jwtDecode } from "jwt-decode";
 import Cookies from "js-cookie";
 import {
   startTool,
@@ -781,7 +782,19 @@ if (usesApi) {
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
+// The backup tool exports the whole server database, so only staff see it.
+function isStaffUser(): boolean {
+  try {
+    const token = localStorage.getItem("token");
+    const role = token ? jwtDecode<{ role?: string }>(token).role : undefined;
+    return role === "admin" || role === "support";
+  } catch {
+    return false;
+  }
+}
+
 export default function SelfHelp() {
+  const visibleTools = TOOLS.filter((tool) => tool.id !== "start-backup" || isStaffUser());
   const [browserCleanupTrigger, setBrowserCleanupTrigger] = useState(0);
 
   return (
@@ -792,7 +805,7 @@ export default function SelfHelp() {
       </p>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-6">
-        {TOOLS.map((tool) => {
+        {visibleTools.map((tool) => {
           if (tool.id === "browser-cleanup") {
             return (
               <ToolCard

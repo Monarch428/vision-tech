@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { capturePaypalOrder, createPaypalOrder, createSubscription, downloadInvoice, getMyInvoices, getMySubscription, updateSubscription } from "../../services/user/billingSub.service";
+import { capturePaypalOrder, createPaypalOrder, downloadInvoice, getMyInvoices, getMySubscription, updateSubscription } from "../../services/user/billingSub.service";
 import {
   PayPalScriptProvider,
   PayPalButtons,
@@ -14,6 +14,8 @@ interface Subscription {
   startDate: string;
   endDate: string | null;
   nextRenewalDate: string | null;
+  // Set while a paid plan that ended is in its 7-day grace period.
+  graceUntil?: string | null;
 }
 
 interface Invoice {
@@ -143,7 +145,12 @@ function PlanChangeWizard({
   onClose: () => void;
 }) {
   const [step, setStep] = useState<"choose" | "confirm">("choose");
-  const [selected, setSelected] = useState<"now" | "later" | null>(null);
+  // Upgrades take effect immediately; scheduled upgrades are not supported by the API.
+  const [selected, setSelected] = useState<"now" | null>("now");
+  // Renewing the current plan adds a month instead of replacing the plan.
+  const isRenewal = currentSub?.planName === targetPlan.name;
+  // Moving off the Free plan loses nothing, so the "cancelled, no refund" warnings don't apply.
+  const fromFree = !currentSub?.planName || currentSub.planName === "free";
 
   const renewalDate = currentSub?.nextRenewalDate
     ? new Date(currentSub.nextRenewalDate).toLocaleDateString("en-US", {
@@ -188,7 +195,7 @@ function PlanChangeWizard({
             </div>
             <div>
               <p className="text-sm font-semibold text-gray-900 leading-tight">
-                Upgrade to {targetPlan.label}
+                {isRenewal ? "Renew" : "Upgrade to"} {targetPlan.label}
               </p>
               <p className="text-[11px] text-gray-400 leading-tight">
                 {currentSub?.planName
@@ -248,46 +255,24 @@ function PlanChangeWizard({
                     Activate now
                   </p>
                   <p className="text-xs text-gray-500 mt-0.5 leading-relaxed">
-                    Current plan is cancelled immediately.{" "}
-                    <span className="text-red-500 font-medium">No refund</span>{" "}
-                    for unused days.
+                    {isRenewal ? (
+                      "Adds one month to your plan, counted from its current end date."
+                    ) : fromFree ? (
+                      `${targetPlan.label} starts as soon as your payment goes through.`
+                    ) : (
+                      <>
+                        Current plan is cancelled immediately.{" "}
+                        <span className="text-red-500 font-medium">No refund</span>{" "}
+                        for unused days.
+                      </>
+                    )}
                   </p>
                 </div>
               </div>
             </div>
 
-            <div
-              onClick={() => setSelected("later")}
-              className={`border-2 rounded-xl p-3 cursor-pointer transition-all ${selected === "later"
-                ? "border-green-500"
-                : "border-gray-300 hover:border-gray-200"
-                }`}
-            >
-              <div className="flex items-start gap-2.5">
-                <div
-                  className={`w-[17px] h-[17px] rounded-full border-2 mt-0.5 flex-shrink-0 flex items-center justify-center transition-colors ${selected === "later"
-                    ? "border-green-500"
-                    : "border-gray-300"
-                    }`}
-                >
-                  {selected === "later" && (
-                    <div className="w-2 h-2 rounded-full bg-green-500" />
-                  )}
-                </div>
-                <div>
-                  <p className="text-sm font-semibold text-gray-900">
-                    Activate after current plan ends
-                  </p>
-                  <p className="text-xs text-gray-500 mt-0.5 leading-relaxed">
-                    Keep your current plan until{" "}
-                    <strong className="text-gray-700">{renewalDate}</strong>,
-                    then switch automatically.
-                  </p>
-                </div>
-              </div>
-            </div>
 
-            {selected === "now" && (
+            {selected === "now" && !isRenewal && !fromFree && (
               <div className="flex gap-2 p-2.5 bg-red-50 border border-red-100 rounded-lg">
                 <svg
                   width="13"
@@ -318,26 +303,6 @@ function PlanChangeWizard({
                       refund will be issued.
                     </>
                   )}
-                </p>
-              </div>
-            )}
-            {selected === "later" && (
-              <div className="flex gap-2 p-2.5 bg-blue-50 border border-blue-100 rounded-lg">
-                <svg
-                  width="13"
-                  height="13"
-                  fill="none"
-                  stroke="#3b82f6"
-                  strokeWidth="2"
-                  viewBox="0 0 24 24"
-                  className="flex-shrink-0 mt-0.5"
-                >
-                  <circle cx="12" cy="12" r="10" />
-                  <polyline points="12 6 12 12 16 14" />
-                </svg>
-                <p className="text-xs text-blue-600 leading-relaxed">
-                  No changes today. You'll keep full access until {renewalDate},
-                  then {targetPlan.label} billing begins automatically.
                 </p>
               </div>
             )}
@@ -372,7 +337,7 @@ function PlanChangeWizard({
                   {selected === "now" ? "Immediately" : renewalDate}
                 </span>
               </div>
-              {selected === "now" && (
+              {selected === "now" && !isRenewal && !fromFree && (
                 <div className="flex justify-between pt-2 border-t border-gray-200">
                   <span className="text-gray-500">Refund</span>
                   <span className="font-semibold text-red-500">None</span>
@@ -381,7 +346,11 @@ function PlanChangeWizard({
             </div>
 
             <p className="text-xs text-gray-400 leading-relaxed">
-              {selected === "now"
+              {isRenewal
+                ? `Your ${targetPlan.label} plan is extended by one month.`
+                : fromFree
+                ? `${targetPlan.label} billing starts today.`
+                : selected === "now"
                 ? `Your current plan will be cancelled immediately with no refund. ${targetPlan.label} billing starts today.`
                 : `You keep your current plan until ${renewalDate}. ${targetPlan.label} billing begins on that date.`}
             </p>
@@ -501,11 +470,7 @@ export default function BillingSub() {
 
   // Wizard + PayPal state
   const [wizardPlan, setWizardPlan] = useState<(typeof PLANS)[0] | null>(null);
-  const [activateNow, setActivateNow] = useState<boolean>(true);
   const [paypalPlan, setPaypalPlan] = useState<(typeof PLANS)[0] | null>(null);
-
-  const stored = localStorage.getItem("user");
-  const authUser = stored ? JSON.parse(stored) : null;
 
   const isPausedByAdmin = sub?.status === "paused";
 
@@ -513,6 +478,13 @@ export default function BillingSub() {
     setToast({ message, type });
 
   const isCancelled = sub?.status === "cancelled";
+  // A paid plan can be renewed once it has ended (grace period) or within 3 days of its end.
+  const canRenewCurrent =
+    PLAN_PRICES[sub?.planName || "free"] > 0 &&
+    (sub?.status === "expired" ||
+      (sub?.status === "active" &&
+        !!sub?.nextRenewalDate &&
+        new Date(sub.nextRenewalDate).getTime() - Date.now() < 3 * 86400000));
   const isWithinCancelledPeriod =
     sub?.status === "cancelled" && sub?.nextRenewalDate
       ? new Date() < new Date(sub.nextRenewalDate)
@@ -587,12 +559,12 @@ export default function BillingSub() {
 
   const handlePlanActionClick = (plan: (typeof PLANS)[0]) => {
     const actionType = getPlanActionType(plan.name);
-    if (actionType === "same" || actionType === "downgrade") return;
+    if (actionType === "downgrade") return;
+    if (actionType === "same" && !canRenewCurrent) return;
     setWizardPlan(plan);
   };
 
-  const handleWizardConfirm = (now: boolean) => {
-    setActivateNow(now);
+  const handleWizardConfirm = () => {
     setPaypalPlan(wizardPlan);
     setWizardPlan(null);
   };
@@ -670,39 +642,15 @@ export default function BillingSub() {
     }
   };
 
-  const handlePayPalSuccess = useCallback(async () => {
+  // The server captures the PayPal order, verifies it and activates the plan;
+  // the page only shows the subscription it returns.
+  const handlePayPalSuccess = useCallback(async (updated: Subscription) => {
     if (!paypalPlan) throw new Error("No plan selected");
-
-    let data: Subscription;
-
-    if (!sub) {
-      data = await createSubscription({
-        user: authUser?._id || authUser?.id,
-        planName: paypalPlan.name,
-        startDate: new Date().toISOString(),
-      });
-    } else if (activateNow) {
-      data = await updateSubscription(sub._id, {
-        planName: paypalPlan.name,
-        status: "active",
-        cancelledAt: new Date().toISOString(),
-      });
-    } else {
-      data = await updateSubscription(sub._id, {
-        pendingPlanName: paypalPlan.name,
-        status: sub.status,
-      });
-    }
-
-    setSub(data);
+    setSub(updated);
     await fetchInvoices();
-    showToast(
-      activateNow
-        ? `Successfully activated ${paypalPlan.label} plan!`
-        : `${paypalPlan.label} plan scheduled — activates after your current plan ends.`,
-    );
+    showToast(`Successfully activated ${paypalPlan.label} plan!`);
     setPaypalPlan(null);
-  }, [paypalPlan, sub, activateNow, authUser, fetchInvoices]);
+  }, [paypalPlan, fetchInvoices]);
 
   const currentPlan = PLANS.find((p) => p.name === sub?.planName) || PLANS[0];
 
@@ -757,12 +705,12 @@ export default function BillingSub() {
               <PayPalButtons
                 style={{ layout: "vertical", shape: "rect" }}
                 createOrder={async () => {
-                  const res = await createPaypalOrder(paypalPlan.price);
+                  const res = await createPaypalOrder(paypalPlan.name);
                   return res.id;
                 }}
                 onApprove={async (data) => {
-                  await capturePaypalOrder(data.orderID);
-                  await handlePayPalSuccess();
+                  const result = await capturePaypalOrder(data.orderID);
+                  await handlePayPalSuccess(result.subscription);
                 }}
                 onError={(err) => {
                   console.error("PayPal error", err);
@@ -790,6 +738,14 @@ export default function BillingSub() {
             </p>
           </div>
         </div>
+
+        {sub?.status === "expired" && sub.graceUntil && (
+          <div className="bg-amber-50 border border-amber-200 text-amber-800 text-sm px-4 py-3 rounded-xl">
+            Your <strong className="capitalize">{sub.planName}</strong> plan has ended. Your devices stay
+            monitored until <strong>{new Date(sub.graceUntil).toLocaleDateString()}</strong>. Renew before
+            then, or your account moves to the Free plan (1 device).
+          </div>
+        )}
 
         {/* Current Plan Summary */}
         <div className="bg-white border border-gray-300 rounded-2xl p-6">
@@ -1024,8 +980,10 @@ export default function BillingSub() {
               const isCurrentDeactivated = isCurrent && isWithinCancelledPeriod;
               const isDowngrade =
                 PLAN_PRICES[plan.name] < PLAN_PRICES[sub?.planName || "free"];
+              const isRenewable = isCurrent && canRenewCurrent;
               const isDisabled =
                 (isCurrent &&
+                  !isRenewable &&
                   (sub?.status === "active" || isWithinCancelledPeriod)) ||
                 isDowngrade;
 
@@ -1101,6 +1059,8 @@ export default function BillingSub() {
                       ? "Paused by admin"
                       : isDowngrade
                         ? "Downgrade unavailable"
+                        : isRenewable
+                        ? "Renew with PayPal"
                         : isCurrent &&
                           (sub?.status === "active" || isWithinCancelledPeriod)
                           ? "Current Plan"
