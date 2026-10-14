@@ -30,6 +30,10 @@ Object.assign(process.env, {
   CONFIG_ENCRYPTION_KEY: 'test-encryption-key',
   PAYPAL_CLIENT_ID: 'test',
   PAYPAL_CLIENT_SECRET: 'test',
+  STRIPE_SECRET_KEY: 'sk_test_fake_for_tests',
+  STRIPE_WEBHOOK_SECRET: 'whsec_test_secret',
+  PAYPAL_WEBHOOK_ID: 'WH-TEST',
+  FRONTEND_URL: 'http://localhost:5173',
 });
 
 const mongoose = require('mongoose');
@@ -109,6 +113,8 @@ const PASSWORDS = { user: 'User@12345', admin: 'Admin@12345', support: 'Support@
 
 const seed = async () => {
   await mongoose.connection.dropDatabase();
+  // Dropping the database also drops indexes (unique keys the app relies on); rebuild them.
+  await Promise.all(Object.values(mongoose.models).map((model) => model.createIndexes()));
   for (const [name, price] of [['free', 0], ['pro', 49.99], ['enterprise', 149.99]]) {
     await Plan.create({ name, price, billingCycle: 'monthly', features: [] });
   }
@@ -162,7 +168,7 @@ const startTestServer = async () => {
     await mongoose.disconnect();
   };
 
-  return { request, tokens, ids, close, fake, TEST_SITE, OTHER_SITE };
+  return { request, baseUrl: base, tokens, ids, close, fake, TEST_SITE, OTHER_SITE };
 };
 
 module.exports = { startTestServer };

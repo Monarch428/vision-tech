@@ -29,6 +29,7 @@
     "node-cron": "^4.2.1",
     "nodemailer": "^8.0.4",
     "pdfkit": "^0.18.0",
+    "stripe": "^23.0.0",
     "uuid": "^13.0.0",
     "winston": "^3.19.0",
     "winston-mongodb": "^7.0.1"

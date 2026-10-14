@@ -17,6 +17,16 @@ const checkEnv = () => {
   env.RATE_LIMIT_DISABLED === 'true' ? block('RATE_LIMIT_DISABLED=true: rate limits are off') : ok('Rate limits are on');
   env.DISABLE_CRON === 'true' ? block('DISABLE_CRON=true: reminders, plan expiry and RMM sync will not run') : ok('Scheduled jobs are on');
   (env.PAYPAL_MODE || '').toLowerCase() === 'live' ? ok('PayPal is in live mode') : warn('PAYPAL_MODE is not "live": payments use the PayPal Sandbox');
+  env.PAYPAL_WEBHOOK_ID
+    ? ok('PayPal webhook id is set')
+    : warn('PAYPAL_WEBHOOK_ID is not set: pending PayPal payments never activate, and refunds made in PayPal are not recorded');
+  const stripeKey = env.STRIPE_SECRET_KEY || '';
+  if (!stripeKey) block('STRIPE_SECRET_KEY is not set: "Pay with Card (Stripe)" will fail');
+  else if (stripeKey.startsWith('sk_live_')) ok('Stripe is in live mode');
+  else warn('STRIPE_SECRET_KEY is a test key: card payments are test-mode only');
+  env.STRIPE_WEBHOOK_SECRET
+    ? ok('Stripe webhook secret is set')
+    : warn('STRIPE_WEBHOOK_SECRET is not set: a customer who closes the tab before returning from Stripe won\'t get their plan until they reload Billing');
 
   env.RMM_CLIENT_ID ? ok(`RMM_CLIENT_ID = ${env.RMM_CLIENT_ID}`) : block('RMM_CLIENT_ID is not set (RMM features are disabled)');
   const writable = (env.RMM_WRITE_ALLOWED_SITE_IDS || '').trim();

@@ -24,6 +24,7 @@ const ADMIN_ITEMS = [
   { id: 'users', label: 'User Management', path: '/admin/users', icon: 'users' },
   { id: 'devices', label: 'Devices', path: '/admin/devices', icon: 'monitor-check' },
   { id: 'subscriptions', label: 'Subscriptions', path: '/admin/subscriptions', icon: 'card' },
+  { id: 'payments', label: 'Payments', path: '/admin/payments', icon: 'card' },
   { id: 'servicerequest', label: 'Support Request', path: '/admin/serviceRequest', icon: 'settings' },
   // { id: 'supportBookings', label: 'Support Booking', path: '/admin/supportBookings', icon: 'booking' },
   { id: 'Systemlogs', label: 'System Logs', path: '/admin/Systemlogs', icon: 'system-logs' },

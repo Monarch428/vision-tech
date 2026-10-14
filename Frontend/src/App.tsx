@@ -19,6 +19,7 @@ import { useEffect, useRef } from "react";
 import DataManagement from "./pages/admin/dataManagement";
 import ExternalServiceAccess from "./pages/admin/externalServiceAcess";
 import DevicesConsole from "./pages/admin/DevicesConsole";
+import Payments from "./pages/admin/Payments";
 // import SupportBookings from "./pages/admin/SupportBookings";
 import OtpVerificationPage from "./pages/auth/OtpVerificationPage";
 import NetworkRestartGuide from "./pages/user/NetworkRestartGuide";
@@ -58,6 +59,7 @@ function App() {
           <Route path="/admin/subscriptions" element={<Subscriptions />} />
           <Route path="/admin/Systemlogs" element={<Systemlogs />} />
           <Route path="/admin/devices" element={<DevicesConsole />} />
+          <Route path="/admin/payments" element={<Payments />} />
           <Route path="/user/support" element={<Support />} />
           <Route path="/user/rmm" element={<RMM />} />
           <Route path="/admin/serviceRequest" element={<ServiceRequest />} />

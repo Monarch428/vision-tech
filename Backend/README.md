@@ -94,8 +94,31 @@ Renewing the same plan early extends it from its current end date.
 
 ## Payments
 
-The server sets the price from the `Plan` collection and activates a plan only after it
-captures and verifies the PayPal order (`POST /api/payments/paypal/capture-order`).
+Customers choose **PayPal** or **Card (Stripe)**; both charge one plan period at a time. The
+server sets the price from the `Plan` collection and activates a plan only after the payment
+is verified: PayPal by capturing the order (`POST /api/payments/paypal/capture-order`), Stripe
+by asking Stripe for the Checkout Session when the customer returns
+(`POST /api/payments/stripe/confirm`) and through the signed webhook
+(`POST /api/payments/stripe/webhook`). A `PaymentClaim` with a unique key per gateway payment
+makes fulfilment idempotent when both arrive.
+
+Prices live only in the `Plan` collection; the Billing page reads them from `GET /api/plans`.
+Each payment emails the customer a receipt (best effort; needs SMTP).
+
+**Staff (Admin → Payments, `GET /api/payments/admin`)** see every payment from both gateways
+with filters and totals, download invoices, and issue **full refunds**
+(`POST /api/payments/:id/refund { confirm: true, reason }`, `src/utils/refunds.js`): the refund
+is made at Stripe or PayPal, the payment is marked `refunded`, the customer is emailed, and if it
+was their latest payment the account moves to Free. Refunds made in the Stripe Dashboard arrive
+via the `charge.refunded` webhook; disputes are logged and emailed to staff, and a **lost**
+dispute (`charge.dispute.closed`) is treated like a refund.
+
+**PayPal outcomes** (`src/utils/paypalPayments.js`): a completed capture activates the plan; a
+**pending** capture is recorded and activated when the PayPal webhook
+(`POST /api/payments/paypal/webhook`, verified with PayPal using `PAYPAL_WEBHOOK_ID`) reports
+`PAYMENT.CAPTURE.COMPLETED`, or marked failed on `DENIED`; a declined funding source returns
+`INSTRUMENT_DECLINED` so the PayPal button lets the buyer choose another. Refunds and reversals
+made in PayPal are recorded like Stripe's.
 `src/utils/planActivation.js` keeps the subscription and the user's `plan` field (which
 drives device limits) in sync. `PAYPAL_MODE=live` switches from Sandbox to live payments.
 

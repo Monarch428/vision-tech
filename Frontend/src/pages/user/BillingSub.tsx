@@ -1,5 +1,10 @@
-import { useCallback, useEffect, useState } from "react";
-import { capturePaypalOrder, createPaypalOrder, downloadInvoice, getMyInvoices, getMySubscription, updateSubscription } from "../../services/user/billingSub.service";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { capturePaypalOrder, confirmStripePayment, createPaypalOrder, createStripeCheckout, downloadInvoice, getMyInvoices, getMySubscription, getPlans, updateSubscription } from "../../services/user/billingSub.service";
+
+type PaymentProvider = "paypal" | "stripe";
+
+const PROVIDER_LABELS: Record<string, string> = { paypal: "PayPal", stripe: "Card (Stripe)" };
+const providerLabel = (method: string) => PROVIDER_LABELS[method] || method;
 import {
   PayPalScriptProvider,
   PayPalButtons,
@@ -22,7 +27,7 @@ interface Invoice {
   _id: string;
   invoiceNumber?: string;
   amount: number;
-  status: "success" | "failed" | "pending";
+  status: "success" | "failed" | "pending" | "refunded";
   paymentMethod: string;
   paidAt: string;
   user?: {
@@ -88,11 +93,7 @@ const PLANS = [
   },
 ];
 
-const PLAN_PRICES: Record<string, number> = {
-  free: 0,
-  pro: 49.99,
-  enterprise: 149.99,
-};
+
 
 const CheckIcon = ({ size = 13 }: { size?: number }) => (
   <svg
@@ -141,7 +142,7 @@ function PlanChangeWizard({
 }: {
   targetPlan: (typeof PLANS)[0];
   currentSub: Subscription | null;
-  onConfirm: (activateNow: boolean) => void;
+  onConfirm: (provider: PaymentProvider) => void;
   onClose: () => void;
 }) {
   const [step, setStep] = useState<"choose" | "confirm">("choose");
@@ -362,11 +363,20 @@ function PlanChangeWizard({
               >
                 Back
               </button>
+            </div>
+            <p className="text-xs font-semibold text-gray-700 pt-1">Choose how to pay</p>
+            <div className="flex flex-col gap-2">
               <button
-                onClick={() => onConfirm(selected === "now")}
-                className="flex-[2] py-2.5 bg-green-500 hover:bg-green-600 text-white rounded-xl text-sm font-semibold transition-colors"
+                onClick={() => onConfirm("paypal")}
+                className="w-full py-2.5 bg-[#ffc439] hover:bg-[#f2ba36] text-gray-900 rounded-xl text-sm font-semibold transition-colors"
               >
-                Confirm & Pay with PayPal
+                Pay with PayPal
+              </button>
+              <button
+                onClick={() => onConfirm("stripe")}
+                className="w-full py-2.5 bg-[#635bff] hover:bg-[#5851e5] text-white rounded-xl text-sm font-semibold transition-colors"
+              >
+                Pay with Card (Stripe)
               </button>
             </div>
           </div>
@@ -469,6 +479,24 @@ export default function BillingSub() {
   } | null>(null);
 
   // Wizard + PayPal state
+  // Prices come from the server so the page shows exactly what will be charged;
+  // PLANS only supplies labels, features and colours (and a fallback until loaded).
+  const [serverPrices, setServerPrices] = useState<Record<string, number> | null>(null);
+  useEffect(() => {
+    getPlans()
+      .then((list) => setServerPrices(Object.fromEntries(list.map((p) => [p.name, p.price]))))
+      .catch(() => undefined);
+  }, []);
+  const plans = useMemo(
+    () =>
+      PLANS.map((p) => {
+        const price = serverPrices?.[p.name];
+        return price === undefined ? p : { ...p, price, display: price === 0 ? "$0" : `$${price.toFixed(2)}` };
+      }),
+    [serverPrices],
+  );
+  const priceOf = (name: string) => plans.find((p) => p.name === name)?.price ?? 0;
+
   const [wizardPlan, setWizardPlan] = useState<(typeof PLANS)[0] | null>(null);
   const [paypalPlan, setPaypalPlan] = useState<(typeof PLANS)[0] | null>(null);
 
@@ -480,7 +508,7 @@ export default function BillingSub() {
   const isCancelled = sub?.status === "cancelled";
   // A paid plan can be renewed once it has ended (grace period) or within 3 days of its end.
   const canRenewCurrent =
-    PLAN_PRICES[sub?.planName || "free"] > 0 &&
+    priceOf(sub?.planName || "free") > 0 &&
     (sub?.status === "expired" ||
       (sub?.status === "active" &&
         !!sub?.nextRenewalDate &&
@@ -550,8 +578,8 @@ export default function BillingSub() {
 
   // Only "upgrade" or "same" are valid actions now — downgrades are blocked.
   const getPlanActionType = (targetPlanName: string) => {
-    const currentPrice = PLAN_PRICES[sub?.planName || "free"];
-    const targetPrice = PLAN_PRICES[targetPlanName];
+    const currentPrice = priceOf(sub?.planName || "free");
+    const targetPrice = priceOf(targetPlanName);
     if (targetPrice > currentPrice) return "upgrade";
     if (targetPrice < currentPrice) return "downgrade";
     return "same";
@@ -564,10 +592,49 @@ export default function BillingSub() {
     setWizardPlan(plan);
   };
 
-  const handleWizardConfirm = () => {
-    setPaypalPlan(wizardPlan);
-    setWizardPlan(null);
+  const [stripeRedirecting, setStripeRedirecting] = useState(false);
+
+  const handleWizardConfirm = async (provider: PaymentProvider) => {
+    if (provider === "paypal") {
+      setPaypalPlan(wizardPlan);
+      setWizardPlan(null);
+      return;
+    }
+    if (!wizardPlan) return;
+    setStripeRedirecting(true);
+    try {
+      const { url } = await createStripeCheckout(wizardPlan.name);
+      window.location.assign(url); // Stripe's hosted payment page
+    } catch (err: any) {
+      setStripeRedirecting(false);
+      showToast(err.response?.data?.message || "Could not start card payment", "error");
+    }
   };
+
+  // Returning from Stripe: the server confirms the session with Stripe itself,
+  // so the plan is only activated for a real, completed payment.
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const sessionId = params.get("stripe_session");
+    const cancelled = params.get("stripe_cancelled");
+    if (!sessionId && !cancelled) return;
+    window.history.replaceState(null, "", window.location.pathname);
+
+    if (cancelled) {
+      showToast("Card payment cancelled.", "error");
+      return;
+    }
+    confirmStripePayment(sessionId as string)
+      .then((result) => {
+        setSub(result.subscription as Subscription);
+        fetchInvoices();
+        showToast("Payment received. Your plan is active.");
+      })
+      .catch((err) =>
+        showToast(err.response?.data?.message || "We couldn't confirm the card payment yet. Refresh in a minute.", "error"),
+      );
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const fetchSub = useCallback(async () => {
     try {
@@ -652,7 +719,7 @@ export default function BillingSub() {
     setPaypalPlan(null);
   }, [paypalPlan, fetchInvoices]);
 
-  const currentPlan = PLANS.find((p) => p.name === sub?.planName) || PLANS[0];
+  const currentPlan = plans.find((p) => p.name === sub?.planName) || plans[0];
 
   return (
     <>
@@ -662,6 +729,14 @@ export default function BillingSub() {
           type={toast.type}
           onClose={() => setToast(null)}
         />
+      )}
+
+      {stripeRedirecting && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40">
+          <div className="bg-white rounded-2xl px-6 py-4 text-sm font-semibold text-gray-800 shadow-xl">
+            Redirecting to secure card payment…
+          </div>
+        </div>
       )}
 
       {wizardPlan && (
@@ -708,9 +783,23 @@ export default function BillingSub() {
                   const res = await createPaypalOrder(paypalPlan.name);
                   return res.id;
                 }}
-                onApprove={async (data) => {
-                  const result = await capturePaypalOrder(data.orderID);
-                  await handlePayPalSuccess(result.subscription);
+                onApprove={async (data, actions) => {
+                  try {
+                    const result = await capturePaypalOrder(data.orderID);
+                    if (result.pending) {
+                      // PayPal is reviewing the payment; the webhook activates the plan later.
+                      showToast(result.message);
+                      setPaypalPlan(null);
+                      fetchSub();
+                      fetchInvoices();
+                      return;
+                    }
+                    await handlePayPalSuccess(result.subscription);
+                  } catch (err: any) {
+                    // Declined funding source: let the buyer pick another one in PayPal.
+                    if (err.response?.data?.code === "INSTRUMENT_DECLINED") return actions.restart();
+                    showToast(err.response?.data?.message || "PayPal payment failed. Please try again.", "error");
+                  }
                 }}
                 onError={(err) => {
                   console.error("PayPal error", err);
@@ -887,8 +976,9 @@ export default function BillingSub() {
                   {
                     label: "Payment Method",
                     value:
-                      invoices.length > 0
-                        ? `via ${invoices[0].paymentMethod}`
+                      // Only meaningful while on a paid plan (a refunded old payment would mislead).
+                      priceOf(sub?.planName || "free") > 0 && invoices.length > 0
+                        ? `via ${providerLabel(invoices[0].paymentMethod)}`
                         : "N/A",
                     bg: "bg-purple-50 text-purple-600",
                     icon: (
@@ -928,7 +1018,7 @@ export default function BillingSub() {
                 ))}
               </div>
 
-              {!isCancelled ? (
+              {priceOf(sub?.planName || "free") === 0 ? null : !isCancelled ? (
                 <div className="flex flex-wrap gap-2">
                   <button
                     onClick={handleCancel}
@@ -975,11 +1065,11 @@ export default function BillingSub() {
             Choose the plan that fits your needs
           </p>
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            {PLANS.map((plan) => {
+            {plans.map((plan) => {
               const isCurrent = sub?.planName === plan.name;
               const isCurrentDeactivated = isCurrent && isWithinCancelledPeriod;
               const isDowngrade =
-                PLAN_PRICES[plan.name] < PLAN_PRICES[sub?.planName || "free"];
+                priceOf(plan.name) < priceOf(sub?.planName || "free");
               const isRenewable = isCurrent && canRenewCurrent;
               const isDisabled =
                 (isCurrent &&
@@ -1060,13 +1150,13 @@ export default function BillingSub() {
                       : isDowngrade
                         ? "Downgrade unavailable"
                         : isRenewable
-                        ? "Renew with PayPal"
+                        ? "Renew"
                         : isCurrent &&
                           (sub?.status === "active" || isWithinCancelledPeriod)
                           ? "Current Plan"
                           : isCancelled
-                            ? "Reactivate with PayPal"
-                            : "Upgrade with PayPal"}
+                            ? "Reactivate"
+                            : "Upgrade"}
                   </button>
                 </div>
               );
@@ -1133,7 +1223,9 @@ export default function BillingSub() {
                           ? "text-green-600"
                           : inv.status === "failed"
                             ? "text-red-500"
-                            : "text-amber-500"
+                            : inv.status === "refunded"
+                              ? "text-blue-600"
+                              : "text-amber-500"
                           }`}
                       >
                         {inv.status === "success" && <CheckIcon />}

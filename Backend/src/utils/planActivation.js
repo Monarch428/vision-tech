@@ -52,7 +52,23 @@ const activatePlan = async ({ userId, plan, payment }) => {
   await UserManagement.updateOne({ _id: userId }, { $set: { plan: plan.name } });
 
   let paymentRecord = null;
-  if (payment) {
+  if (payment?.pendingRecordId) {
+    // A payment the gateway held as pending has now completed: finish that record.
+    paymentRecord = await Payment.findByIdAndUpdate(
+      payment.pendingRecordId,
+      {
+        $set: {
+          subscription: subscription._id,
+          invoiceNumber: await nextInvoiceNumber(),
+          amount: payment.amount,
+          status: 'success',
+          planName: plan.name,
+          paidAt: now,
+        },
+      },
+      { returnDocument: 'after' }
+    );
+  } else if (payment) {
     paymentRecord = await Payment.create({
       user: userId,
       subscription: subscription._id,
@@ -61,6 +77,7 @@ const activatePlan = async ({ userId, plan, payment }) => {
       status: 'success',
       paymentMethod: payment.method,
       transactionId: payment.transactionId,
+      planName: plan.name,
       paidAt: now,
     });
   }

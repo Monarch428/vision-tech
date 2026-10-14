@@ -11,6 +11,7 @@ const supportRequestRoutes  = require('./routes/support/supportRequest.routes');
 const userRoutes = require('./routes/user-management/user.routes');
 const userSubscriptionRoutes = require('./routes/subscription/userSubscription.routes');
 const paymentRoutes = require('./routes/subscription/payment.routes');
+const planRoutes = require('./routes/subscription/plan.routes');
 const SystemLog = require("./models/system-log/SystemLogs");
 const antivirusScheduleRoutes = require('./routes/antivirus/antivirusSchedule.route');
 const systemConfig = require('./routes/system-config/systemConfig.route');
@@ -20,6 +21,7 @@ const dataManagementRoutes = require('./routes/data-management/dataManagement.ro
 const startAntivirusScanScheduler = require("./cron/antivirusScanScheduler");
 const { startRmmDeviceSync } = require("./cron/rmmDeviceSync");
 const { startSubscriptionLifecycle } = require("./cron/subscriptionLifecycle");
+const { handleWebhook: handleStripeWebhook } = require('./controllers/subscription/stripe.controller');
 // const systemHealthRoutes = require("./routes/systemHealth/systemHealth.route");
 // const deviceRoutes = require('./routes/rmm/device.route');
 const tacticalRmmRoutes = require('./routes/rmm/tacticalRmm.route');
@@ -74,6 +76,11 @@ app.use(
   cors(corsOptions)
 );
 app.options(/.*/, cors(corsOptions));
+
+// Stripe signs the exact bytes it sends, so its webhook gets the raw body and
+// must be registered before express.json().
+app.post('/api/payments/stripe/webhook', express.raw({ type: 'application/json' }), handleStripeWebhook);
+
 app.use(express.json());
 
 // ✅ Request logger middleware
@@ -152,6 +159,7 @@ app.use('/api/support-requests', supportRequestRoutes);
 app.use('/api/v1/users',           userRoutes);
 app.use('/api/user-subscriptions', userSubscriptionRoutes);
 app.use('/api/payments',           paymentRoutes);
+app.use('/api/plans',              planRoutes);
 app.use('/api/antivirus-schedules', antivirusScheduleRoutes);
 app.use('/api/self-help',          selfHelpRoutes);
 app.use('/api/system-config',          systemConfig);

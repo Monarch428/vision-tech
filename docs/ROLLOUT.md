@@ -14,9 +14,23 @@ Work through these in order. Steps marked **(blocking)** must be done before cus
    - `RMM_CLIENT_ID=12`, `RMM_WRITE_ALLOWED_SITE_IDS=*`, `RMM_AUTO_CREATE_SITES=true|false`
    - `RMM_SCRIPT_RESTART_ID=81`, `RMM_SCRIPT_CLEANUP_ID=11`, `RMM_WEB_URL=https://rmm.remote.newvtech.com`
    - `PAYPAL_MODE=live` with live PayPal keys, when taking real payments
+   - `STRIPE_SECRET_KEY` (`sk_live_…` for real payments) and `STRIPE_WEBHOOK_SECRET` (next step)
+4. **Stripe webhook**: Stripe Dashboard (live mode) → Developers → Webhooks → *Add endpoint*
+   `https://<your-api-domain>/api/payments/stripe/webhook`, events `checkout.session.completed`,
+   `checkout.session.async_payment_succeeded`, `checkout.session.async_payment_failed`,
+   `checkout.session.expired`, `charge.refunded` and `charge.dispute.created`.
+   Copy its signing secret into `STRIPE_WEBHOOK_SECRET`.
+   **PayPal webhook**: developer.paypal.com → your app → Webhooks → *Add webhook*
+   `https://<your-api-domain>/api/payments/paypal/webhook`, events `PAYMENT.CAPTURE.COMPLETED`,
+   `PAYMENT.CAPTURE.PENDING`, `PAYMENT.CAPTURE.DENIED`, `PAYMENT.CAPTURE.DECLINED`,
+   `PAYMENT.CAPTURE.REFUNDED`, `PAYMENT.CAPTURE.REVERSED`, `CUSTOMER.DISPUTE.CREATED`.
+   Put its **Webhook ID** into `PAYPAL_WEBHOOK_ID`. (PayPal must reach a public URL, so this can't be
+   tested on localhost.)
+   Optional: Settings → Adaptive Pricing decides whether customers may pay in their local currency
+   (Stripe adds a conversion fee); the server always checks the USD amount.
    - Must **not** be set in production: `RATE_LIMIT_DISABLED`, `DISABLE_CRON`, `DEBUG_GRAVITYZONE`
    - Frontend: `VITE_API_BASE_URL`. `VITE_CLIENT_ID` / `VITE_SITE_ID` are no longer used.
-4. **Run the pre-launch check against production** from a machine with the production `.env`:
+5. **Run the pre-launch check against production** from a machine with the production `.env`:
    `cd Backend && npm run preflight` — fix every **BLOCKING** line and read every **CHECK** line.
    In particular it lists paid subscriptions already past their renewal date: the first nightly run (00:30)
    starts their 7-day grace period and emails them.

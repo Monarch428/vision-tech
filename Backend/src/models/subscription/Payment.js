@@ -27,7 +27,7 @@ const paymentSchema = new mongoose.Schema(
 
     status: {
       type: String,
-      enum: ['success', 'failed', 'pending'],
+      enum: ['success', 'failed', 'pending', 'refunded'],
       default: 'success',
     },
 
@@ -47,6 +47,15 @@ const paymentSchema = new mongoose.Schema(
       type: Date,
       default: Date.now,
     },
+
+    // Plan bought with this payment (for reporting and refunds).
+    planName: { type: String, default: null },
+
+    // Set when the payment was refunded (from the portal or in the gateway's dashboard).
+    refundedAt: { type: Date, default: null },
+    refundReference: { type: String, default: null }, // gateway refund id
+    refundedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
+    refundReason: { type: String, default: null },
   },
   {
     timestamps: true,

@@ -48,7 +48,7 @@ export interface Invoice {
   _id: string;
   invoiceNumber?: string;
   amount: number;
-  status: 'success' | 'failed' | 'pending';
+  status: 'success' | 'failed' | 'pending' | 'refunded';
   paymentMethod: string;
   paidAt: string;
   user?: {
@@ -160,4 +160,21 @@ export const capturePaypalOrder = async (orderId: string) => {
   });
 
   return response.data;
+};
+// Stripe Checkout: the server prices the plan and returns Stripe's hosted page URL.
+export const createStripeCheckout = async (planName: string): Promise<{ url: string }> => {
+  const response = await API.post("/payments/stripe/checkout", { planName });
+  return response.data;
+};
+
+// After Stripe redirects back, the server checks the session with Stripe and activates the plan.
+export const confirmStripePayment = async (sessionId: string) => {
+  const response = await API.post("/payments/stripe/confirm", { sessionId });
+  return response.data as { success: boolean; alreadyProcessed: boolean; subscription: unknown };
+};
+
+// Public price list from the server (the only source of truth for prices).
+export const getPlans = async (): Promise<{ name: string; price: number; billingCycle: string }[]> => {
+  const response = await API.get("/plans");
+  return response.data.plans;
 };
