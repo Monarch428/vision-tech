@@ -358,7 +358,15 @@ function DeviceCard({ device, onDelete, onOpenDetails }: { device: Device; onDel
         <StatBar icon={<HeartPulseIcon />} label="Health" value={health} barColorClass="bg-gray-900" />
         <StatBar icon={<CpuIcon />} label="CPU" value={device.cpu} barColorClass={usageColor(device.cpu ?? 0)} />
         <StatBar icon={<MemoryIcon />} label="Memory" value={device.memory} barColorClass={usageColor(device.memory ?? 0)} />
-        <StatBar icon={<StorageIcon />} label="Storage" value={device.storage} barColorClass={usageColor(device.storage ?? 0)} />
+        <StatBar
+          icon={<StorageIcon />}
+          label={device.storageDevice ? `Storage (${device.storageDevice})` : "Storage"}
+          value={device.storage}
+          barColorClass={usageColor(device.storage ?? 0)}
+        />
+        {device.otherDiskWarning && (
+          <p className="text-xs font-semibold text-amber-700">⚠ {device.otherDiskWarning}</p>
+        )}
       </div>
     </div>
   );

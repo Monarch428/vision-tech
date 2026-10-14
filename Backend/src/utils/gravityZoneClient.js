@@ -1,4 +1,5 @@
 const axios = require("axios");
+const { toSafeHttpError } = require("./safeHttpError");
 const AdmZip = require("adm-zip");
 
 // ─── Environment ─────────────────────────────────────────────────────────────
@@ -50,7 +51,7 @@ http.interceptors.response.use((response) => {
   }
 
   return response;
-});
+}, toSafeHttpError("gravityZone")); // errors never carry the Authorization header
 
 
 let rpcId = 0;

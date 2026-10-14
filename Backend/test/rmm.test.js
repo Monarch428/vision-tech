@@ -151,3 +151,17 @@ test('an ended paid plan gets a 7-day grace period, then moves to Free', async (
   assert.equal((await UserManagement.findById(t.ids.user).lean()).plan, 'free');
   assert.ok(mongoose.connection.readyState === 1);
 });
+
+test('a removal refused by Tactical (missing permission) shows a friendly message and changes nothing', async () => {
+  await link(t.TEST_SITE);
+  const tacticalService = require('../src/services/tacticalRmm.service');
+  const original = tacticalService.uninstallAgent;
+  tacticalService.uninstallAgent = async () => {
+    throw Object.assign(new Error('[tacticalRmm] DELETE failed: HTTP 403'), { response: { status: 403 } });
+  };
+  const res = await t.request('DELETE', '/devices/A-TEST-WIN', { token: t.tokens.user });
+  tacticalService.uninstallAgent = original;
+  assert.equal(res.status, 503);
+  assert.match(res.body.message, /contact support/i);
+  assert.equal((await RmmDevice.findOne({ agentId: 'A-TEST-WIN' }).lean()).removedAt, null);
+});

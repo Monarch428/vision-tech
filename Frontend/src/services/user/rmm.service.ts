@@ -47,7 +47,9 @@ export interface Device {
   // null when the device doesn't report it (CPU/memory come from Windows only)
   cpu: number | null;
   memory: number | null;
-  storage: number | null;
+  storage: number | null;       // system drive (C: on Windows)
+  storageDevice?: string | null;
+  otherDiskWarning?: string | null; // e.g. "D: is 99% full"
   lastSeen?: string;
   siteId?: number | null;      // NEW
   clientId?: number | null;    // NEW

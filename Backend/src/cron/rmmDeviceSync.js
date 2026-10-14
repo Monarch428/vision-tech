@@ -17,22 +17,28 @@ const DETAIL_CONCURRENCY = 5;
 
 const toPercent = (value) => (Number.isFinite(value) ? Math.max(0, Math.min(100, Math.round(value))) : null);
 
-// Metrics from a full agent detail. CPU/memory come from Windows WMI only;
-// disk usage is the fullest disk, so one nearly-full drive isn't hidden.
+// Metrics from a full agent detail. CPU/memory come from Windows WMI only.
+// Storage is the system drive (what disk cleanup frees); the fullest drive is
+// kept separately so a nearly full data drive is still reported.
 const metricsFromDetail = (detail) => {
   const wmiCpu = detail.wmi_detail?.cpu?.[0]?.[0];
   const wmiOs = detail.wmi_detail?.os?.[0]?.[0];
   const memory = wmiOs?.TotalVisibleMemorySize && wmiOs?.FreePhysicalMemory
     ? (1 - wmiOs.FreePhysicalMemory / wmiOs.TotalVisibleMemorySize) * 100
     : null;
-  const diskPercents = (detail.disks || []).map((d) => Number(d.percent)).filter(Number.isFinite);
+  const disks = (detail.disks || []).filter((d) => Number.isFinite(Number(d.percent)));
+  const isSystem = (d) => /^c:?\\?$/i.test(String(d.device).trim()) || String(d.device).trim() === '/';
+  const system = disks.find(isSystem) || disks[0];
+  const fullest = disks.reduce((max, d) => (!max || Number(d.percent) > Number(max.percent) ? d : max), null);
   return {
     os: detail.operating_system || null,
     cpuModel: Array.isArray(detail.cpu_model) ? detail.cpu_model.join(', ') : detail.cpu_model || null,
     totalRamGb: Number.isFinite(detail.total_ram) ? detail.total_ram : null,
     cpu: toPercent(wmiCpu?.LoadPercentage),
     memory: toPercent(memory),
-    storage: diskPercents.length ? toPercent(Math.max(...diskPercents)) : null,
+    storage: system ? toPercent(Number(system.percent)) : null,
+    storageDevice: system ? String(system.device) : null,
+    fullestDisk: fullest ? { device: String(fullest.device), percent: toPercent(Number(fullest.percent)) } : { device: null, percent: null },
   };
 };
 

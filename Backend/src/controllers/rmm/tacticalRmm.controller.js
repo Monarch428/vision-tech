@@ -41,6 +41,11 @@ exports.getDevices = async (req, res) => {
       cpu: d.cpu ?? null,
       memory: d.memory ?? null,
       storage: d.storage ?? null,
+      storageDevice: d.storageDevice || null,
+      // Another drive at 90%+ (e.g. "D: 99%"), shown alongside the system drive.
+      otherDiskWarning: d.fullestDisk?.device && d.fullestDisk.device !== d.storageDevice && d.fullestDisk.percent >= 90
+        ? `${d.fullestDisk.device} is ${d.fullestDisk.percent}% full`
+        : null,
       lastSeen: d.lastSeen,
       siteId: d.siteId,
       siteName: d.siteName,
@@ -221,6 +226,17 @@ exports.generateInstaller = async (req, res) => {
       ping: ping ?? 0,
     });
 
+    // Tactical's "manual" command expects the agent file to be downloaded into the
+    // current folder first, and for macOS/Linux it even returns a Windows command.
+    // Build a single command that downloads the agent and installs it.
+    const agentFile = String(result.cmd || '').split(' ')[0];
+    const installArgs = (String(result.cmd || '').match(/-m install .*/) || [])[0];
+    if (result.url && /^tacticalagent-[\w.-]+$/.test(agentFile) && installArgs) {
+      result.cmd = plat === 'windows'
+        ? `cd /d "%TEMP%" && curl.exe -fsSL -o ${agentFile} "${result.url}" && ${result.cmd}`
+        : `cd /tmp && curl -fsSL -o ${agentFile} "${result.url}" && chmod +x ${agentFile} && sudo ./${agentFile} ${installArgs}`;
+    }
+
     await systemLogger({
       type: 'info', action: 'RMM_INSTALLER_CREATED', user: req.user?._id, userEmail: req.user?.email,
       details: `Installer link for site #${siteId} (${plat || 'windows'}/${arch || 'amd64'}), valid 1 hour`,
@@ -364,6 +380,22 @@ exports.removeDevice = async (req, res) => {
     syncRmmDevices(); // re-evaluate limits in the background
     res.json({ success: true, message: `${agent.hostname} is being uninstalled.` });
   } catch (err) {
+    // Tactical refusing (403) means the API key lacks the "Uninstall agents"
+    // permission: tell the user plainly, and keep the technical detail in the log.
+    const tacticalRefused = err.response?.status === 403 && !err.status;
+    if (err.status !== 404) {
+      await systemLogger({
+        type: 'error', action: 'RMM_DEVICE_REMOVE_FAILED', user: req.user?._id, userEmail: req.user?.email,
+        details: `Remove ${req.params.id}: ${tacticalRefused ? 'Tactical RMM refused (API key lacks "Uninstall agents" permission)' : err.message}`,
+        module: 'rmm', ipAddress: req.ip,
+      });
+    }
+    if (tacticalRefused) {
+      return res.status(503).json({
+        success: false,
+        message: 'Removing devices from the portal is not available yet. Please contact support to remove this device.',
+      });
+    }
     res.status(err.status || err.response?.status || 500).json({ success: false, message: err.message });
   }
 };

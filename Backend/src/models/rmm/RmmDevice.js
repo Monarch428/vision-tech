@@ -27,7 +27,10 @@ const rmmDeviceSchema = new mongoose.Schema(
     totalRamGb: { type: Number, default: null },
     cpu: { type: Number, default: null },     // Windows only (WMI)
     memory: { type: Number, default: null },  // Windows only (WMI)
-    storage: { type: Number, default: null }, // highest used % across disks
+    storage: { type: Number, default: null }, // used % of the system drive (C: on Windows, / elsewhere)
+    storageDevice: { type: String, default: null },
+    // Fullest drive, so a nearly full data drive isn't hidden behind the system drive.
+    fullestDisk: { device: { type: String, default: null }, percent: { type: Number, default: null } },
     checks: [
       {
         _id: false,
