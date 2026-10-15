@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { clearCache } from "../../hooks/useCacheStorage";
 import Cookies from "js-cookie";
+import { getErrorMessage } from "../../utils/errors";
 
 type TabType = "general" | "email" | "security" | "notifications";
 
@@ -274,8 +275,12 @@ export default function SystemConfig() {
   }, []);
 
   const loadHealth = async () => {
-    const res = await getSystemHealth();
-    setHealth(res.data);
+    try {
+      const res = await getSystemHealth();
+      setHealth(res.data);
+    } catch (err) {
+      console.error("Failed to load system health:", err);
+    }
   };
 
   const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -287,7 +292,7 @@ export default function SystemConfig() {
       setToast({ message: "Test email sent!", type: "success" });
     } catch (err: any) {
       setToast({
-        message: err?.response?.data?.message || "Failed to send test email.",
+        message: getErrorMessage(err, "Failed to send test email."),
         type: "error",
       });
     } finally {
@@ -374,7 +379,7 @@ export default function SystemConfig() {
       }
       setToast({
         message:
-          err?.response?.data?.message || "Failed to load configuration.",
+          getErrorMessage(err, "Failed to load configuration."),
         type: "error",
       });
     } finally {
@@ -437,7 +442,7 @@ export default function SystemConfig() {
       }
     } catch (err: any) {
       setToast({
-        message: err?.response?.data?.message || "Failed to save settings.",
+        message: getErrorMessage(err, "Failed to save settings."),
         type: "error",
       });
     } finally {

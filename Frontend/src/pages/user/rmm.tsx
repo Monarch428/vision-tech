@@ -4,6 +4,7 @@ import RmmAlertsPanel from "../../components/RmmAlertsPanel";
 import DeviceDetailsModal from "../../components/DeviceDetailsModal";
 import type { Device, DeviceLimit, GenerateInstallerPayload } from "../../services/user/rmm.service";
 import { currentUserRole } from "../../services/admin/userManagement.service";
+import { getErrorMessage } from "../../utils/errors";
 
 // ─── Icons ────────────────────────────────────────────────────────────────────
 
@@ -733,7 +734,7 @@ export default function RMM() {
   } catch (err: any) {
     console.error("Failed to delete device:", err);
     setDeleteError(
-      err?.response?.data?.message || "Failed to remove device. Please try again."
+      getErrorMessage(err, "Failed to remove device. Please try again.")
     );
   }
 };
@@ -741,7 +742,7 @@ export default function RMM() {
   const [role, setRole] = useState<string | null>(null);
   useEffect(() => {
     currentUserRole()
-      .then((res) => setRole(res.data.data.role))
+      .then((res) => setRole(res.data?.data?.role ?? null))
       .catch(() => setRole(null));
   }, []);
   // "superadmin" (Super Admin) is the elevated/system role in this app's User schema

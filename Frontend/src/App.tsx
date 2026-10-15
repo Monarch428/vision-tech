@@ -28,6 +28,8 @@ import CreateAccountPage from "./pages/auth/userAccountPage";
 import HomePage from "./pages/home/homePage";
 import PrivacyPolicy from "./pages/home/privacyPolicy";
 import TermsConditions from "./pages/home/termsConditions";
+import NotFound from "./pages/NotFound";
+import { RouteErrorBoundary } from "./components/ErrorBoundary";
 
 function App() {
   const initialized = useRef(false);
@@ -39,6 +41,7 @@ function App() {
 
   return (
     <BrowserRouter>
+      <RouteErrorBoundary variant="app">
       <Routes>
         {/* Public */}
         <Route path="/" element={<Navigate to="/home" replace />} />
@@ -79,7 +82,10 @@ function App() {
           path="/user-management"
           element={<Navigate to="/admin/users" replace />}
         />
+
+        <Route path="*" element={<NotFound />} />
       </Routes>
+      </RouteErrorBoundary>
     </BrowserRouter>
   );
 }

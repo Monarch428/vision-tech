@@ -86,9 +86,13 @@ function ActivityLog() {
   const loadMore = async () => {
     const last = entries[entries.length - 1];
     if (!last) return;
-    const more = await getAuditLog(last.at);
-    setEntries((prev) => [...prev, ...more]);
-    setHasMore(more.length === 50);
+    try {
+      const more = await getAuditLog(last.at);
+      setEntries((prev) => [...prev, ...more]);
+      setHasMore(more.length === 50);
+    } catch (err) {
+      console.error("Failed to load more RMM activity:", err);
+    }
   };
 
   if (loading) return <p className="text-sm text-gray-500 mt-4">Loading activity…</p>;
@@ -111,7 +115,7 @@ function ActivityLog() {
               <td className="px-4 py-2 whitespace-nowrap text-gray-600">{new Date(e.at).toLocaleString()}</td>
               <td className="px-4 py-2 whitespace-nowrap">
                 <span className={e.type === "warning" || e.type === "error" ? "text-amber-700 font-semibold" : "text-gray-800"}>
-                  {e.action.replace(/^RMM_/, "").replace(/_/g, " ").toLowerCase()}
+                  {(e.action || "").replace(/^RMM_/, "").replace(/_/g, " ").toLowerCase()}
                 </span>
               </td>
               <td className="px-4 py-2 text-gray-600">{e.by || "system"}</td>

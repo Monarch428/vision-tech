@@ -126,7 +126,7 @@ export default function Sidebar({ open, onClose }: SidebarProps) {
     localStorage.removeItem('token');
     localStorage.removeItem('user');
     Cookies.remove('user');
-    await clearCache();
+    await clearCache().catch(() => undefined);
     navigate('/login');
   };
 

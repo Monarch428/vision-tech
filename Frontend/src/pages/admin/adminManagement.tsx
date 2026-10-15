@@ -177,7 +177,7 @@ export default function AdminDashboard() {
     const fetchRequests = async () => {
       try {
         const res = await getRecentSupportRequests();
-        if (res.data.success) setRecentRequests(res.data.data);
+        if (res.data.success && Array.isArray(res.data.data)) setRecentRequests(res.data.data);
       } catch (err) {
         console.error("Failed to fetch support requests:", err);
       } finally {
@@ -191,13 +191,13 @@ export default function AdminDashboard() {
     const fetchClients = async () => {
       try {
         const res = await getAllUsers();
-        setTotalClients(res.data.count);
-        setCurrentMonthClientCount(res.data.currentMonthCount);
-        const users: { createdAt: string }[] = res.data.data;
+        setTotalClients(Number(res.data.count) || 0);
+        setCurrentMonthClientCount(Number(res.data.currentMonthCount) || 0);
+        const users: { createdAt: string }[] = Array.isArray(res.data.data) ? res.data.data : [];
         const counts = Array(12).fill(0);
         users.forEach((u) => {
           const month = new Date(u.createdAt).getMonth();
-          counts[month]++;
+          if (!Number.isNaN(month)) counts[month]++;
         });
         for (let i = 1; i < 12; i++) counts[i] += counts[i - 1];
         setMonthlyClientData(counts);
@@ -220,7 +220,7 @@ export default function AdminDashboard() {
         const counts = Array(12).fill(0);
         activeSubs.forEach((sub: any) => {
           const month = new Date(sub.createdAt).getMonth();
-          counts[month]++;
+          if (!Number.isNaN(month)) counts[month]++;
         });
         for (let i = 1; i < 12; i++) counts[i] += counts[i - 1];
         setMonthlySubData(counts);
@@ -235,8 +235,8 @@ export default function AdminDashboard() {
     const fetchRequestCount = async () => {
       try {
         const res = await getAllServiceRequests();
-        setRequestCount(res.data.data.length);
-        setCriticalRequests(res.data.criticalRequest);
+        setRequestCount(Array.isArray(res.data.data) ? res.data.data.length : 0);
+        setCriticalRequests(Number(res.data.criticalRequest) || 0);
       } catch (err) {
         console.error("Failed to fetch service requests:", err);
       }
@@ -581,7 +581,7 @@ export default function AdminDashboard() {
                     <td className="py-3.5 text-sm text-gray-700">{request.assigned_user_id?.name || "Unassigned"}</td>
                     <td className="py-3.5">
                       <span className={`text-xs font-medium px-2.5 py-1 rounded-full capitalize ${statusClass(request.status)}`}>
-                        {request.status.replace("_", " ")}
+                        {(request.status || "unknown").replace("_", " ")}
                       </span>
                     </td>
                   </tr>

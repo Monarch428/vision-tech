@@ -41,7 +41,12 @@ export default function RmmAlertsPanel({ isStaff }: { isStaff: boolean }) {
   }, []);
 
   const handleAcknowledge = async (id: string) => {
-    await acknowledgeAlert(id);
+    try {
+      await acknowledgeAlert(id);
+    } catch (err) {
+      console.error("Failed to acknowledge alert:", err);
+      return;
+    }
     setAlerts((prev) => prev.map((a) => (a.id === id ? { ...a, acknowledgedAt: new Date().toISOString() } : a)));
   };
 

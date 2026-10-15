@@ -12,6 +12,7 @@ import {
   getAgentsForBooking,
   assignTicket as assignTicketService,
 } from "../../services/admin/serviceRequest.service";
+import { getErrorMessage } from "../../utils/errors";
 
 type Priority = "high" | "medium" | "low";
 type Status = "in-progress" | "open" | "resolved" | "closed";
@@ -142,7 +143,7 @@ function AssignWizard({
       setStep("done");
       onAssigned(ticket._id, selectedAgent, agent?.name || "", selectedStatus as Status);
     } catch (err: any) {
-      alert(err?.response?.data?.message || "Server error");
+      alert(getErrorMessage(err, "Server error"));
     } finally {
       setAssigning(false);
     }
@@ -343,9 +344,9 @@ export default function ServiceRequests() {
         setError(res.data.message || "Failed to load");
         return;
       }
-      setRequests(res.data.data);
+      setRequests(Array.isArray(res.data.data) ? res.data.data : []);
     } catch (err: any) {
-      setError(err?.response?.data?.message || "Server error. Please try again.");
+      setError(getErrorMessage(err, "Server error. Please try again."));
     } finally {
       setLoading(false);
     }

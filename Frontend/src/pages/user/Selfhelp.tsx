@@ -20,6 +20,7 @@ import type {
 } from "../../services/user/selfhelp.service";
 import { clearCache } from "../../hooks/useCacheStorage";
 import { useEffect } from "react";
+import { getErrorMessage } from "../../utils/errors";
 
 type ToolStatus = "idle" | "running" | "completed" | "failed";
 
@@ -450,7 +451,7 @@ if (usesApi) {
     );
   } catch (error: any) {
     console.error("Antivirus start error:", error);
-    setErrorMessage(error?.response?.data?.message || "Failed to start scan.");
+    setErrorMessage(getErrorMessage(error, "Failed to start scan."));
     setStatus("failed");
   } finally {
     setLoading(false);
@@ -470,7 +471,7 @@ if (usesApi) {
         setBackupsRefresh((n) => n + 1);
       } catch (err: any) {
         console.error("Backup failed:", err);
-        setErrorMessage(err?.response?.data?.message || "Backup failed.");
+        setErrorMessage(getErrorMessage(err, "Backup failed."));
         setStatus("failed");
       }
       return;
@@ -535,7 +536,7 @@ if (usesApi) {
     const interval = setInterval(async () => {
       try {
         const res = await getToolStatus(toolRecordId);
-        setProgress(res.data.progress);
+        setProgress(Number(res.data.progress) || 0);
         if (res.data.status === "completed") {
           setStatus("completed");
           clearInterval(interval);

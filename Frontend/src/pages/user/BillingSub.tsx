@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { capturePaypalOrder, confirmStripePayment, createPaypalOrder, createStripeCheckout, downloadInvoice, getMyInvoices, getMySubscription, getPlans, updateSubscription } from "../../services/user/billingSub.service";
+import { getErrorMessage } from "../../utils/errors";
 
 type PaymentProvider = "paypal" | "stripe";
 
@@ -607,7 +608,7 @@ export default function BillingSub() {
       window.location.assign(url); // Stripe's hosted payment page
     } catch (err: any) {
       setStripeRedirecting(false);
-      showToast(err.response?.data?.message || "Could not start card payment", "error");
+      showToast(getErrorMessage(err, "Could not start card payment"), "error");
     }
   };
 
@@ -631,7 +632,7 @@ export default function BillingSub() {
         showToast("Payment received. Your plan is active.");
       })
       .catch((err) =>
-        showToast(err.response?.data?.message || "We couldn't confirm the card payment yet. Refresh in a minute.", "error"),
+        showToast(getErrorMessage(err, "We couldn't confirm the card payment yet. Refresh in a minute."), "error"),
       );
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -646,7 +647,7 @@ export default function BillingSub() {
         setSub(null);
       } else {
         showToast(
-          err.response?.data?.message || "Could not load subscription",
+          getErrorMessage(err, "Could not load subscription"),
           "error",
         );
       }
@@ -689,7 +690,7 @@ export default function BillingSub() {
       setSub(data);
       showToast("Subscription cancelled. Active until billing period ends.");
     } catch (err: any) {
-      showToast(err.response?.data?.message || "Failed to cancel", "error");
+      showToast(getErrorMessage(err, "Failed to cancel"), "error");
     } finally {
       setCancelling(false);
     }
@@ -703,7 +704,7 @@ export default function BillingSub() {
       setSub(data);
       showToast("Subscription reactivated successfully!");
     } catch (err: any) {
-      showToast(err.response?.data?.message || "Failed to reactivate", "error");
+      showToast(getErrorMessage(err, "Failed to reactivate"), "error");
     } finally {
       setReactivating(false);
     }
@@ -798,7 +799,7 @@ export default function BillingSub() {
                   } catch (err: any) {
                     // Declined funding source: let the buyer pick another one in PayPal.
                     if (err.response?.data?.code === "INSTRUMENT_DECLINED") return actions.restart();
-                    showToast(err.response?.data?.message || "PayPal payment failed. Please try again.", "error");
+                    showToast(getErrorMessage(err, "PayPal payment failed. Please try again."), "error");
                   }
                 }}
                 onError={(err) => {
@@ -1216,7 +1217,7 @@ export default function BillingSub() {
                   <div className="flex items-center gap-3">
                     <div className="text-right">
                       <p className="text-sm font-bold text-gray-900">
-                        ${inv.amount.toFixed(2)}
+                        ${(Number(inv.amount) || 0).toFixed(2)}
                       </p>
                       <span
                         className={`flex items-center justify-end gap-1 text-[11px] font-medium ${inv.status === "success"

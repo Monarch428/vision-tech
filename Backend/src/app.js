@@ -2,6 +2,7 @@ const express = require('express');
 const cors = require('cors');
 const { logger } = require("./utils/logger");
 const { protect, authorize, STAFF_ROLES } = require("./middleware/auth.middleware");
+const { notFound, errorHandler } = require("./middleware/error.middleware");
 require("dotenv").config();
 const { v2: cloudinary } = require("cloudinary");
 
@@ -165,6 +166,9 @@ app.use('/api/self-help',          selfHelpRoutes);
 app.use('/api/system-config',          systemConfig);
 app.use('/api/data-management',          dataManagementRoutes);
 app.use('/api/devices', tacticalRmmRoutes);
+
+app.use(notFound);
+app.use(errorHandler);
 
 // DISABLE_CRON=true (automated tests) loads the app without background jobs.
 if (process.env.DISABLE_CRON !== 'true') {

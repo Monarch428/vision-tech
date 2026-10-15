@@ -12,6 +12,7 @@ import TableHead from "@mui/material/TableHead";
 import TablePagination from "@mui/material/TablePagination";
 import TableRow from "@mui/material/TableRow";
 import { getSystemLogs } from "../../services/admin/systemLogs.service";
+import { getErrorMessage } from "../../utils/errors";
 
 type LogType = "success" | "info" | "warning" | "error";
 
@@ -173,7 +174,7 @@ export default function SystemLogs() {
         })),
       );
     } catch (err: any) {
-      setError(err?.response?.data?.message || "Something went wrong");
+      setError(getErrorMessage(err, "Something went wrong"));
     } finally {
       setLoading(false);
     }

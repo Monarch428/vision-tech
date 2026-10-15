@@ -17,6 +17,7 @@ import TableContainer from "@mui/material/TableContainer";
 import TableHead from "@mui/material/TableHead";
 import TablePagination from "@mui/material/TablePagination";
 import TableRow from "@mui/material/TableRow";
+import { getErrorMessage } from "../../utils/errors";
 
 interface User {
   _id: string;
@@ -85,8 +86,9 @@ const inputCls = (err?: string) =>
     : "border-gray-200 bg-gray-100 focus:border-green-500 focus:bg-white"
   }`;
 
-const getInitials = (name: string) =>
-  name
+const getInitials = (name?: string) =>
+  (name || "?")
+    .trim()
     .split(" ")
     .map((n) => n[0])
     .join("")
@@ -434,9 +436,9 @@ export default function UserManagement() {
       setLoading(true);
       setError("");
       const res = await getAllUsers();
-      setUsers(res.data.data);
+      setUsers(Array.isArray(res.data.data) ? res.data.data : []);
     } catch (err: any) {
-      setError(err?.response?.data?.message || "Failed to load users.");
+      setError(getErrorMessage(err, "Failed to load users."));
     } finally {
       setLoading(false);
     }
@@ -453,8 +455,8 @@ export default function UserManagement() {
 
   const filtered = users.filter((u) => {
     const matchSearch =
-      u.name.toLowerCase().includes(search.toLowerCase()) ||
-      u.email.toLowerCase().includes(search.toLowerCase());
+      (u.name || "").toLowerCase().includes(search.toLowerCase()) ||
+      (u.email || "").toLowerCase().includes(search.toLowerCase());
     const matchRole =
       !roleFilter ||
       (roleFilter === "client" ? isClientRole(u.role) : u.role === roleFilter);
@@ -499,7 +501,7 @@ export default function UserManagement() {
       setAddForm(EMPTY_FORM);
       fetchUsers();
     } catch (err: any) {
-      setAddError(err?.response?.data?.message || "Failed to create user.");
+      setAddError(getErrorMessage(err, "Failed to create user."));
     } finally {
       setAddLoading(false);
     }
@@ -614,7 +616,7 @@ export default function UserManagement() {
       setShowEdit(false);
       fetchUsers();
     } catch (err: any) {
-      setEditError(err?.response?.data?.message || "Failed to update user.");
+      setEditError(getErrorMessage(err, "Failed to update user."));
     } finally {
       setEditLoading(false);
     }
@@ -625,7 +627,7 @@ export default function UserManagement() {
       await deleteUser(id, action);
       fetchUsers();
     } catch (err: any) {
-      alert(err?.response?.data?.message || "Failed to delete user.");
+      alert(getErrorMessage(err, "Failed to delete user."));
     }
   };
 

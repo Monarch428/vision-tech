@@ -4,7 +4,7 @@ import { downloadInvoiceAsStaff, getAdminPayments, refundPayment } from "../../s
 import type { AdminPayment, PaymentFilters, PaymentsPage } from "../../services/admin/payments.service";
 
 const GATEWAY_LABELS: Record<string, string> = { paypal: "PayPal", stripe: "Card (Stripe)" };
-const money = (n: number) => `$${n.toFixed(2)}`;
+const money = (n: number | string | null | undefined) => `$${(Number(n) || 0).toFixed(2)}`;
 const errorText = (e: unknown, fallback: string) => (isAxiosError(e) && e.response?.data?.message) || fallback;
 
 const STATUS_STYLES: Record<string, string> = {

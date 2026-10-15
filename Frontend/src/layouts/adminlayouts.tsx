@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { jwtDecode } from 'jwt-decode';
 import Sidebar from '../components/Sidebar';
+import { RouteErrorBoundary } from '../components/ErrorBoundary';
 import { checkTokenValidity, refreshTokenIfExpiring } from '../utils/auth';
 import { getUserById } from '../services/admin/userManagement.service';
 
@@ -85,7 +86,10 @@ export default function AdminLayout() {
         </header>
 
         <main className="flex-1 overflow-y-auto p-4 sm:p-6">
-          <Outlet />
+          {/* A crash inside a page only replaces the page; sidebar and header stay usable. */}
+          <RouteErrorBoundary>
+            <Outlet />
+          </RouteErrorBoundary>
         </main>
       </div>
     </div>

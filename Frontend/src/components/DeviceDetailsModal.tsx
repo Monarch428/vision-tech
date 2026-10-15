@@ -198,8 +198,8 @@ export default function DeviceDetailsModal({ deviceId, onClose }: { deviceId: st
             </Section>
 
             {d.platform === "windows" && (
-              <Section title={`Pending Windows updates (${details.pendingUpdates.length})`}>
-                {details.pendingUpdates.length === 0 ? (
+              <Section title={`Pending Windows updates (${details.pendingUpdates?.length ?? 0})`}>
+                {!details.pendingUpdates?.length ? (
                   <p className="text-sm text-gray-500">Up to date.</p>
                 ) : (
                   <ul className="list-disc pl-5 text-sm text-gray-700">
