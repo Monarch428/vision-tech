@@ -1,7 +1,7 @@
 # Vision Tech — Frontend
 
 React 19 + Vite + TypeScript single-page app (MUI, Tailwind, React Router) for customers,
-admins and the support owner of the Vision Tech portal.
+admins and the Super Admin (system owner) of the Vision Tech portal.
 
 ## Setup
 

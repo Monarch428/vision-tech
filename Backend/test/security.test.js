@@ -57,15 +57,40 @@ test('plans can only change through a verified payment', async () => {
   assert.equal((await t.request('POST', '/payments/paypal/create-order', { token: t.tokens.user, body: { planName: 'free' } })).status, 400);
 });
 
-test('only the support role may change system configuration, and the SMTP password is never returned', async () => {
+test('only the Super Admin may change system configuration, and the SMTP password is never returned', async () => {
   const cfg = await t.request('GET', '/system-config/me', { token: t.tokens.admin });
   assert.equal(cfg.status, 200);
   assert.equal(cfg.body.config.email.smtpPassword, '');
   assert.equal((await t.request('PUT', '/system-config', { token: t.tokens.admin, body: cfg.body.config })).status, 403);
 
   const withPassword = { ...cfg.body.config, email: { ...cfg.body.config.email, smtpPassword: 'secret' } };
-  const saved = await t.request('PUT', '/system-config', { token: t.tokens.support, body: withPassword });
+  const saved = await t.request('PUT', '/system-config', { token: t.tokens.superadmin, body: withPassword });
   assert.equal(saved.status, 200);
   assert.equal(saved.body.config.email.smtpPassword, '');
   assert.equal(saved.body.config.email.smtpPasswordSet, true);
+});
+
+test('role rename: old "support" accounts and tokens become Super Admin; still only one allowed', async () => {
+  const mongoose = require('mongoose');
+  const jwt = require('jsonwebtoken');
+  const migrateLegacyRoles = require('../src/utils/migrateLegacyRoles');
+  const users = mongoose.connection.collection('users');
+
+  // An account stored with the old role name is migrated.
+  await users.updateOne({ _id: new mongoose.Types.ObjectId(t.ids.superadmin) }, { $set: { role: 'support' } });
+  assert.equal(await migrateLegacyRoles(), 1);
+  assert.equal((await users.findOne({ _id: new mongoose.Types.ObjectId(t.ids.superadmin) })).role, 'superadmin');
+  assert.equal(await migrateLegacyRoles(), 0); // safe to run again
+
+  // A token issued before the rename keeps Super Admin access.
+  const oldToken = jwt.sign({ id: t.ids.superadmin, email: 'superadmin@test.local', role: 'support' }, process.env.JWT_SECRET, { expiresIn: '5m' });
+  const cfg = await t.request('GET', '/system-config/me', { token: oldToken });
+  assert.equal(cfg.status, 200);
+  assert.equal((await t.request('PUT', '/system-config', { token: oldToken, body: cfg.body.config })).status, 200);
+
+  // Still only one Super Admin.
+  await assert.rejects(users.updateOne({ _id: new mongoose.Types.ObjectId(t.ids.admin) }, { $set: { role: 'superadmin' } }), /duplicate key/);
+  const res = await t.request('PUT', `/v1/users/${t.ids.admin}`, { token: t.tokens.superadmin, body: { role: 'superadmin' } });
+  assert.equal(res.status, 400);
+  assert.match(res.body.message, /Only one Super Admin/);
 });

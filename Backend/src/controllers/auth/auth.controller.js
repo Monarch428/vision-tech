@@ -612,7 +612,9 @@ const forgotPassword = async (req, res) => {
     user.resetPasswordExpiry = resetExpiry;
     await user.save();
 
-    const resetLink = `${process.env.FRONTEND_URL}/reset-password?token=${resetToken}`;
+    // FRONTEND_URL in production; locally fall back to the (CORS-allowlisted) origin of the request.
+    const appUrl = (process.env.FRONTEND_URL || req.get('origin') || '').replace(/\/$/, '');
+    const resetLink = `${appUrl}/reset-password?token=${resetToken}`;
 
     await sendEmail({
       to: emailNormalized,

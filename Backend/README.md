@@ -26,10 +26,11 @@ frontend's `VITE_API_BASE_URL` at it) or turn AirPlay Receiver off.
 
 ## Roles and access
 
-Roles: `user` (customer), `admin` (operations), `support` (system owner; only one allowed).
+Roles: `user` (customer), `admin` (operations), `superadmin` — shown as **Super Admin** (system owner;
+only one allowed; formerly `support`, migrated automatically at startup).
 Routes use `protect` (valid JWT) and `authorize(...roles)` from `src/middleware/auth.middleware.js`.
 
-| Area | user | admin | support |
+| Area | user | admin | superadmin |
 |---|---|---|---|
 | Own profile, subscription (cancel / reactivate), payments, invoices, tickets, devices | ✓ own only | ✓ | ✓ |
 | All users, subscriptions, payments, tickets, antivirus schedules; ticket assignment | | ✓ | ✓ |

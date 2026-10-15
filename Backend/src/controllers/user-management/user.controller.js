@@ -16,12 +16,12 @@ const createUser = async (req, res) => {
 
     const existingUser = await User.findOne({ email });
 
-    if (role === 'support') {
-      const existingSUpport = await User.findOne({ role: 'support' });
+    if (role === 'superadmin') {
+      const existingSUpport = await User.findOne({ role: 'superadmin' });
       if (existingSUpport) {
         return res.status(400).json({
           success: false,
-          message: 'Only one support user is allowed',
+          message: 'Only one Super Admin is allowed',
         });
       }
     }
@@ -246,8 +246,8 @@ const updateUser = async (req, res) => {
       if (req.body[field] !== undefined) updateData[field] = req.body[field];
     }
 
-    if (updateData.role === 'support' && req.user.role !== 'support') {
-      return res.status(403).json({ success: false, message: 'Only the support user can assign the support role' });
+    if (updateData.role === 'superadmin' && req.user.role !== 'superadmin') {
+      return res.status(403).json({ success: false, message: 'Only the Super Admin can assign the Super Admin role' });
     }
 
     // Get current user first
@@ -271,17 +271,17 @@ const updateUser = async (req, res) => {
       }
     }
 
-    // Check if trying to assign support role to another user
-    if (updateData.role === 'support') {
+    // Check if trying to assign the Super Admin role to another user
+    if (updateData.role === 'superadmin') {
       const existingSupport = await User.findOne({
-        role: 'support',
+        role: 'superadmin',
         _id: { $ne: req.params.id },
       });
 
       if (existingSupport) {
         return res.status(400).json({
           success: false,
-          message: 'Only one support user is allowed',
+          message: 'Only one Super Admin is allowed',
         });
       }
     }

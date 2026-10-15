@@ -34,11 +34,11 @@ const SYSTEM_ITEMS = [
   { id: 'System config', label: 'System Configuration', path: '/system', icon: 'users' },
 ];
 
-type Role = 'admin' | 'support' | 'user' | null;
+type Role = 'admin' | 'superadmin' | 'user' | null;
 
 function getNavGroups(role: Role) {
   switch (role) {
-    case 'support':
+    case 'superadmin':
       return [
         { section: 'Admin', items: ADMIN_ITEMS },
         { section: 'Platform', items: PLATFORM_ITEMS },

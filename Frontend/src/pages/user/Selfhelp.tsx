@@ -787,7 +787,7 @@ function isStaffUser(): boolean {
   try {
     const token = localStorage.getItem("token");
     const role = token ? jwtDecode<{ role?: string }>(token).role : undefined;
-    return role === "admin" || role === "support";
+    return role === "admin" || role === "superadmin";
   } catch {
     return false;
   }

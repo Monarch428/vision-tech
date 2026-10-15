@@ -22,7 +22,7 @@ interface User {
   _id: string;
   name: string;
   email: string;
-  role: "admin" | "user" | "support";
+  role: "admin" | "user" | "superadmin";
   status: "active" | "paused" | "cancelled" | "expired" | "inactive";
   isActive: boolean;
   lastLoginText: string;
@@ -48,13 +48,13 @@ interface ImportedUser {
 
 type FieldErrors = Partial<Record<keyof FormState, string>>;
 
-// Underlying data model still stores one of admin | user | support.
+// Underlying data model stores one of admin | user | superadmin (Super Admin).
 // For display purposes (table badges, filter, stats) these collapse into
-// just two groups: "User" (role === "user") and "Client" (admin + support).
+// just two groups: "User" (role === "user") and "Client" (admin + Super Admin).
 const ROLES = [
   { value: "admin", label: "Admin" },
   { value: "user", label: "User" },
-  { value: "support", label: "Support" },
+  { value: "superadmin", label: "Super Admin" },
 ];
 const STATUSES = [
   { value: "active", label: "Active" },
@@ -68,7 +68,7 @@ const ROLE_GROUPS = [
   { value: "client", label: "Client" },
 ];
 
-const isClientRole = (role: string) => role === "admin" || role === "support";
+const isClientRole = (role: string) => role === "admin" || role === "superadmin";
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const STEPS = ["Basic Info", "Role & Status", "Review"];
@@ -159,7 +159,8 @@ function parseCSV(text: string): ImportedUser[] {
     if (!user.name.trim()) errs.push("name missing");
     if (!user.email.trim() || !EMAIL_RE.test(user.email)) errs.push("invalid email");
     if (!user.password || user.password.length < 6) errs.push("password too short");
-    if (!["admin", "user", "support"].includes(user.role)) errs.push(`invalid role "${user.role}"`);
+    if (user.role === "support") user.role = "superadmin"; // old templates used "support"
+    if (!["admin", "user", "superadmin"].includes(user.role)) errs.push(`invalid role "${user.role}"`);
     if (!["active", "inactive", "suspended"].includes(user.status)) errs.push(`invalid status "${user.status}"`);
     if (errs.length) user._rowError = errs.join("; ");
     return user;
@@ -171,7 +172,7 @@ function downloadTemplate() {
     "name,email,password,role,status",
     "John Doe,john@example.com,password123,user,active",
     "Jane Admin,jane@example.com,securepass,admin,active",
-    "Bob Support,bob@example.com,support123,support,inactive",
+    "Sam Owner,sam@example.com,superpass123,superadmin,inactive",
   ].join("\n");
   const blob = new Blob([csv], { type: "text/csv" });
   const url = URL.createObjectURL(blob);
@@ -193,10 +194,10 @@ function Field({ label, error, children }: { label: string; error?: string; chil
 }
 
 // Displays only two groups regardless of the underlying stored role:
-// "user" -> User, "admin" | "support" -> Client
+// "user" -> User, "admin" -> Client, "superadmin" -> Super Admin
 function RoleBadge({ role }: { role: string }) {
   const client = isClientRole(role);
-  const label = client ? "Client" : "User";
+  const label = role === "superadmin" ? "Super Admin" : client ? "Client" : "User";
   const style = client
     ? "bg-blue-50 text-blue-600 border-blue-200"
     : "bg-green-50 text-green-700 border-green-200";
@@ -465,7 +466,7 @@ export default function UserManagement() {
     currentPage * itemsPerPage + itemsPerPage,
   );
 
-  // Only three stat cards now: Total Users, Active Users, Client (admin + support).
+  // Only three stat cards now: Total Users, Active Users, Client (admin + Super Admin).
   const stats = [
     { label: "Total Users", value: users.length, color: "text-blue-600" },
     { label: "Active Users", value: users.filter((u) => u.status === "active").length, color: "text-green-600" },

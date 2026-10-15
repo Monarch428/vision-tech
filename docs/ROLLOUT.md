@@ -43,9 +43,9 @@ Work through these in order. Steps marked **(blocking)** must be done before cus
 
 ## 3. Right after deploying
 
-1. Log in as the **support** user → System Configuration → Email: enter SMTP details → **Send test email** → Save.
+1. Log in as the **Super Admin** → System Configuration → Email: enter SMTP details → **Send test email** → Save.
    Turn **Device Alerts** on or off as wanted.
-2. Make sure the admin and support accounts have **real email addresses** (alerts go there).
+2. Make sure the Admin and Super Admin accounts have **real email addresses** (alerts go there).
 3. **Link existing customers to their RMM Sites**: User Management → Edit user → Role/Status step →
    *Device group (RMM Site)* → Link. Current Sites: Adriana Horowitz, Corey Scarbrough, Diana Corwin,
    Howard Horowitz, Lolita, Stacy Lavacca, Tim Jacobs.

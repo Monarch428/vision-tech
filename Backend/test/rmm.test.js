@@ -43,7 +43,7 @@ test('linking scopes devices to the customer Site; one Site per account', async 
   assert.equal((await link(t.TEST_SITE)).status, 200);
   const list = await t.request('GET', '/devices', { token: t.tokens.user });
   assert.deepEqual(list.body.devices.map((d) => d.hostname), ['TEST-PC']);
-  const second = await t.request('PUT', '/devices/sites/link', { token: t.tokens.admin, body: { userId: t.ids.support, siteId: t.TEST_SITE } });
+  const second = await t.request('PUT', '/devices/sites/link', { token: t.tokens.admin, body: { userId: t.ids.superadmin, siteId: t.TEST_SITE } });
   assert.equal(second.status, 409);
   assert.equal((await t.request('GET', '/devices/A-OTHER-WIN', { token: t.tokens.user })).status, 404);
 });

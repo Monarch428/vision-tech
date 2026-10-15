@@ -1,11 +1,12 @@
 const UserManagement = require('../models/user-management/User');
 const sendEmail = require('./sendEmail');
 const systemLogger = require('./systemLogger');
+const { STAFF_ROLES } = require('../middleware/auth.middleware');
 
-// Emails every admin and the support user. Email problems (e.g. SMTP not
+// Emails every admin and the Super Admin. Email problems (e.g. SMTP not
 // configured) are logged and never break the calling job or request.
 const notifyStaff = async ({ subject, html }) => {
-  const staff = await UserManagement.find({ role: { $in: ['admin', 'support'] }, isActive: { $ne: false } })
+  const staff = await UserManagement.find({ role: { $in: STAFF_ROLES }, isActive: { $ne: false } })
     .select('email')
     .lean();
 

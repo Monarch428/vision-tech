@@ -744,8 +744,8 @@ export default function RMM() {
       .then((res) => setRole(res.data.data.role))
       .catch(() => setRole(null));
   }, []);
-  // "support" is the elevated/system role in this app's User schema
-  // (enum: ['admin', 'user', 'support']) — there is no separate "system" role.
+  // "superadmin" (Super Admin) is the elevated/system role in this app's User schema
+  // (enum: ['admin', 'user', 'superadmin']).
   // Stat cards / RMM banner are admin-only — everyone else (including
   // support) just sees the serial-number-matched device list below.
   const isAdminRole = role === "admin";
@@ -877,7 +877,7 @@ export default function RMM() {
         </div>
       )}
 
-      {linked && <RmmAlertsPanel isStaff={role === "admin" || role === "support"} />}
+      {linked && <RmmAlertsPanel isStaff={role === "admin" || role === "superadmin"} />}
 
       {limit && linked && (
         <p className="mt-4 text-sm text-gray-600">

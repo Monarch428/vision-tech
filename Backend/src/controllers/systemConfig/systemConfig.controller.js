@@ -224,7 +224,7 @@ const testEmail = async (req, res) => {
       action: "TEST_EMAIL_SENT",
       user: req.user?._id,
       userEmail: req.user?.email,
-      details: `Test email sent to ${fromEmail} via ${smtpHost}:${smtpPort}`,
+      details: `Test email sent to ${fromEmail} via ${smtpHost ? `${smtpHost}:${smtpPort}` : 'the saved SMTP settings'}`,
       module: "email",
       ipAddress: req.ip,
     });

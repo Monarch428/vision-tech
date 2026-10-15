@@ -109,7 +109,7 @@ const Plan = require('../src/models/subscription/Plan');
 const SystemConfig = require('../src/models/system-config/SystemConfig');
 const { activatePlan } = require('../src/utils/planActivation');
 
-const PASSWORDS = { user: 'User@12345', admin: 'Admin@12345', support: 'Support@12345' };
+const PASSWORDS = { user: 'User@12345', admin: 'Admin@12345', superadmin: 'Super@12345' };
 
 const seed = async () => {
   await mongoose.connection.dropDatabase();
@@ -126,7 +126,7 @@ const seed = async () => {
   });
 
   const ids = {};
-  for (const role of ['user', 'admin', 'support']) {
+  for (const role of ['user', 'admin', 'superadmin']) {
     const user = await AuthUser.create({ name: `Test ${role}`, email: `${role}@test.local`, password: PASSWORDS[role], role, isActive: true });
     const planName = role === 'user' ? 'free' : 'enterprise';
     await UserManagement.updateOne({ _id: user._id }, { $set: { status: 'active', plan: planName, deviceNames: [], serialNumbers: [] } });
@@ -161,7 +161,7 @@ const startTestServer = async () => {
     if (!res.body?.token) throw new Error(`Login failed for ${role}: ${res.status} ${res.body?.message}`);
     return res.body.token;
   };
-  const tokens = { user: await login('user'), admin: await login('admin'), support: await login('support') };
+  const tokens = { user: await login('user'), admin: await login('admin'), superadmin: await login('superadmin') };
 
   const close = async () => {
     await new Promise((resolve) => server.close(resolve));

@@ -58,7 +58,9 @@ const checkDatabase = async () => {
   const ips = config.security?.allowedIpAddresses || [];
   if (ips.length && !ips.includes('*')) warn(`Logins are limited to these IPs: ${ips.join(', ')}`);
 
-  const staff = await db.collection('users').find({ role: { $in: ['admin', 'support'] } }).project({ email: 1, role: 1, isActive: 1 }).toArray();
+  const staff = await db.collection('users').find({ role: { $in: ['admin', 'superadmin'] } }).project({ email: 1, role: 1, isActive: 1 }).toArray();
+  const legacy = await db.collection('users').countDocuments({ role: 'support' });
+  if (legacy) warn(`${legacy} account(s) still have the old "support" role; they are renamed to "superadmin" when the server starts`);
   staff.length ? ok(`Staff accounts (alert recipients): ${staff.map((s) => `${s.email} [${s.role}${s.isActive === false ? ', inactive' : ''}]`).join(', ')}`) : block('No admin or support accounts');
   for (const s of staff) if (/\.local$|example\./i.test(s.email)) warn(`Staff email ${s.email} looks like a placeholder: alerts sent there will be lost`);
 

@@ -1,6 +1,8 @@
 const jwt = require('jsonwebtoken');
 
-const STAFF_ROLES = ['admin', 'support'];
+// "superadmin" (shown as Super Admin) was previously called "support".
+const SUPER_ADMIN = 'superadmin';
+const STAFF_ROLES = ['admin', SUPER_ADMIN];
 
 const protect = (req, res, next) => {
   try {
@@ -17,6 +19,8 @@ const protect = (req, res, next) => {
 
     // Tokens carry `id`; many controllers read `_id`, so expose both.
     req.user = { ...decoded, _id: decoded.id };
+    // Tokens issued before the role rename still say "support".
+    if (req.user.role === 'support') req.user.role = SUPER_ADMIN;
     next();
   } catch (error) {
     return res.status(401).json({
@@ -42,4 +46,5 @@ module.exports = {
   authorize,
   isStaff,
   STAFF_ROLES,
+  SUPER_ADMIN,
 };
