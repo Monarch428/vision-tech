@@ -2,13 +2,55 @@ const rmm = require('../utils/tacticalRmmClient');
 
 exports.listAgents = async () => {
   const response = await rmm.get("/agents/?detail=true");
-  console.log("LIST AGENT SAMPLE:", JSON.stringify(response.data[0], null, 2)); // TEMP
   return response.data;
+};
+
+exports.listAgentsByClient = async (clientId, { detail = true } = {}) => {
+  const response = await rmm.get(`/agents/?client=${Number(clientId)}${detail ? '&detail=true' : ''}`);
+  return response.data;
+};
+
+// Tactical RMM uninstalls the agent from the computer and deletes its record.
+// Callers must check ownership and the write safety lock first.
+exports.uninstallAgent = async (agentId) => {
+  const { data } = await rmm.delete(`/agents/${agentId}/`);
+  return data;
+};
+
+exports.listAgentsBySite = async (siteId) => {
+  const response = await rmm.get(`/agents/?site=${Number(siteId)}&detail=true`);
+  return response.data;
+};
+
+exports.listSites = async (clientId) => {
+  const { data } = await rmm.get('/clients/');
+  const client = data.find((c) => c.id === Number(clientId));
+  return client ? client.sites : [];
+};
+
+exports.createSite = async (clientId, name) => {
+  await rmm.post('/clients/sites/', { site: { client: Number(clientId), name }, custom_fields: [] });
+  const sites = await exports.listSites(clientId);
+  return sites.find((s) => s.name === name) || null;
 };
 
 exports.getAgent = async (agentId) => {
   const response = await rmm.get(`/agents/${agentId}/`);
-  console.log("SINGLE AGENT DETAIL:", JSON.stringify(response.data, null, 2)); // TEMP
+  return response.data;
+};
+
+exports.getAgentSoftware = async (agentId) => {
+  const { data } = await rmm.get(`/software/${agentId}/`);
+  return Array.isArray(data) ? data : data?.software || [];
+};
+
+exports.getAgentWinUpdates = async (agentId) => {
+  const { data } = await rmm.get(`/winupdate/${agentId}/`);
+  return Array.isArray(data) ? data : data?.winupdates || [];
+};
+
+exports.getAgentChecks = async (agentId) => {
+  const response = await rmm.get(`/agents/${agentId}/checks/`);
   return response.data;
 };
 
@@ -39,7 +81,7 @@ exports.generateInstaller = async ({
   plat = 'windows',
   goarch = 'amd64',
   agenttype = 'workstation',
-  expires = 24,
+  expires = 1, // hours; a leaked install link stops working quickly
   rdp = 0,
   ping = 0,
   power = 0,

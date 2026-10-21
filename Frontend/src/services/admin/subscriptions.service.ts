@@ -29,7 +29,7 @@ API.interceptors.response.use(
 );
 
 export const getAllSubscriptions = () =>
-  API.get('/admin/subscriptions');
+  API.get('/user-subscriptions/subscriptions');
 
 export const updateSubscriptionStatus = (
   id: string,

@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useState } from "react";
-import { getDevices, generateInstaller } from "../../services/user/rmm.service";
-import { deleteDeviceBySerial } from "../../services/admin/userManagement.service";
-import type { Device, GenerateInstallerPayload } from "../../services/user/rmm.service";
+import { getDevices, generateInstaller, removeDevice } from "../../services/user/rmm.service";
+import RmmAlertsPanel from "../../components/RmmAlertsPanel";
+import DeviceDetailsModal from "../../components/DeviceDetailsModal";
+import type { Device, DeviceLimit, GenerateInstallerPayload } from "../../services/user/rmm.service";
 import { currentUserRole } from "../../services/admin/userManagement.service";
-import { getCurrentUser } from "../../services/user/selfhelp.service";
+import { getErrorMessage } from "../../utils/errors";
 
 // ─── Icons ────────────────────────────────────────────────────────────────────
 
@@ -155,11 +156,11 @@ function usageColor(value: number) {
   return "bg-green-500";
 }
 
-function computeHealth(cpu: number, memory: number, storage: number) {
-  const cpuScore = 100 - cpu;
-  const memScore = 100 - memory;
-  const storageScore = 100 - storage;
-  return Math.round((cpuScore + memScore + storageScore) / 3);
+// Average headroom across the metrics the device actually reports.
+function computeHealth(cpu: number | null, memory: number | null, storage: number | null) {
+  const known = [cpu, memory, storage].filter((v): v is number => typeof v === "number");
+  if (!known.length) return 100;
+  return Math.round(known.reduce((sum, v) => sum + (100 - v), 0) / known.length);
 }
 
 function inferDeviceType(_platform?: string): "Laptop" | "Desktop" {
@@ -168,6 +169,18 @@ function inferDeviceType(_platform?: string): "Laptop" | "Desktop" {
 
 // Detailed, OS-specific steps for running the generated installer command
 // on the target device.
+// Processor types Tactical RMM provides installers for, per operating system.
+const ARCH_OPTIONS: Record<string, string[]> = {
+  windows: ["amd64", "386"],
+  darwin: ["arm64", "amd64"],
+  linux: ["amd64", "arm64", "386"],
+};
+const ARCH_LABELS: Record<string, string> = {
+  amd64: "64-bit Intel/AMD (most computers)",
+  "386": "32-bit (older computers)",
+  arm64: "Apple Silicon / ARM (M1, M2, M3…)",
+};
+
 function getRunInstructions(plat: GenerateInstallerPayload["plat"]): {
   terminalName: string;
   steps: string[];
@@ -217,7 +230,7 @@ function StatBar({
 }: {
   icon: React.ReactNode;
   label: string;
-  value: number;
+  value: number | null;
   barColorClass: string;
 }) {
   return (
@@ -227,12 +240,14 @@ function StatBar({
           {icon}
           {label}
         </span>
-        <span className="font-semibold text-gray-900">{value}%</span>
+        <span className="font-semibold text-gray-900" title={value === null ? "Not reported by this device" : undefined}>
+          {value === null ? "—" : `${value}%`}
+        </span>
       </div>
       <div className="w-full h-2 bg-gray-200 rounded-full overflow-hidden">
         <div
           className={`h-full rounded-full ${barColorClass} transition-all duration-300`}
-          style={{ width: `${value}%` }}
+          style={{ width: `${value ?? 0}%` }}
         />
       </div>
     </div>
@@ -253,17 +268,17 @@ function formatLastSeen(lastSeen?: string) {
 
 // ─── DeviceCard ─────────────────────────────────────────────────────────────
 
-function DeviceCard({ device, onDelete }: { device: Device; onDelete: (device: Device) => void }) {
+function DeviceCard({ device, onDelete, onOpenDetails }: { device: Device; onDelete: (device: Device) => void; onOpenDetails: (device: Device) => void }) {
   const isOnline = device.status === "online";
   const deviceIconColor = isOnline ? "#16a34a" : "#9ca3af";
   const health = computeHealth(device.cpu, device.memory, device.storage);
   const [deleting, setDeleting] = useState(false);
-  const canDelete = Boolean(device.serialNumber);
+  const canDelete = true; // the server checks ownership
 
     const handleDeleteClick = async () => {
     if (!canDelete || deleting) return;
     const confirmed = window.confirm(
-      `Remove "${device.name}" (serial: ${device.serialNumber})? This will uninstall it from monitoring.`
+      `Remove "${device.name}"? This uninstalls the monitoring agent from the computer. Monitoring stops and the device must be reinstalled to come back.`
     );
     if (!confirmed) return;
 
@@ -303,19 +318,32 @@ function DeviceCard({ device, onDelete }: { device: Device; onDelete: (device: D
               {device.clientName ? ` • ${device.clientName}` : ""}
               {device.siteName ? ` / ${device.siteName}` : ""}
             </p>
+            {!!device.openAlerts && (
+              <span className="inline-block mt-1 mr-1 text-[11px] font-semibold px-2 py-0.5 rounded-full bg-red-50 text-red-700 border border-red-200">
+                {device.openAlerts} alert{device.openAlerts === 1 ? "" : "s"}
+              </span>
+            )}
+            {device.overLimit && (
+              <span className="inline-block mt-1 text-[11px] font-semibold px-2 py-0.5 rounded-full bg-amber-50 text-amber-700 border border-amber-200">
+                Over plan limit
+              </span>
+            )}
           </div>
         </div>
 
         <div className="flex items-center gap-3 sm:self-start">
+          <button
+            type="button"
+            onClick={() => onOpenDetails(device)}
+            className="h-8 px-3 rounded-lg border border-gray-200 text-xs font-semibold text-gray-700 hover:bg-gray-50 shrink-0"
+          >
+            Details
+          </button>
        <button
             type="button"
             onClick={handleDeleteClick}
             disabled={!canDelete || deleting}
-            title={
-              canDelete
-                ? "Remove this device (matched by serial number)"
-                : "This device has no serial number on record — can't delete"
-            }
+            title="Remove this device (uninstalls the monitoring agent)"
             className={`p-1.5 rounded-lg shrink-0 ${
               canDelete && !deleting
                 ? "hover:bg-red-50 cursor-pointer"
@@ -329,9 +357,17 @@ function DeviceCard({ device, onDelete }: { device: Device; onDelete: (device: D
 
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-x-4 sm:gap-x-6 gap-y-4">
         <StatBar icon={<HeartPulseIcon />} label="Health" value={health} barColorClass="bg-gray-900" />
-        <StatBar icon={<CpuIcon />} label="CPU" value={device.cpu} barColorClass={usageColor(device.cpu)} />
-        <StatBar icon={<MemoryIcon />} label="Memory" value={device.memory} barColorClass={usageColor(device.memory)} />
-        <StatBar icon={<StorageIcon />} label="Storage" value={device.storage} barColorClass={usageColor(device.storage)} />
+        <StatBar icon={<CpuIcon />} label="CPU" value={device.cpu} barColorClass={usageColor(device.cpu ?? 0)} />
+        <StatBar icon={<MemoryIcon />} label="Memory" value={device.memory} barColorClass={usageColor(device.memory ?? 0)} />
+        <StatBar
+          icon={<StorageIcon />}
+          label={device.storageDevice ? `Storage (${device.storageDevice})` : "Storage"}
+          value={device.storage}
+          barColorClass={usageColor(device.storage ?? 0)}
+        />
+        {device.otherDiskWarning && (
+          <p className="text-xs font-semibold text-amber-700">⚠ {device.otherDiskWarning}</p>
+        )}
       </div>
     </div>
   );
@@ -381,22 +417,12 @@ function AddDeviceModal({ onClose, onDeviceLikelyAdded }: { onClose: () => void;
   const [result, setResult] = useState<any>(null);
   const [copied, setCopied] = useState(false);
 
-  // Client/Site are fixed for this deployment — configured once via
-  // environment variables rather than typed in by whoever adds a device.
-  const CLIENT_ID = import.meta.env.VITE_CLIENT_ID as string | undefined;
-  const SITE_ID = import.meta.env.VITE_SITE_ID as string | undefined;
-
+  // The server ties the installer to the customer's own RMM Site.
   const handleGenerate = async () => {
-    if (!CLIENT_ID || !SITE_ID) {
-      setError("This app isn't fully configured yet — contact support.");
-      return;
-    }
     setError(null);
     setSubmitting(true);
     try {
       const data = await generateInstaller({
-        clientId: CLIENT_ID,
-        siteId: SITE_ID,
         plat,
         agentType,
         arch,
@@ -462,7 +488,11 @@ function AddDeviceModal({ onClose, onDeviceLikelyAdded }: { onClose: () => void;
                     <button
                       key={p}
                       type="button"
-                      onClick={() => setPlat(p)}
+                      onClick={() => {
+                        setPlat(p);
+                        // Default to the most common processor for that OS (Apple Silicon for Macs).
+                        setArch(ARCH_OPTIONS[p][0]);
+                      }}
                       className={`text-center border rounded-xl py-3 text-sm font-medium transition-colors ${
                         plat === p
                           ? "border-gray-900 bg-gray-50 text-gray-900"
@@ -492,10 +522,10 @@ function AddDeviceModal({ onClose, onDeviceLikelyAdded }: { onClose: () => void;
                         Processor type
                       </label>
                       <div className="flex gap-4">
-                        {(["amd64", "386"] as const).map((a) => (
+                        {ARCH_OPTIONS[plat ?? "windows"].map((a) => (
                           <label key={a} className="flex items-center gap-1.5 text-sm text-gray-700">
                             <input type="radio" checked={arch === a} onChange={() => setArch(a)} />
-                            {a === "amd64" ? "64-bit (most computers)" : "32-bit (older computers)"}
+                            {ARCH_LABELS[a]}
                           </label>
                         ))}
                       </div>
@@ -655,8 +685,8 @@ function DeviceSerialFilter({
   {loading
     ? "Loading devices…"
     : matchedDevices.length
-    ? `${matchedDevices.length} device${matchedDevices.length === 1 ? "" : "s"} match your serial number`
-    : "No matching device found — kindly check your Profile tab"}
+    ? `${matchedDevices.length} device${matchedDevices.length === 1 ? "" : "s"} in your account`
+    : "No devices yet"}
 </p>
       </div>
       <select
@@ -668,7 +698,7 @@ function DeviceSerialFilter({
         {loading && <option value="">Loading devices…</option>}
 
        {!loading && !matchedDevices.length && (
-  <option value="">Kindly check your Profile tab</option>
+  <option value="">No devices yet</option>
 )}
 
         {!loading && matchedDevices.length > 0 && (
@@ -695,17 +725,16 @@ export default function RMM() {
   const [deleteError, setDeleteError] = useState<string | null>(null);
 
   const handleDeleteDevice = async (device: Device) => {
-  if (!device.serialNumber) return;
   setDeleteError(null);
   try {
-    await deleteDeviceBySerial(device.serialNumber);
+    await removeDevice(device._id);
     // Optimistically remove it, then re-sync from the server
     setDevices((prev) => prev.filter((d) => d._id !== device._id));
     await loadDevices();
   } catch (err: any) {
     console.error("Failed to delete device:", err);
     setDeleteError(
-      err?.response?.data?.message || "Failed to remove device. Please try again."
+      getErrorMessage(err, "Failed to remove device. Please try again.")
     );
   }
 };
@@ -713,11 +742,11 @@ export default function RMM() {
   const [role, setRole] = useState<string | null>(null);
   useEffect(() => {
     currentUserRole()
-      .then((res) => setRole(res.data.data.role))
+      .then((res) => setRole(res.data?.data?.role ?? null))
       .catch(() => setRole(null));
   }, []);
-  // "support" is the elevated/system role in this app's User schema
-  // (enum: ['admin', 'user', 'support']) — there is no separate "system" role.
+  // "superadmin" (Super Admin) is the elevated/system role in this app's User schema
+  // (enum: ['admin', 'user', 'superadmin']).
   // Stat cards / RMM banner are admin-only — everyone else (including
   // support) just sees the serial-number-matched device list below.
   const isAdminRole = role === "admin";
@@ -725,19 +754,11 @@ export default function RMM() {
   // ── Serial numbers the current user is associated with. Devices now carry
   // their own serialNumber directly (from /devices), so matching is a plain
   // membership check against this list — no second data source needed. ──
-  const [userSerialNumbers, setUserSerialNumbers] = useState<string[]>([]);
-  const [userDataLoading, setUserDataLoading] = useState(true);
-
-  useEffect(() => {
-    (async () => {
-      try {
-        const currentUser = await getCurrentUser().catch(() => null);
-        setUserSerialNumbers(currentUser?.serialNumbers ?? []);
-      } finally {
-        setUserDataLoading(false);
-      }
-    })();
-  }, []);
+  // False when the customer's account has no RMM Site linked yet.
+  const [linked, setLinked] = useState(true);
+  const [limit, setLimit] = useState<DeviceLimit | null>(null);
+  const [syncStale, setSyncStale] = useState(false);
+  const [detailsDeviceId, setDetailsDeviceId] = useState<string | null>(null);
 
   const [selectedDeviceId, setSelectedDeviceId] = useState("");
 
@@ -745,9 +766,12 @@ export default function RMM() {
 
   const loadDevices = async () => {
     try {
-      const data = await getDevices();
+      const { devices: list, linked: isLinked, limit: planLimit, sync } = await getDevices();
+      setLinked(isLinked);
+      setSyncStale(Boolean(sync?.stale));
+      setLimit(planLimit);
       setDevices(
-        data.map((d) => ({
+        list.map((d) => ({
           ...d,
           type: d.type ?? inferDeviceType(d.platform),
         }))
@@ -774,27 +798,13 @@ export default function RMM() {
     return () => clearInterval(interval);
   }, []);
 
-  // Devices whose own serialNumber matches one of the current user's known
-  // serial numbers.
-  //
-  // Applies to every role, including "support" — unlike the stat cards and
-  // RMM banner above (which stay support-only), the device list itself is
-  // always serial-number-matched, matching how Antivirus/Self-Help behave.
-  //
-  // A device with no serialNumber (not yet reported, or an older agent) can
-  // never match — it's simply excluded rather than treated as a wildcard.
-  const serialMatchedDevices = useMemo(
-    () => devices.filter((d) => d.serialNumber && userSerialNumbers.includes(d.serialNumber)),
-    [devices, userSerialNumbers]
-  );
-
   const filteredDevices = useMemo(() => {
     if (selectedDeviceId) {
-      return serialMatchedDevices.filter((d) => d._id === selectedDeviceId);
+      return devices.filter((d) => d._id === selectedDeviceId);
     }
 
-    return serialMatchedDevices;
-  }, [serialMatchedDevices, selectedDeviceId]);
+    return devices;
+  }, [devices, selectedDeviceId]);
 
   const stats = useMemo(() => {
     const total = devices.length;
@@ -862,18 +872,31 @@ export default function RMM() {
         </div>
       )}
 
-      {/* Device filter — serial-number-matched select box, for every role */}
+      {syncStale && (
+        <div className="mt-6 bg-yellow-50 border border-yellow-200 text-yellow-800 text-sm px-4 py-3 rounded-xl">
+          Device information couldn't be refreshed recently, so what you see may be out of date. We'll keep retrying automatically.
+        </div>
+      )}
+
+      {linked && <RmmAlertsPanel isStaff={role === "admin" || role === "superadmin"} />}
+
+      {limit && linked && (
+        <p className="mt-4 text-sm text-gray-600">
+          <span className="font-semibold capitalize">{limit.plan}</span> plan: {limit.used} of{" "}
+          {limit.max ?? "unlimited"} device{limit.max === 1 ? "" : "s"} used
+          {limit.max !== null && limit.used >= limit.max && (
+            <span className="text-amber-700"> · Remove a device or upgrade your plan to add another.</span>
+          )}
+        </p>
+      )}
+
+      {/* Device filter — the server returns only the caller's devices */}
       <DeviceSerialFilter
-        loading={loading || userDataLoading}
-        matchedDevices={serialMatchedDevices}
+        loading={loading}
+        matchedDevices={devices}
         selectedDeviceId={selectedDeviceId}
         onSelectedDeviceIdChange={setSelectedDeviceId}
       />
-      {isAdminRole && (
-        <p className="mt-2 text-xs text-gray-400">
-          Total Devices / Online / Warnings / Avg Health above still reflect all {stats.total} devices across the company.
-        </p>
-      )}
 
       {deleteError && (
   <div className="mt-4 bg-red-50 border border-red-200 text-red-700 text-sm px-4 py-3 rounded-xl">
@@ -886,16 +909,27 @@ export default function RMM() {
     <p className="text-sm text-gray-500">Loading devices...</p>
   ) : filteredDevices.length === 0 ? (
     <p className="text-sm text-gray-500">
-      {serialMatchedDevices.length === 0
-        ? "No company device matches your serial number. Kindly check your serial number and update it in the Profile tab."
+      {!linked
+        ? "Your account isn't linked to a device group yet. Please contact support to get set up."
+        : devices.length === 0
+        ? "No devices yet. Use Add Device to install the monitoring agent on a computer."
         : "No device matches this selection."}
     </p>
   ) : (
     filteredDevices.map((device) => (
-      <DeviceCard key={device._id} device={device} onDelete={handleDeleteDevice} />
+      <DeviceCard
+        key={device._id}
+        device={device}
+        onDelete={handleDeleteDevice}
+        onOpenDetails={(d) => setDetailsDeviceId(d._id)}
+      />
     ))
   )}
 </div>
+
+      {detailsDeviceId && (
+        <DeviceDetailsModal deviceId={detailsDeviceId} onClose={() => setDetailsDeviceId(null)} />
+      )}
 
       {showAddModal && (
         <AddDeviceModal

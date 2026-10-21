@@ -214,7 +214,6 @@ export default function LoginPage() {
                 </button>
               </div>
             </div>
-
             {/* Attempts warning */}
             {!locked && attemptsLeft !== null && attemptsLeft < maxAttempts && (
               <p className="text-[11px] xs:text-xs font-medium text-orange-500 bg-orange-50 px-3 py-1.5 rounded-lg">

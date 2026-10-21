@@ -22,7 +22,9 @@ const PLATFORM_ITEMS = [
 const ADMIN_ITEMS = [
   { id: 'admin dashboard', label: 'Admin Dashboard', path: '/admin/adminManagement', icon: 'dashboard' },
   { id: 'users', label: 'User Management', path: '/admin/users', icon: 'users' },
+  { id: 'devices', label: 'Devices', path: '/admin/devices', icon: 'monitor-check' },
   { id: 'subscriptions', label: 'Subscriptions', path: '/admin/subscriptions', icon: 'card' },
+  { id: 'payments', label: 'Payments', path: '/admin/payments', icon: 'card' },
   { id: 'servicerequest', label: 'Support Request', path: '/admin/serviceRequest', icon: 'settings' },
   // { id: 'supportBookings', label: 'Support Booking', path: '/admin/supportBookings', icon: 'booking' },
   { id: 'Systemlogs', label: 'System Logs', path: '/admin/Systemlogs', icon: 'system-logs' },
@@ -32,11 +34,11 @@ const SYSTEM_ITEMS = [
   { id: 'System config', label: 'System Configuration', path: '/system', icon: 'users' },
 ];
 
-type Role = 'admin' | 'support' | 'user' | null;
+type Role = 'admin' | 'superadmin' | 'user' | null;
 
 function getNavGroups(role: Role) {
   switch (role) {
-    case 'support':
+    case 'superadmin':
       return [
         { section: 'Admin', items: ADMIN_ITEMS },
         { section: 'Platform', items: PLATFORM_ITEMS },
@@ -124,7 +126,7 @@ export default function Sidebar({ open, onClose }: SidebarProps) {
     localStorage.removeItem('token');
     localStorage.removeItem('user');
     Cookies.remove('user');
-    await clearCache();
+    await clearCache().catch(() => undefined);
     navigate('/login');
   };
 

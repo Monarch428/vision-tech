@@ -12,15 +12,18 @@ const {
   removeMySerialNumber 
 } = require('../../controllers/user-management/user.controller');
 
-const { protect } = require('../../middleware/auth.middleware');
+const { protect, authorize, STAFF_ROLES } = require('../../middleware/auth.middleware');
 
-router.post('/', protect, createUser);
-router.get('/', protect, getAllUsers);
-router.get('/userSB', protect, getUserSB);
+const staffOnly = authorize(...STAFF_ROLES);
+
+router.post('/', protect, staffOnly, createUser);
+router.get('/', protect, staffOnly, getAllUsers);
+router.get('/userSB', protect, staffOnly, getUserSB);
 router.get('/currentrole', protect, getUserRole);
+// Self-or-staff ownership is enforced inside these controllers.
 router.get('/:id', protect, getUserById);
 router.put('/:id', protect, updateUser);
-router.delete('/:id', protect, deleteUser);
+router.delete('/:id', protect, staffOnly, deleteUser);
 router.delete('/serial-numbers/:serialNumber', protect, removeMySerialNumber);
 
 module.exports = router;

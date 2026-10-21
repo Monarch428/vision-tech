@@ -1,26 +1,47 @@
 const SystemConfig = require('../../models/system-config/SystemConfig');
 const sendEmail = require('../../utils/sendEmail');
+const { encryptSecret } = require('../../utils/secretBox');
 const mongoose = require("mongoose");
 const os = require("os");
 const systemLogger = require("../../utils/systemLogger");
 // getLogs() below was calling SystemLog.find() with no import at all.
 const SystemLog = require('../../models/system-log/SystemLogs');
 
+// There is one global configuration record. The SMTP password is never sent to
+// the browser: responses carry `smtpPasswordSet` instead, and an empty password
+// on save keeps the stored one.
+const toClientConfig = (config) => {
+  const plain = config.toObject ? config.toObject() : { ...config };
+  const passwordSet = Boolean(plain.email?.smtpPassword);
+  if (plain.email) plain.email = { ...plain.email, smtpPassword: '', smtpPasswordSet: passwordSet };
+  return plain;
+};
+
+const applyEmailSecret = (body, existing) => {
+  if (!body.email) return body;
+  const email = { ...body.email };
+  delete email.smtpPasswordSet;
+  email.smtpPassword = email.smtpPassword
+    ? encryptSecret(email.smtpPassword)
+    : existing?.email?.smtpPassword || '';
+  return { ...body, email };
+};
+
 // POST /api/system-config
 const createSystemConfig = async (req, res) => {
   try {
     const userId = req.user._id;
 
-    const existingConfig = await SystemConfig.findOne({ updatedBy: userId });
+    const existingConfig = await SystemConfig.findOne();
 
     if (existingConfig) {
       return res.status(400).json({
-        message: 'System configuration already exists for this user. Please update instead.',
+        message: 'System configuration already exists. Please update instead.',
       });
     }
 
     const config = await SystemConfig.create({
-      ...req.body,
+      ...applyEmailSecret(req.body, null),
       updatedBy: userId,
     });
 
@@ -36,7 +57,7 @@ const createSystemConfig = async (req, res) => {
 
     res.status(201).json({
       message: 'System configuration created successfully',
-      config,
+      config: toClientConfig(config),
     });
   } catch (error) {
     await systemLogger({
@@ -56,22 +77,20 @@ const createSystemConfig = async (req, res) => {
   }
 };
 
-// GET /api/system-config/user/:userId
+// GET /api/system-config/user/:userId (kept for compatibility; returns the global config)
 const getConfigByUserId = async (req, res) => {
   try {
-    const { userId } = req.params;
-
-    const config = await SystemConfig.findOne({ updatedBy: userId });
+    const config = await SystemConfig.findOne();
 
     if (!config) {
       return res.status(404).json({
-        message: 'System configuration not found for this user',
+        message: 'System configuration not found',
       });
     }
 
     res.status(200).json({
       message: 'System configuration fetched successfully',
-      config,
+      config: toClientConfig(config),
     });
   } catch (error) {
     await systemLogger({
@@ -94,10 +113,7 @@ const getConfigByUserId = async (req, res) => {
 // GET /api/system-config/me
 const getMySystemConfig = async (req, res) => {
   try {
-    const userId = req.user._id;
-
-    const config = await SystemConfig.findOne({ updatedBy: userId });
-
+    const config = await SystemConfig.findOne();
 
     if (!config) {
       return res.status(404).json({
@@ -107,7 +123,7 @@ const getMySystemConfig = async (req, res) => {
 
     res.status(200).json({
       message: 'System configuration fetched successfully',
-      config,
+      config: toClientConfig(config),
     });
   } catch (error) {
     await systemLogger({
@@ -132,17 +148,19 @@ const updateSystemConfig = async (req, res) => {
   try {
     const userId = req.user._id;
 
-    const config = await SystemConfig.findOneAndUpdate(
-      { updatedBy: userId },
-      { ...req.body, updatedBy: userId },
-      { new: true, runValidators: true }
-    );
-
-    if (!config) {
+    const existing = await SystemConfig.findOne();
+    if (!existing) {
       return res.status(404).json({
         message: 'System configuration not found. Please create first.',
       });
     }
+
+    const { _id, createdAt, updatedAt, __v, ...body } = req.body;
+    const config = await SystemConfig.findByIdAndUpdate(
+      existing._id,
+      { ...applyEmailSecret(body, existing), updatedBy: userId },
+      { new: true, runValidators: true }
+    );
 
     await systemLogger({
       type: "success",
@@ -156,7 +174,7 @@ const updateSystemConfig = async (req, res) => {
 
     res.status(200).json({
       message: 'System configuration updated successfully',
-      config,
+      config: toClientConfig(config),
     });
   } catch (error) {
     await systemLogger({
@@ -206,7 +224,7 @@ const testEmail = async (req, res) => {
       action: "TEST_EMAIL_SENT",
       user: req.user?._id,
       userEmail: req.user?.email,
-      details: `Test email sent to ${fromEmail} via ${smtpHost}:${smtpPort}`,
+      details: `Test email sent to ${fromEmail} via ${smtpHost ? `${smtpHost}:${smtpPort}` : 'the saved SMTP settings'}`,
       module: "email",
       ipAddress: req.ip,
     });

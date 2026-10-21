@@ -112,6 +112,11 @@ const systemConfigSchema = new mongoose.Schema(
                 type: Boolean,
                 default: true,
             },
+            // Emails customers and staff when a monitored device raises an alert.
+            deviceAlerts: {
+                type: Boolean,
+                default: true,
+            },
         },
 
         updatedBy: {

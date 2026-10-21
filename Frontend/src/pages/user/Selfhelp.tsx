@@ -1,5 +1,6 @@
 import { useState, useRef } from "react";
 import { useNavigate } from "react-router-dom";
+import { jwtDecode } from "jwt-decode";
 import Cookies from "js-cookie";
 import {
   startTool,
@@ -19,6 +20,7 @@ import type {
 } from "../../services/user/selfhelp.service";
 import { clearCache } from "../../hooks/useCacheStorage";
 import { useEffect } from "react";
+import { getErrorMessage } from "../../utils/errors";
 
 type ToolStatus = "idle" | "running" | "completed" | "failed";
 
@@ -449,7 +451,7 @@ if (usesApi) {
     );
   } catch (error: any) {
     console.error("Antivirus start error:", error);
-    setErrorMessage(error?.response?.data?.message || "Failed to start scan.");
+    setErrorMessage(getErrorMessage(error, "Failed to start scan."));
     setStatus("failed");
   } finally {
     setLoading(false);
@@ -469,7 +471,7 @@ if (usesApi) {
         setBackupsRefresh((n) => n + 1);
       } catch (err: any) {
         console.error("Backup failed:", err);
-        setErrorMessage(err?.response?.data?.message || "Backup failed.");
+        setErrorMessage(getErrorMessage(err, "Backup failed."));
         setStatus("failed");
       }
       return;
@@ -534,7 +536,7 @@ if (usesApi) {
     const interval = setInterval(async () => {
       try {
         const res = await getToolStatus(toolRecordId);
-        setProgress(res.data.progress);
+        setProgress(Number(res.data.progress) || 0);
         if (res.data.status === "completed") {
           setStatus("completed");
           clearInterval(interval);
@@ -781,7 +783,19 @@ if (usesApi) {
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
+// The backup tool exports the whole server database, so only staff see it.
+function isStaffUser(): boolean {
+  try {
+    const token = localStorage.getItem("token");
+    const role = token ? jwtDecode<{ role?: string }>(token).role : undefined;
+    return role === "admin" || role === "superadmin";
+  } catch {
+    return false;
+  }
+}
+
 export default function SelfHelp() {
+  const visibleTools = TOOLS.filter((tool) => tool.id !== "start-backup" || isStaffUser());
   const [browserCleanupTrigger, setBrowserCleanupTrigger] = useState(0);
 
   return (
@@ -792,7 +806,7 @@ export default function SelfHelp() {
       </p>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-6">
-        {TOOLS.map((tool) => {
+        {visibleTools.map((tool) => {
           if (tool.id === "browser-cleanup") {
             return (
               <ToolCard

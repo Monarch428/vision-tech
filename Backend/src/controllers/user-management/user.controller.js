@@ -1,4 +1,6 @@
 const bcrypt = require('bcryptjs');
+const { isStaff } = require('../../middleware/auth.middleware');
+const { getDeviceLimit } = require('../../utils/planLimits');
 const User = require('../../models/user-management/User');
 const SystemConfig = require('../../models/system-config/SystemConfig')
 const Sub = require('../../models/subscription/Subscription');
@@ -14,12 +16,12 @@ const createUser = async (req, res) => {
 
     const existingUser = await User.findOne({ email });
 
-    if (role === 'support') {
-      const existingSUpport = await User.findOne({ role: 'support' });
+    if (role === 'superadmin') {
+      const existingSUpport = await User.findOne({ role: 'superadmin' });
       if (existingSUpport) {
         return res.status(400).json({
           success: false,
-          message: 'Only one support user is allowed',
+          message: 'Only one Super Admin is allowed',
         });
       }
     }
@@ -198,6 +200,10 @@ const getAllUsers = async (req, res) => {
 // Get User By ID
 const getUserById = async (req, res) => {
   try {
+    if (!isStaff(req) && String(req.params.id) !== String(req.user.id)) {
+      return res.status(403).json({ success: false, message: 'You can only view your own profile' });
+    }
+
     const user = await User.findById(req.params.id).select('-password');
 
     if (!user) {
@@ -217,15 +223,32 @@ const getUserById = async (req, res) => {
 // Update User
 const updateUser = async (req, res) => {
   try {
+    const staff = isStaff(req);
+    const isSelf = String(req.params.id) === String(req.user.id);
+
+    if (!staff && !isSelf) {
+      return res.status(403).json({ success: false, message: 'You can only update your own profile' });
+    }
+
     const {
       password,
       currentPassword,
-      deviceName,
-      serialNumber,
-      ...rest
+      deviceName = req.body.deviceNames,
+      serialNumber = req.body.serialNumbers,
     } = req.body;
 
-    const updateData = { ...rest };
+    // Only staff may change role, plan, status, email or other account fields.
+    const allowedFields = staff
+      ? ['name', 'email', 'role', 'status', 'avatar', 'plan', 'isActive']
+      : ['name', 'avatar'];
+    const updateData = {};
+    for (const field of allowedFields) {
+      if (req.body[field] !== undefined) updateData[field] = req.body[field];
+    }
+
+    if (updateData.role === 'superadmin' && req.user.role !== 'superadmin') {
+      return res.status(403).json({ success: false, message: 'Only the Super Admin can assign the Super Admin role' });
+    }
 
     // Get current user first
     const existingUser = await User.findById(req.params.id);
@@ -237,17 +260,28 @@ const updateUser = async (req, res) => {
       });
     }
 
-    // Check if trying to assign support role to another user
-    if (rest.role === 'support') {
+    if (password && isSelf) {
+      if (!currentPassword) {
+        return res.status(400).json({ success: false, message: 'Current password is required' });
+      }
+      const withPassword = await User.findById(req.params.id).select('+password');
+      const matches = await bcrypt.compare(currentPassword, withPassword.password || '');
+      if (!matches) {
+        return res.status(400).json({ success: false, message: 'Current password is incorrect' });
+      }
+    }
+
+    // Check if trying to assign the Super Admin role to another user
+    if (updateData.role === 'superadmin') {
       const existingSupport = await User.findOne({
-        role: 'support',
+        role: 'superadmin',
         _id: { $ne: req.params.id },
       });
 
       if (existingSupport) {
         return res.status(400).json({
           success: false,
-          message: 'Only one support user is allowed',
+          message: 'Only one Super Admin is allowed',
         });
       }
     }
@@ -262,24 +296,7 @@ const updateUser = async (req, res) => {
 
     const plan = (existingUser.plan || 'free').toLowerCase();
 
-    let deviceLimit;
-
-    switch (plan) {
-      case 'free':
-        deviceLimit = 1;
-        break;
-
-      case 'pro':
-        deviceLimit = 5;
-        break;
-
-      case 'enterprise':
-        deviceLimit = Infinity;
-        break;
-
-      default:
-        deviceLimit = 1;
-    }
+    const deviceLimit = getDeviceLimit(plan);
 
     // ------------------------------------
     // DEVICE NAMES
@@ -523,19 +540,20 @@ const removeMySerialNumber = async (req, res) => {
       return res.status(404).json({ success: false, message: 'User not found' });
     }
 
-    const before = user.serialNumbers?.length || 0;
-
-    user.serialNumbers = (user.serialNumbers || []).filter(
-      (s) => s.toLowerCase() !== serialNumber.toLowerCase()
+    // Device names and serial numbers are paired by position; remove both.
+    const index = (user.serialNumbers || []).findIndex(
+      (s) => s.toLowerCase() === serialNumber.toLowerCase()
     );
 
-    if (user.serialNumbers.length === before) {
+    if (index === -1) {
       return res.status(404).json({
         success: false,
         message: 'That serial number is not registered to your account',
       });
     }
 
+    user.serialNumbers.splice(index, 1);
+    if (user.deviceNames?.length > index) user.deviceNames.splice(index, 1);
     await user.save();
 
     const updatedUser = await User.findById(user._id).select('-password');

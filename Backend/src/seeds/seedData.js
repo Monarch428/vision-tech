@@ -7,6 +7,7 @@ const Plan = require("../models/subscription/Plan");
 const Subscription = require("../models/subscription/Subscription");
 const SystemConfig = require("../models/system-config/SystemConfig");
 const getMongoUri = require("../conifg/getMongoUri");
+const { encryptSecret } = require("../utils/secretBox");
 
 const PLAN_DEFINITIONS = [
   {
@@ -104,7 +105,7 @@ const buildConfigPayload = () => ({
     smtpHost: process.env.SMTP_HOST || "",
     smtpPort: Number(process.env.SMTP_PORT) || 587,
     smtpUsername: process.env.SMTP_USER || "",
-    smtpPassword: process.env.SMTP_PASS || "",
+    smtpPassword: encryptSecret(process.env.SMTP_PASS || ""),
     fromEmail: process.env.SMTP_USER || "",
     fromName: process.env.SEED_FROM_NAME || "Vision Tech Support",
     emailNotificationsEnabled: true,

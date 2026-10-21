@@ -1,6 +1,7 @@
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import LoginPage from "./pages/auth/LoginPage";
-// import ForgotPasswordPage from "./pages/auth/ForgotPasswordPage";
+import ForgotPasswordPage from "./pages/auth/ForgotPasswordPage";
+import ResetPasswordPage from "./pages/auth/ResetPasswordPage";
 import AdminLayout from "./layouts/adminlayouts";
 import Dashboard from "./pages/user/Dashboard";
 import UserManagement from "./pages/admin/UserManagement";
@@ -17,6 +18,8 @@ import SystemConfig from "./pages/system/systemConfig";
 import { useEffect, useRef } from "react";
 import DataManagement from "./pages/admin/dataManagement";
 import ExternalServiceAccess from "./pages/admin/externalServiceAcess";
+import DevicesConsole from "./pages/admin/DevicesConsole";
+import Payments from "./pages/admin/Payments";
 // import SupportBookings from "./pages/admin/SupportBookings";
 import OtpVerificationPage from "./pages/auth/OtpVerificationPage";
 import NetworkRestartGuide from "./pages/user/NetworkRestartGuide";
@@ -25,6 +28,8 @@ import CreateAccountPage from "./pages/auth/userAccountPage";
 import HomePage from "./pages/home/homePage";
 import PrivacyPolicy from "./pages/home/privacyPolicy";
 import TermsConditions from "./pages/home/termsConditions";
+import NotFound from "./pages/NotFound";
+import { RouteErrorBoundary } from "./components/ErrorBoundary";
 
 function App() {
   const initialized = useRef(false);
@@ -36,12 +41,14 @@ function App() {
 
   return (
     <BrowserRouter>
+      <RouteErrorBoundary variant="app">
       <Routes>
         {/* Public */}
         <Route path="/" element={<Navigate to="/home" replace />} />
         <Route path="/home" element={<HomePage />} />
         <Route path="/login" element={<LoginPage />} />
-        {/* <Route path="/forgot-password" element={<ForgotPasswordPage />} /> */}
+        <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+        <Route path="/reset-password" element={<ResetPasswordPage />} />
         <Route path="/otpVerify" element={<OtpVerificationPage />} />
         <Route path="/new-user" element={<CreateAccountPage />} />
         <Route path="/privacy-policy" element={<PrivacyPolicy />} />
@@ -54,6 +61,8 @@ function App() {
           <Route path="/user/Profile" element={<Profile />} />
           <Route path="/admin/subscriptions" element={<Subscriptions />} />
           <Route path="/admin/Systemlogs" element={<Systemlogs />} />
+          <Route path="/admin/devices" element={<DevicesConsole />} />
+          <Route path="/admin/payments" element={<Payments />} />
           <Route path="/user/support" element={<Support />} />
           <Route path="/user/rmm" element={<RMM />} />
           <Route path="/admin/serviceRequest" element={<ServiceRequest />} />
@@ -73,7 +82,10 @@ function App() {
           path="/user-management"
           element={<Navigate to="/admin/users" replace />}
         />
+
+        <Route path="*" element={<NotFound />} />
       </Routes>
+      </RouteErrorBoundary>
     </BrowserRouter>
   );
 }
