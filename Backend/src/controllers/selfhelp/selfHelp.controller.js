@@ -7,6 +7,15 @@ const systemLogger = require("../../utils/systemLogger");
 const rmm = require('../../utils/tacticalRmmClient');
 const gz = require('../../utils/gravityZoneClient');
 const { agentsForUser, userOwnsAgent, filterEndpointsForUser } = require('../../utils/deviceOwnership');
+const { isStaff } = require('../../middleware/auth.middleware');
+const { reserveScan, releaseScan, getScanUsage } = require('../../utils/scanQuota');
+
+// Customers' portal scans count towards their plan's monthly allowance; staff
+// scans don't. Returns the usage record (null for staff) for releaseScan.
+const reserveCustomerScan = (req, endpointId) =>
+  (isStaff(req) ? null : reserveScan(req.user.id, { source: 'self-help', endpointId }));
+const scanLimitReached = (res, err) =>
+  res.status(403).json({ success: false, code: err.code, message: err.message });
 const categoryMap = {
   'browser-cleanup': 'browser',
   'network-restart': 'network',
@@ -134,6 +143,7 @@ const startTool = async (req, res) => {
   // ─── Antivirus scan via GravityZone (Bitdefender) ───────────────────
   // Looked up by the logged-in user, not any RMM agent id — GravityZone
   // and Tactical RMM are unrelated here.
+  let quota = null;
   try {
     const antivirusRecord = await DeviceAntivirus.findOne({ user: req.user.id });
     const endpointId = antivirusRecord?.bitdefenderEndpointId;
@@ -141,6 +151,7 @@ const startTool = async (req, res) => {
       throw new Error('Bitdefender is not installed on your device yet.');
     }
 
+    quota = await reserveCustomerScan(req, endpointId);
     const task = await gz.createScanTask({ endpointId });
     const taskId = task?.taskId || task?.id || task;
 
@@ -161,6 +172,8 @@ const startTool = async (req, res) => {
       console.error('[antivirus-scan] response data:', JSON.stringify(err.response.data));
     }
     await SelfHelpTool.findByIdAndUpdate(record._id, { status: "failed" });
+    await releaseScan(quota);
+    if (err.code === 'SCAN_LIMIT_REACHED') return scanLimitReached(res, err);
     return res.status(500).json({
       success: false,
       message: err.message || "Antivirus scan failed to start",
@@ -782,6 +795,7 @@ const getBitdefenderEndpoint = async (req, res) => {
 // this user's own device hasn't completed setup. Use runScanOnEndpoint
 // instead for the "pick any company device" flow.
 const runBitdefenderScan = async (req, res) => {
+  let quota = null;
   try {
     const device = await DeviceAntivirus.findOne({
       user: req.user.id,
@@ -794,6 +808,7 @@ const runBitdefenderScan = async (req, res) => {
       });
     }
 
+    quota = await reserveCustomerScan(req, device.bitdefenderEndpointId);
     const scanRecord = await SelfHelpTool.create({
       user: req.user.id,
       category: "security",
@@ -830,6 +845,8 @@ const runBitdefenderScan = async (req, res) => {
     });
 
   } catch (error) {
+    await releaseScan(quota);
+    if (error.code === 'SCAN_LIMIT_REACHED') return scanLimitReached(res, error);
     console.error(
       "[runBitdefenderScan]",
       error.message
@@ -933,6 +950,7 @@ const listCompanyEndpoints = async (req, res) => {
 // behavior below. Still logs to SelfHelpTool (with endpointId set) so it
 // shows up in scan history / getScanReport for that specific device.
 const runScanOnEndpoint = async (req, res) => {
+  let quota = null;
   try {
     const { endpointId } = req.body;
     if (!endpointId) {
@@ -946,6 +964,7 @@ const runScanOnEndpoint = async (req, res) => {
       return res.status(404).json({ success: false, message: "Endpoint not found" });
     }
 
+    quota = await reserveCustomerScan(req, endpointId);
     const scanRecord = await SelfHelpTool.create({
       user: req.user.id,
       category: "security",
@@ -970,12 +989,24 @@ const runScanOnEndpoint = async (req, res) => {
       scan: { id: scanRecord._id, taskId, status: "running", progress: 10 },
     });
   } catch (error) {
+    await releaseScan(quota);
+    if (error.code === 'SCAN_LIMIT_REACHED') return scanLimitReached(res, error);
     console.error("[runScanOnEndpoint]", error.message);
     return res.status(500).json({ success: false, message: error.message || "Failed to start scan" });
   }
 };
 
+// GET /self-help/scan-usage — scans used this month against the plan's allowance.
+const getMyScanUsage = async (req, res) => {
+  try {
+    res.json({ success: true, usage: await getScanUsage(req.user.id) });
+  } catch (error) {
+    res.status(500).json({ success: false, message: 'Failed to load scan usage' });
+  }
+};
+
 module.exports = {
+  getMyScanUsage,
   startTool,
   getToolStatus,
   getEndpoints,

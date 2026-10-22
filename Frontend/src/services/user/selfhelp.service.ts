@@ -35,6 +35,23 @@ export const getToolStatus = async (id: string) => {
 };
 
 
+// ─── Antivirus scan allowance ────────────────────────────────────
+
+// Portal scans used this calendar month; `limit` is null for unlimited plans.
+export interface ScanUsage {
+  plan: string;
+  used: number;
+  limit: number | null;
+  remaining: number | null;
+  resetsAt: string;
+}
+
+export const getScanUsage = async (): Promise<ScanUsage> => {
+  const response = await API.get("/self-help/scan-usage");
+  return response.data.usage;
+};
+
+
 // ─── Antivirus scan report ───────────────────────────────────────
 
 export const getScanReport = async () => {

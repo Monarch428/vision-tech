@@ -22,4 +22,13 @@ const BACKUP_LIMITS = {
 
 const getBackupLimit = (planName) => BACKUP_LIMITS[String(planName || 'free').toLowerCase()] ?? BACKUP_LIMITS.free;
 
-module.exports = { DEVICE_LIMITS, getDeviceLimit, describeLimit, BACKUP_LIMITS, getBackupLimit };
+// Antivirus scans started through the portal, per calendar month.
+const SCAN_LIMITS = {
+  free: 5,
+  pro: 50,
+  enterprise: Infinity,
+};
+
+const getScanLimit = (planName) => SCAN_LIMITS[String(planName || 'free').toLowerCase()] ?? SCAN_LIMITS.free;
+
+module.exports = { DEVICE_LIMITS, getDeviceLimit, describeLimit, BACKUP_LIMITS, getBackupLimit, SCAN_LIMITS, getScanLimit };

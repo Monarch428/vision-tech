@@ -1,6 +1,7 @@
 const RmmAction = require('../models/rmm/RmmAction');
 const tacticalService = require('../services/tacticalRmm.service');
 const gz = require('./gravityZoneClient');
+const { reserveScan, releaseScan } = require('./scanQuota');
 
 // Remote actions customers may run on their own online devices. Restart and
 // cleanup run built-in Tactical RMM library scripts (this API key may run
@@ -91,6 +92,7 @@ const runAction = async ({ agent, action, requester }) => {
     requestedByRole: requester.role,
   };
 
+  let quota = null;
   try {
     let reference = null;
     if (def.scriptIdEnv) {
@@ -98,10 +100,13 @@ const runAction = async ({ agent, action, requester }) => {
       if (!scriptId) throw httpError(503, `${def.label} is not configured (${def.scriptIdEnv}).`);
       await tacticalService.runScript(agent.agent_id, scriptId, def.args, def.timeout);
     } else {
+      // A customer's antivirus scan counts towards their plan's monthly allowance.
+      if (!requester.isStaff) quota = await reserveScan(requester.id, { source: 'rmm', endpointId: agent.agent_id });
       reference = await startBitdefenderScan(agent);
     }
     return await RmmAction.create({ ...record, status: 'sent', reference });
   } catch (error) {
+    await releaseScan(quota);
     await RmmAction.create({ ...record, status: 'failed', error: error.message });
     throw error;
   }

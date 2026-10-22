@@ -20,6 +20,7 @@ const {
   runBitdefenderScan,       // ← added
   listCompanyEndpoints,     // ← added
   runScanOnEndpoint,        // ← added
+  getMyScanUsage,
 } = require("../../controllers/selfhelp/selfHelp.controller");
 
 const { protect, authorize, STAFF_ROLES } = require("../../middleware/auth.middleware");
@@ -118,6 +119,9 @@ router.get(
 router.get("/bitdefender/company-endpoints", protect, listCompanyEndpoints);
 
 router.post("/bitdefender/scan-endpoint", protect, runScanOnEndpoint);
+
+// Antivirus scans used this month against the plan's allowance.
+router.get("/scan-usage", protect, getMyScanUsage);
 
 
 module.exports = router;

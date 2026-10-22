@@ -5,6 +5,7 @@ const Antivirus = require("../models/antivirus/AntivirusSchedule");
 const bitdefender = require("../services/bitdefender.service");
 const sendEmail = require("../utils/sendEmail");
 const systemLogger = require("../utils/systemLogger");
+const { reserveScan, releaseScan } = require("../utils/scanQuota");
 
 function getScheduledDateTime(preferredDate, preferredTime) {
   if (!preferredDate || !preferredTime) {
@@ -52,6 +53,7 @@ const startAntivirusScanScheduler = () => {
       );
 
       for (const sched of schedules) {
+        let quota = null;
         try {
           const scheduledAt = getScheduledDateTime(
             sched.preferredDate,
@@ -90,6 +92,15 @@ const startAntivirusScanScheduler = () => {
           console.log(
             `[Antivirus Cron] Triggering GravityZone scan for endpoint ${sched.endpointId}`
           );
+
+          // Scheduled scans count towards the customer's monthly allowance;
+          // once it's used up the schedule fails with that reason.
+          if (!["admin", "superadmin"].includes(sched.user?.role)) {
+            quota = await reserveScan(sched.user?._id || sched.user, {
+              source: "schedule",
+              endpointId: sched.endpointId,
+            });
+          }
 
           const taskResult = await bitdefender.triggerScan(
             sched.endpointId
@@ -155,6 +166,7 @@ const startAntivirusScanScheduler = () => {
             err
           );
 
+          await releaseScan(quota);
           sched.status = "failed";
           sched.failureReason = err.message;
 

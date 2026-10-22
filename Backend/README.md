@@ -90,6 +90,15 @@ activity log (`GET /api/devices/audit`: installer links, Site links, actions, re
 alerts). Moving a device to another customer is done in Tactical RMM (Edit agent → Site), because
 this API key can't edit agents; ownership follows on the next sync.
 
+**Antivirus scan allowance** (`src/utils/scanQuota.js`, limits in `src/utils/planLimits.js`).
+Antivirus scans a customer starts through the portal — Self-Help, the RMM device action and
+scheduled scans — count towards a monthly allowance: Free 5, Pro 50, Enterprise unlimited
+(calendar months, UTC). Each scan is recorded in `AntivirusScanUsage` before GravityZone is
+asked; a scan that fails to start is not counted, and staff scans are never limited. Once used
+up, scans are refused with `SCAN_LIMIT_REACHED` (scheduled scans fail with that reason).
+`GET /api/self-help/scan-usage` returns the count. Scans started from the Bitdefender app on the
+computer are not counted; restrict those with a GravityZone policy.
+
 **Customer file backup** (Self-Help → File Backup, `src/utils/fileBackups.js`). Customers on
 any plan back up Documents, Desktop and/or Pictures from their own online Windows computer. The
 portal runs the Tactical script `scripts/rmm/file-backup.ps1` (`RMM_SCRIPT_FILE_BACKUP_ID`) as

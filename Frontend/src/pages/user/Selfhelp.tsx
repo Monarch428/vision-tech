@@ -11,12 +11,14 @@ import {
   getBitdefenderDownloadLink,
   runScanOnEndpoint,
   listCompanyEndpoints,
-  getCurrentUser
+  getCurrentUser,
+  getScanUsage
 } from "../../services/user/selfhelp.service";
 import type {
   BackupRecord,
   BitdefenderDownloadLinks,
-  CompanyEndpoint
+  CompanyEndpoint,
+  ScanUsage
 } from "../../services/user/selfhelp.service";
 import { clearCache } from "../../hooks/useCacheStorage";
 import { useEffect } from "react";
@@ -341,6 +343,12 @@ const [loading, setLoading] = useState(false);
   const [endpoints, setEndpoints] = useState<CompanyEndpoint[]>([]);
 const [selectedEndpointId, setSelectedEndpointId] = useState("");
 const [endpointsLoading, setEndpointsLoading] = useState(false);
+  // Antivirus only: portal scans used this month against the plan's allowance.
+  const [scanUsage, setScanUsage] = useState<ScanUsage | null>(null);
+  const loadScanUsage = () => {
+    getScanUsage().then(setScanUsage).catch(() => setScanUsage(null));
+  };
+  const scansUsedUp = scanUsage?.remaining === 0;
 
 useEffect(() => {
   if (tool.id !== "antivirus-scan") return;
@@ -349,6 +357,7 @@ useEffect(() => {
   (async () => {
     try {
       setEndpointsLoading(true);
+      loadScanUsage();
 
       const [allEndpoints, currentUser] = await Promise.all([
         listCompanyEndpoints(),
@@ -447,6 +456,7 @@ if (usesApi) {
     setToolRecordId(response.scan.id);
     setProgress(100);
     setStatus("completed");
+    loadScanUsage();
     setInfoMessage(
       "Scan started in the background. It may take a few minutes to finish — feel free to navigate away, results will be ready when you check back in Antivirus Page."
     );
@@ -454,6 +464,7 @@ if (usesApi) {
     console.error("Antivirus start error:", error);
     setErrorMessage(getErrorMessage(error, "Failed to start scan."));
     setStatus("failed");
+    loadScanUsage();
   } finally {
     setLoading(false);
   }
@@ -690,6 +701,17 @@ if (usesApi) {
   </div>
 )}
 
+{/* Monthly scan allowance */}
+{tool.id === "antivirus-scan" && scanUsage && (
+  <p className={`text-[11px] ${scansUsedUp ? "text-red-600" : "text-gray-600"}`}>
+    {scanUsage.limit === null
+      ? `Unlimited scans on your ${scanUsage.plan} plan`
+      : `Scans this month: ${scanUsage.used} of ${scanUsage.limit} (${scanUsage.plan} plan)`}
+    {scansUsedUp &&
+      ` · More scans on ${new Date(scanUsage.resetsAt).toLocaleDateString(undefined, { day: "numeric", month: "short", timeZone: "UTC" })}, or upgrade your plan`}
+  </p>
+)}
+
 {/* Info banner (antivirus: scan started in background) */}
 {status === "completed" && tool.id === "antivirus-scan" && infoMessage && (
   <div className="bg-blue-50 border border-blue-200 rounded-lg p-2.5 flex items-start gap-2">
@@ -708,7 +730,7 @@ if (usesApi) {
               ? () => navigate("/user/network-restart-guide")
               : handleRun
           }
-          disabled={loading}
+          disabled={loading || (tool.id === "antivirus-scan" && scansUsedUp)}
           className="w-full flex items-center justify-center gap-1.5 bg-green-500 hover:bg-green-600 text-white font-semibold text-xs py-2 rounded-lg transition-colors disabled:opacity-50"
         >
           {loading ? <SpinnerIcon /> : <PlayIcon />}
