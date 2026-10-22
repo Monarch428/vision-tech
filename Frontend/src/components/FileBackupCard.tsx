@@ -211,11 +211,7 @@ export default function FileBackupCard() {
 
       {loading ? (
         <p className="text-[12px] text-gray-500">Loading…</p>
-      ) : !linked ? (
-        <p className="text-[12px] text-gray-600">
-          Your account isn't linked to a device group yet. Please contact support to get set up.
-        </p>
-      ) : !devices.length ? (
+      ) : !linked || !devices.length ? (
         <p className="text-[12px] text-gray-600">
           No Windows computer is being monitored yet. Add your computer on the RMM page first.
         </p>

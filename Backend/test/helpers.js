@@ -23,7 +23,6 @@ Object.assign(process.env, {
   CYBERSHIELD_SOLO_ID: 'test-parent',
   RMM_CLIENT_ID: '12',
   RMM_WRITE_ALLOWED_SITE_IDS: '73',
-  RMM_AUTO_CREATE_SITES: 'false',
   RMM_SCRIPT_RESTART_ID: '81',
   RMM_SCRIPT_CLEANUP_ID: '11',
   RMM_WEB_URL: 'https://rmm.example.test',

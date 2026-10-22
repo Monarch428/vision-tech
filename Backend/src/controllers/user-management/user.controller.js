@@ -7,6 +7,16 @@ const Sub = require('../../models/subscription/Subscription');
 const Plan = require('../../models/subscription/Plan');
 const { formatLastLogin } = require('../../utils/timeFormatter');
 const sendEmail = require('../../utils/sendEmail');
+const systemLogger = require('../../utils/systemLogger');
+const { provisionUserSite } = require('../../utils/rmmTenancy');
+
+// The "new user" email to admins is a courtesy: if it can't be sent (e.g. SMTP
+// not set up), log it and carry on rather than failing the account creation.
+const emailAdminAboutNewUser = (message) =>
+  sendEmail(message).catch((error) => systemLogger({
+    type: 'warning', action: 'NEW_USER_EMAIL_FAILED', userEmail: message.to,
+    details: `New-user notification not sent: ${error.message}`, module: 'email',
+  }));
 
 // Create User
 const createUser = async (req, res) => {
@@ -97,7 +107,7 @@ const createUser = async (req, res) => {
       const adminUsers = await User.find({ role: 'admin' }).select('email name').lean();
 
       for (const admin of adminUsers) {
-        await sendEmail({
+        await emailAdminAboutNewUser({
           to: admin.email,
           subject: `New User Registered — ${newUser.name}`,
           html: `
@@ -124,6 +134,9 @@ const createUser = async (req, res) => {
       }
 
     }
+
+    // Customer accounts get their own RMM device group straight away.
+    await provisionUserSite(user._id);
 
     res.status(201).json({
       success: true,

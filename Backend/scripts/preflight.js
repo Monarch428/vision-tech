@@ -28,9 +28,6 @@ const checkEnv = () => {
     ? ok('Stripe webhook secret is set')
     : warn('STRIPE_WEBHOOK_SECRET is not set: a customer who closes the tab before returning from Stripe won\'t get their plan until they reload Billing');
 
-  env.RMM_AUTO_CREATE_SITES === 'true'
-    ? ok('New customers get an RMM Site automatically')
-    : warn('RMM_AUTO_CREATE_SITES is off: staff must link each new customer to a Site before they can add devices');
   for (const key of ['RMM_SCRIPT_RESTART_ID', 'RMM_SCRIPT_CLEANUP_ID', 'RMM_WEB_URL']) {
     env[key] ? ok(`${key} = ${env[key]}`) : warn(`${key} is not set (that feature is hidden)`);
   }

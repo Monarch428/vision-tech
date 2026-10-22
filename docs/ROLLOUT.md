@@ -11,7 +11,6 @@ Work through these in order. Steps marked **(blocking)** must be done before cus
    - (blocking) `JWT_SECRET` — new random string, 32+ characters. Changing it logs everyone out once.
    - (blocking) `CONFIG_ENCRYPTION_KEY` — random string; never change it afterwards.
    - (blocking) `FRONTEND_URL`, `MONGO_URI`
-   - `RMM_AUTO_CREATE_SITES=true|false`
    - After the first start: System Configuration → RMM → Client ID `12`, Site IDs `*` (the old
      `RMM_CLIENT_ID` / `RMM_WRITE_ALLOWED_SITE_IDS` env values are copied there once if present)
    - `RMM_SCRIPT_RESTART_ID=81`, `RMM_SCRIPT_CLEANUP_ID=11`, `RMM_WEB_URL=https://rmm.remote.newvtech.com`
