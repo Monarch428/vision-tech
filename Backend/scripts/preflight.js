@@ -28,18 +28,18 @@ const checkEnv = () => {
     ? ok('Stripe webhook secret is set')
     : warn('STRIPE_WEBHOOK_SECRET is not set: a customer who closes the tab before returning from Stripe won\'t get their plan until they reload Billing');
 
-  env.RMM_CLIENT_ID ? ok(`RMM_CLIENT_ID = ${env.RMM_CLIENT_ID}`) : block('RMM_CLIENT_ID is not set (RMM features are disabled)');
-  const writable = (env.RMM_WRITE_ALLOWED_SITE_IDS || '').trim();
-  if (writable === '*') ok('RMM safety lock allows all Sites (production setting)');
-  else if (!writable) block('RMM_WRITE_ALLOWED_SITE_IDS is empty: customers cannot add, remove or act on devices');
-  else warn(`RMM_WRITE_ALLOWED_SITE_IDS = ${writable}: only these Sites can be changed (development setting)`);
   env.RMM_AUTO_CREATE_SITES === 'true'
     ? ok('New customers get an RMM Site automatically')
     : warn('RMM_AUTO_CREATE_SITES is off: staff must link each new customer to a Site before they can add devices');
   for (const key of ['RMM_SCRIPT_RESTART_ID', 'RMM_SCRIPT_CLEANUP_ID', 'RMM_WEB_URL']) {
     env[key] ? ok(`${key} = ${env[key]}`) : warn(`${key} is not set (that feature is hidden)`);
   }
+  env.RMM_SCRIPT_FILE_BACKUP_ID && env.BACKEND_PUBLIC_URL && env.CLOUDINARY_API_SECRET
+    ? ok(`Customer file backup uploads to ${env.BACKEND_PUBLIC_URL}`)
+    : warn('Customer file backup is off: set RMM_SCRIPT_FILE_BACKUP_ID, BACKEND_PUBLIC_URL and the CLOUDINARY_* keys');
 };
+
+let rmmClientId = null;
 
 const checkDatabase = async () => {
   const db = mongoose.connection;
@@ -53,6 +53,16 @@ const checkDatabase = async () => {
   if (email.smtpPassword && !String(email.smtpPassword).startsWith('enc:v1:')) {
     warn('The stored SMTP password is not encrypted: re-save it in System Configuration after setting CONFIG_ENCRYPTION_KEY');
   }
+  // RMM settings live in System Configuration → RMM (copied once from .env on first start).
+  const rmm = config.rmm?.initialized
+    ? config.rmm
+    : { clientId: Number(process.env.RMM_CLIENT_ID) || null, writableSiteIds: (process.env.RMM_WRITE_ALLOWED_SITE_IDS || '').trim() };
+  rmmClientId = rmm.clientId || null;
+  rmmClientId ? ok(`RMM Client ID = ${rmmClientId}`) : block('RMM Client ID is not set in System Configuration → RMM (RMM features are disabled)');
+  const writable = String(rmm.writableSiteIds || '').trim();
+  if (writable === '*') ok('RMM safety lock allows all Sites (production setting)');
+  else if (!writable) block('RMM Site IDs are empty (System Configuration → RMM): customers cannot add, remove or act on devices');
+  else warn(`RMM Site IDs = ${writable}: only these Sites can be changed (development setting)`);
   if (config.general?.maintenanceMode) warn('Maintenance mode is ON: nobody can log in');
   if (config.security?.requireTwoFactorAuth === false) warn('Login codes (2FA) are turned off');
   const ips = config.security?.allowedIpAddresses || [];
@@ -78,11 +88,11 @@ const checkDatabase = async () => {
 };
 
 const checkTactical = async (linkedUsers) => {
-  if (!process.env.RMM_CLIENT_ID) return;
+  if (!rmmClientId) return;
   const tacticalService = require('../src/services/tacticalRmm.service');
   try {
-    const sites = await tacticalService.listSites(process.env.RMM_CLIENT_ID);
-    ok(`Tactical RMM reachable: ${sites.length} Site(s) in client ${process.env.RMM_CLIENT_ID}`);
+    const sites = await tacticalService.listSites(rmmClientId);
+    ok(`Tactical RMM reachable: ${sites.length} Site(s) in client ${rmmClientId}`);
     const linked = new Set(linkedUsers.map((u) => u.rmm.siteId));
     const unlinked = sites.filter((s) => !linked.has(s.id) && s.agent_count > 0);
     if (unlinked.length) {

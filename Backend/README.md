@@ -41,16 +41,20 @@ Routes use `protect` (valid JWT) and `authorize(...roles)` from `src/middleware/
 ## RMM (Tactical RMM)
 
 Each customer's devices live in their own Tactical RMM Site under one Client
-(`RMM_CLIENT_ID`). Staff link an account to its Site in User Management → Edit User
+(System Configuration → RMM). Staff link an account to its Site in User Management → Edit User
 (stored as `rmm.siteId`). Customers only see agents in their linked Site, and Bitdefender
 endpoints whose name matches one of those agents' hostnames (`src/utils/deviceOwnership.js`).
 Typed serial numbers no longer decide ownership.
 
 | Setting | Meaning |
 |---|---|
-| `RMM_CLIENT_ID` | Client holding one Site per customer |
-| `RMM_WRITE_ALLOWED_SITE_IDS` | Safety lock: Sites the app may change (installer links, later uninstall/scripts). `*` = all; a test Site id while developing; empty = none |
-| `RMM_AUTO_CREATE_SITES` | `true` creates and links a Site for a customer without one when they add a device |
+| System Configuration → RMM → **RMM Client ID** | Client holding one Site per customer |
+| System Configuration → RMM → **Site IDs the portal may change** | Safety lock: Sites the app may change (installer links, uninstall, scripts, backups). `*` = all; a test Site id while developing; empty = none |
+| `RMM_AUTO_CREATE_SITES` (.env) | `true` creates and links a Site for a customer without one when they add a device |
+
+The two RMM settings are stored in the database (`src/utils/rmmSettings.js`) and take effect
+when saved. On the first start after this was added, `RMM_CLIENT_ID` / `RMM_WRITE_ALLOWED_SITE_IDS`
+from `.env` are copied in once; after that `.env` is not read for them.
 
 Installer links are generated server-side for the caller's Site and expire after 1 hour.
 
@@ -85,8 +89,19 @@ activity log (`GET /api/devices/audit`: installer links, Site links, actions, re
 alerts). Moving a device to another customer is done in Tactical RMM (Edit agent → Site), because
 this API key can't edit agents; ownership follows on the next sync.
 
+**Customer file backup** (Self-Help → File Backup, `src/utils/fileBackups.js`). Customers on
+any plan back up Documents, Desktop and/or Pictures from their own online Windows computer. The
+portal runs the Tactical script `scripts/rmm/file-backup.ps1` (`RMM_SCRIPT_FILE_BACKUP_ID`) as
+SYSTEM; it zips the signed-in user's folders (skipping locked and OneDrive cloud-only files) and
+uploads the zip in parts (`BACKUP_PART_MB`) to `BACKEND_PUBLIC_URL/api/file-backups/agent/*`,
+authenticated by a one-time token valid for 6 hours. Parts are private raw files in Cloudinary;
+the download joins them back into one zip. Storage per plan is in `src/utils/planLimits.js`
+(Free 500 MB); the newest 2 backups of each device are kept. An optional weekly automatic backup
+runs from the hourly job (`src/cron/fileBackups.js`), which also fails backups a device never
+finished. The write safety lock applies. This is separate from the staff-only database backup.
+
 **Removing a device** (`DELETE /api/devices/:agentId`) uninstalls the agent through Tactical
-RMM, for the owner or staff, only on Sites allowed by `RMM_WRITE_ALLOWED_SITE_IDS`.
+RMM, for the owner or staff, only on Sites allowed in System Configuration → RMM.
 
 **Plan end** (`src/cron/subscriptionLifecycle.js`, daily 00:30): a paid plan whose period ended
 without renewal becomes `expired` with a 7-day `graceUntil`; the customer is emailed and keeps

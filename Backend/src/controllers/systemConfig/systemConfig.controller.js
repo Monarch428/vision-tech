@@ -1,6 +1,7 @@
 const SystemConfig = require('../../models/system-config/SystemConfig');
 const sendEmail = require('../../utils/sendEmail');
 const { encryptSecret } = require('../../utils/secretBox');
+const { normalizeRmmSettings, applyRmmSettings } = require('../../utils/rmmSettings');
 const mongoose = require("mongoose");
 const os = require("os");
 const systemLogger = require("../../utils/systemLogger");
@@ -27,6 +28,12 @@ const applyEmailSecret = (body, existing) => {
   return { ...body, email };
 };
 
+// RMM values from the form are validated; saving them marks the .env copy as done.
+const applyRmmInput = (body) => {
+  if (!body.rmm) return body;
+  return { ...body, rmm: { ...normalizeRmmSettings(body.rmm), initialized: true } };
+};
+
 // POST /api/system-config
 const createSystemConfig = async (req, res) => {
   try {
@@ -41,9 +48,10 @@ const createSystemConfig = async (req, res) => {
     }
 
     const config = await SystemConfig.create({
-      ...applyEmailSecret(req.body, null),
+      ...applyRmmInput(applyEmailSecret(req.body, null)),
       updatedBy: userId,
     });
+    if (config.rmm?.initialized) applyRmmSettings(config.rmm);
 
     await systemLogger({
       type: "success",
@@ -70,6 +78,7 @@ const createSystemConfig = async (req, res) => {
       ipAddress: req.ip,
     });
 
+    if (error.status === 400) return res.status(400).json({ message: error.message });
     res.status(500).json({
       message: 'Failed to create system configuration',
       error: error.message,
@@ -158,9 +167,10 @@ const updateSystemConfig = async (req, res) => {
     const { _id, createdAt, updatedAt, __v, ...body } = req.body;
     const config = await SystemConfig.findByIdAndUpdate(
       existing._id,
-      { ...applyEmailSecret(body, existing), updatedBy: userId },
-      { new: true, runValidators: true }
+      { ...applyRmmInput(applyEmailSecret(body, existing)), updatedBy: userId },
+      { returnDocument: 'after', runValidators: true }
     );
+    if (body.rmm) applyRmmSettings(config.rmm);
 
     await systemLogger({
       type: "success",
@@ -187,6 +197,7 @@ const updateSystemConfig = async (req, res) => {
       ipAddress: req.ip,
     });
 
+    if (error.status === 400) return res.status(400).json({ message: error.message });
     res.status(500).json({
       message: 'Failed to update configuration',
       error: error.message,

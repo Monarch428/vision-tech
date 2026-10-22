@@ -21,6 +21,7 @@ import type {
 import { clearCache } from "../../hooks/useCacheStorage";
 import { useEffect } from "react";
 import { getErrorMessage } from "../../utils/errors";
+import FileBackupCard from "../../components/FileBackupCard";
 
 type ToolStatus = "idle" | "running" | "completed" | "failed";
 
@@ -189,10 +190,10 @@ const TOOLS: Tool[] = [
   },
   {
     id: "start-backup",
-    name: "Start Backup",
-    description: "Initiate a backup of your important files",
+    name: "Database Backup (staff)",
+    description: "Export the whole server database to a zip",
     fullDescription:
-      "Initiates a backup of your important files and documents. Regular backups protect your data from loss due to hardware failure or malware.",
+      "Exports every collection of the server database (all customers, payments and settings) to a downloadable zip. Staff only; customers back up their own files with File Backup.",
     icon: <DriveIcon />,
     iconBg: "bg-green-50",
     instructionBg: "bg-orange-50",
@@ -829,6 +830,8 @@ export default function SelfHelp() {
           }
           return <ToolCard key={tool.id} tool={tool} />;
         })}
+        {/* Customers back up their own computers; staff use the database backup. */}
+        {!isStaffUser() && <FileBackupCard />}
       </div>
     </div>
   );

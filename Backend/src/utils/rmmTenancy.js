@@ -1,29 +1,31 @@
 const UserManagement = require('../models/user-management/User');
 const tacticalService = require('../services/tacticalRmm.service');
 
+const { getRmmSettings } = require('./rmmSettings');
+
 // Each customer's devices live in their own Tactical RMM Site under one Client
-// (RMM_CLIENT_ID). The link is stored on the user as `rmm.siteId`.
+// (System Configuration → RMM). The link is stored on the user as `rmm.siteId`.
 
 const httpError = (status, message) => Object.assign(new Error(message), { status });
 
 const getRmmClientId = () => {
-  const id = Number(process.env.RMM_CLIENT_ID);
-  if (!id) throw httpError(500, 'RMM_CLIENT_ID is not configured');
+  const id = getRmmSettings().clientId;
+  if (!id) throw httpError(500, 'The RMM Client ID is not configured (System Configuration → RMM)');
   return id;
 };
 
 // Safety lock: actions that change Tactical RMM (installer tokens, uninstalls,
-// scripts, moves) only run on Sites listed in RMM_WRITE_ALLOWED_SITE_IDS
-// ("*" = all Sites, e.g. in production). Unset or empty = no writes at all.
+// scripts, moves) only run on the Sites allowed in System Configuration → RMM
+// ("*" = all Sites, e.g. in production). Empty = no writes at all.
 const isSiteWritable = (siteId) => {
-  const raw = (process.env.RMM_WRITE_ALLOWED_SITE_IDS || '').trim();
+  const raw = getRmmSettings().writableSiteIds;
   if (raw === '*') return true;
   return raw.split(',').map((v) => Number(v.trim())).filter(Boolean).includes(Number(siteId));
 };
 
 const assertSiteWritable = (siteId) => {
   if (!isSiteWritable(siteId)) {
-    throw httpError(403, `RMM changes are not enabled for site ${siteId} (RMM_WRITE_ALLOWED_SITE_IDS)`);
+    throw httpError(403, `RMM changes are not enabled for site ${siteId} (System Configuration → RMM)`);
   }
 };
 

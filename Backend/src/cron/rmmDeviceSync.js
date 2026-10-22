@@ -3,6 +3,7 @@ const RmmDevice = require('../models/rmm/RmmDevice');
 const UserManagement = require('../models/user-management/User');
 const tacticalService = require('../services/tacticalRmm.service');
 const { getRmmClientId } = require('../utils/rmmTenancy');
+const { getRmmSettings } = require('../utils/rmmSettings');
 const { getDeviceLimit, describeLimit } = require('../utils/planLimits');
 const notifyStaff = require('../utils/notifyStaff');
 const systemLogger = require('../utils/systemLogger');
@@ -218,13 +219,12 @@ const runSync = async () => {
   }
 };
 
+// The Client ID is read on every run, so setting it in System Configuration
+// starts the sync without a restart.
 const startRmmDeviceSync = () => {
-  if (!process.env.RMM_CLIENT_ID) {
-    console.warn('[RMM Sync] RMM_CLIENT_ID not set; device sync disabled');
-    return;
-  }
-  syncRmmDevices();
-  cron.schedule('*/2 * * * *', syncRmmDevices);
+  const run = () => (getRmmSettings().clientId ? syncRmmDevices() : undefined);
+  setTimeout(run, 10 * 1000); // after the settings are loaded from the database
+  cron.schedule('*/2 * * * *', run);
 };
 
 module.exports = { startRmmDeviceSync, syncRmmDevices, enforceDeviceLimit, getSyncStatus, getCachedSites };
