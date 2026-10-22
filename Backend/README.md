@@ -41,8 +41,10 @@ Routes use `protect` (valid JWT) and `authorize(...roles)` from `src/middleware/
 ## RMM (Tactical RMM)
 
 Each customer's devices live in their own Tactical RMM Site under one Client
-(System Configuration → RMM). Staff link an account to its Site in User Management → Edit User
-(stored as `rmm.siteId`). Customers only see agents in their linked Site, and Bitdefender
+(System Configuration → RMM). A customer account gets its own Site, named "Name <email>",
+as soon as it is active (sign-up, OTP verification, or created by staff), and again on its first
+Add New Device if that failed; this needs Site IDs `*`. Staff can still change the link in
+User Management → Edit User (stored as `rmm.siteId`). Customers only see agents in their linked Site, and Bitdefender
 endpoints whose name matches one of those agents' hostnames (`src/utils/deviceOwnership.js`).
 Typed serial numbers no longer decide ownership.
 
@@ -50,7 +52,6 @@ Typed serial numbers no longer decide ownership.
 |---|---|
 | System Configuration → RMM → **RMM Client ID** | Client holding one Site per customer |
 | System Configuration → RMM → **Site IDs the portal may change** | Safety lock: Sites the app may change (installer links, uninstall, scripts, backups). `*` = all; a test Site id while developing; empty = none |
-| `RMM_AUTO_CREATE_SITES` (.env) | `true` creates and links a Site for a customer without one when they add a device |
 
 The two RMM settings are stored in the database (`src/utils/rmmSettings.js`) and take effect
 when saved. On the first start after this was added, `RMM_CLIENT_ID` / `RMM_WRITE_ALLOWED_SITE_IDS`

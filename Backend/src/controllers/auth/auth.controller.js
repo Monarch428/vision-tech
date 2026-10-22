@@ -11,8 +11,17 @@ const { createSessionLogger, destroySessionLogger, logger } = require("../../uti
 const sendEmail = require('../../utils/sendEmail');
 const systemLogger = require("../../utils/systemLogger");
 const systemConfigModel = require('../../models/system-config/SystemConfig');
+const { provisionUserSite } = require('../../utils/rmmTenancy');
 
 const LOCK_DURATION_MS = 24 * 60 * 60 * 1000;
+
+// The "new user" email to admins is a courtesy: if it can't be sent (e.g. SMTP
+// not set up), log it and carry on rather than failing the account creation.
+const emailAdminAboutNewUser = (message) =>
+  sendEmail(message).catch((error) => systemLogger({
+    type: 'warning', action: 'NEW_USER_EMAIL_FAILED', userEmail: message.to,
+    details: `New-user notification not sent: ${error.message}`, module: 'email',
+  }));
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -195,7 +204,7 @@ const register = async (req, res) => {
       const adminUsers = await ManagementUser.find({ role: 'admin' }).select('email name').lean();
 
       for (const admin of adminUsers) {
-        await sendEmail({
+        await emailAdminAboutNewUser({
           to: admin.email,
           subject: `New User Registered — ${user.name}`,
           html: `
@@ -261,6 +270,8 @@ const register = async (req, res) => {
     }
 
     // ── normal public self-registration: issue token right away ─────────────
+    // The account is active now, so it gets its own RMM device group.
+    await provisionUserSite(user._id);
     const token = await generateToken(user);
 
     res.status(201).json({
@@ -512,6 +523,7 @@ const verifyOtp = async (req, res) => {
     // A self-signup becomes active once its emailed code is confirmed.
     if ((await getAccountState(user._id)).pendingActivation) {
       await ManagementUser.updateOne({ _id: user._id }, { $set: { isActive: true, isVerified: true } });
+      await provisionUserSite(user._id);
     }
 
     const token = await generateToken(user);

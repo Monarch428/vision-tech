@@ -909,9 +909,7 @@ export default function RMM() {
     <p className="text-sm text-gray-500">Loading devices...</p>
   ) : filteredDevices.length === 0 ? (
     <p className="text-sm text-gray-500">
-      {!linked
-        ? "Your account isn't linked to a device group yet. Please contact support to get set up."
-        : devices.length === 0
+      {!linked || devices.length === 0
         ? "No devices yet. Use Add Device to install the monitoring agent on a computer."
         : "No device matches this selection."}
     </p>
