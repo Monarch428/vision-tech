@@ -21,7 +21,7 @@ test('staff-only endpoints refuse customers', async () => {
 });
 
 test('previously public endpoints now need a login', async () => {
-  for (const path of ['/system-logs', '/system-logs/stats', '/user-subscriptions/subscriptions']) {
+  for (const path of ['/system-logs', '/system-logs/stats', '/user-subscriptions/subscriptions', '/file-backups']) {
     assert.equal((await t.request('GET', path)).status, 401, path);
   }
 });

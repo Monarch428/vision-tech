@@ -60,6 +60,11 @@ export interface SystemConfigPayload {
     securityAlerts: boolean;
     subscriptionRenewals: boolean;
   };
+  // Sent only when the RMM tab is saved.
+  rmm?: {
+    clientId: number | null;
+    writableSiteIds: string; // "*", "73,74" or ""
+  };
 }
 
 // ── Endpoints ──────────────────────────────────────────────────────────────

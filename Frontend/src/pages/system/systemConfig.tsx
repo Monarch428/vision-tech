@@ -4,7 +4,7 @@ import { clearCache } from "../../hooks/useCacheStorage";
 import Cookies from "js-cookie";
 import { getErrorMessage } from "../../utils/errors";
 
-type TabType = "general" | "email" | "security" | "notifications";
+type TabType = "general" | "email" | "security" | "notifications" | "rmm";
 
 import {
   getSystemConfig,
@@ -267,6 +267,10 @@ export default function SystemConfig() {
   const [subscriptionRenewals, setSubscriptionRenewals] = useState(false);
   const [deviceAlerts, setDeviceAlerts] = useState(true);
 
+  // ── RMM ──
+  const [rmmClientId, setRmmClientId] = useState("");
+  const [rmmSiteIds, setRmmSiteIds] = useState("");
+
   // ── Health ──
   const [health, setHealth] = useState<any>(null);
 
@@ -316,6 +320,9 @@ export default function SystemConfig() {
         maxLoginAttempts.trim() !== "" &&
         minPasswordLength.trim() !== "",
       notifications: true,
+      rmm:
+        /^\d*$/.test(rmmClientId.trim()) &&
+        (rmmSiteIds.trim() === "" || rmmSiteIds.trim() === "*" || /^\d+(\s*,\s*\d+)*$/.test(rmmSiteIds.trim())),
     }),
     [
       siteName,
@@ -330,6 +337,8 @@ export default function SystemConfig() {
       sessionTimeout,
       maxLoginAttempts,
       minPasswordLength,
+      rmmClientId,
+      rmmSiteIds,
     ],
   );
 
@@ -370,6 +379,9 @@ export default function SystemConfig() {
       setSecurityAlerts(Boolean(c.notifications?.securityAlerts ?? false));
       setSubscriptionRenewals(Boolean(c.notifications?.subscriptionRenewals ?? false));
       setDeviceAlerts(Boolean(c.notifications?.deviceAlerts ?? true));
+
+      setRmmClientId(c.rmm?.clientId ? String(c.rmm.clientId) : "");
+      setRmmSiteIds(c.rmm?.writableSiteIds ?? "");
 
       setIsExisting(true);
     } catch (err: any) {
@@ -427,6 +439,12 @@ export default function SystemConfig() {
     try {
       setSavingTab(tab);
       const payload = buildPayload() as SystemConfigPayload;
+      if (tab === "rmm") {
+        payload.rmm = {
+          clientId: rmmClientId.trim() ? Number(rmmClientId.trim()) : null,
+          writableSiteIds: rmmSiteIds.trim(),
+        };
+      }
       if (isExisting) {
         await updateSystemConfig(payload);
       } else {
@@ -455,6 +473,7 @@ export default function SystemConfig() {
     { label: "Email", value: "email" },
     { label: "Security", value: "security" },
     { label: "Notifications", value: "notifications" },
+    { label: "RMM", value: "rmm" },
   ];
 
   return (
@@ -896,6 +915,59 @@ export default function SystemConfig() {
                     disabled={!tabValid.notifications}
                   />
                 </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ── RMM TAB ── */}
+        {!fetchLoading && activeTab === "rmm" && (
+          <div className="space-y-4">
+            <div className="bg-white rounded-2xl border border-gray-300 p-5">
+              <h2 className="text-lg font-bold text-gray-900 mb-1">
+                RMM Settings
+              </h2>
+              <p className="text-md text-gray-700 mb-6">
+                Tactical RMM client and the device groups (Sites) the portal may change. Changes apply immediately.
+              </p>
+              <div className="space-y-5">
+                <Field label="RMM Client ID">
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    value={rmmClientId}
+                    onChange={(e) => setRmmClientId(e.target.value)}
+                    placeholder="e.g. 12"
+                    className={inputClass}
+                  />
+                </Field>
+                <p className="text-xs text-gray-500 -mt-3">
+                  The Tactical RMM Client that holds one Site per customer. Empty turns RMM off.
+                </p>
+                <Field label="RMM Site IDs the portal may change">
+                  <input
+                    type="text"
+                    value={rmmSiteIds}
+                    onChange={(e) => setRmmSiteIds(e.target.value)}
+                    placeholder="* for all Sites, or e.g. 73,74"
+                    className={inputClass}
+                  />
+                </Field>
+                <p className="text-xs text-gray-500 -mt-3">
+                  Use * in production. A list of Site IDs limits installs, removals, scripts and backups to those
+                  Sites (for testing). Empty blocks all changes.
+                </p>
+                {!tabValid.rmm && (
+                  <p className="text-xs text-red-600">
+                    Client ID must be a number; Site IDs must be * or numbers separated by commas.
+                  </p>
+                )}
+                <SaveButton
+                  label="Save RMM Settings"
+                  onClick={() => handleSave("rmm")}
+                  loading={savingTab === "rmm"}
+                  disabled={!tabValid.rmm}
+                />
               </div>
             </div>
           </div>

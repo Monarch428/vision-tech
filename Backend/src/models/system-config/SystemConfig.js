@@ -119,6 +119,14 @@ const systemConfigSchema = new mongoose.Schema(
             },
         },
 
+        // Tactical RMM (utils/rmmSettings.js). `initialized` records that the
+        // old .env values were copied in, so they are never read again.
+        rmm: {
+            clientId: { type: Number, default: null },
+            writableSiteIds: { type: String, default: '' },
+            initialized: { type: Boolean, default: false },
+        },
+
         updatedBy: {
             type: mongoose.Schema.Types.ObjectId,
             ref: 'User',

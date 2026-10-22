@@ -26,6 +26,8 @@ const { handleWebhook: handleStripeWebhook } = require('./controllers/subscripti
 // const systemHealthRoutes = require("./routes/systemHealth/systemHealth.route");
 // const deviceRoutes = require('./routes/rmm/device.route');
 const tacticalRmmRoutes = require('./routes/rmm/tacticalRmm.route');
+const fileBackupRoutes = require('./routes/backup/fileBackup.route');
+const { startFileBackupJobs } = require('./cron/fileBackups');
 
 
 const app = express();
@@ -166,6 +168,7 @@ app.use('/api/self-help',          selfHelpRoutes);
 app.use('/api/system-config',          systemConfig);
 app.use('/api/data-management',          dataManagementRoutes);
 app.use('/api/devices', tacticalRmmRoutes);
+app.use('/api/file-backups', fileBackupRoutes);
 
 app.use(notFound);
 app.use(errorHandler);
@@ -176,6 +179,7 @@ if (process.env.DISABLE_CRON !== 'true') {
   startAntivirusScanScheduler();
   startRmmDeviceSync();
   startSubscriptionLifecycle();
+  startFileBackupJobs();
 }
 
 module.exports = app;
