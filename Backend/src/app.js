@@ -38,9 +38,13 @@ const normalizeOrigin = (value) => (value || "").trim().replace(/\/$/, "");
 const allowedOrigins = [
   process.env.FRONTEND_URL,
   ...(process.env.CORS_ALLOWED_ORIGINS || "").split(","),
+  ...(process.env.NODE_ENV !== "production"
+      ? [
   "http://localhost:5173",
   "http://127.0.0.1:5173",
-]
+        ]
+      : []),
+  ]
   .map(normalizeOrigin)
   .filter(Boolean);
 
