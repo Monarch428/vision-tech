@@ -4,7 +4,7 @@ const app = require("./app");
 const connectDB = require("./conifg/db");
 const { logger } = require("./utils/logger");
 
-const PORT = process.env.PORT || 5000;
+const PORT = process.env.PORT || 5001;
 
 // A stray rejected promise (cron, fire-and-forget email, etc.) should be logged,
 // not take the whole API down.
@@ -32,6 +32,6 @@ server.on("error", (error) => {
   process.exit(1);
 });
 
-server.listen(PORT, () => {
+server.listen(PORT, "127.0.0.1", () => {
   console.log(`Server running on port ${PORT}`);
 });
