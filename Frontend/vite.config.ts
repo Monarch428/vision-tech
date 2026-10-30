@@ -6,14 +6,17 @@ export default defineConfig({
   plugins: [react(), tailwindcss()],
 
   server: {
-    host: '0.0.0.0',
+    host: '127.0.0.1',
+    port: 5173,
+    strictPort: true,
     watch: {
       usePolling: true,
       interval: 1000,
     },
+
     proxy: {
       '/api': {
-        target: 'http://localhost:5000',
+        target: 'http://localhost:5001',
         changeOrigin: true,
         secure: false,
       },
