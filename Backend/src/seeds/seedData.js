@@ -271,7 +271,8 @@ const ensureAdminAccess = async (authUser, dryRun) => {
         deletedAt: null,
         lastActiveAt: new Date(),
       },
-    }
+    },
+    { upsert: true }
   );
 
   const now = new Date();
