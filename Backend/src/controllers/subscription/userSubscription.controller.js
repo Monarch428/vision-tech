@@ -5,6 +5,7 @@ const User = require('../../models/auth/User');
 const { v4: uuidv4 } = require('uuid');
 const { getSupportUsage } = require('../../utils/supportUserHelper');
 const systemLogger = require("../../utils/systemLogger");
+const { provisionPaidCompany } = require('../../services/companyProvisioning.service');
 
 // ─── Helper: transform DB doc → frontend shape ────────────────────────────────
 const toClientShape = (sub) => {
@@ -129,6 +130,8 @@ const createUserSubscription = async (req, res) => {
       });
     }
 
+    await provisionPaidCompany(userExists);
+
     await systemLogger({
       type: "success",
       action: "SUBSCRIPTION_CREATED",
@@ -210,6 +213,10 @@ const updateUserSubscription = async (req, res) => {
     }
 
     await subscription.save();
+
+    if (subscription.amount > 0 && subscription.status === 'active') {
+      await provisionPaidCompany(await User.findById(subscription.user));
+    }
 
     if (planChanged && newPlan.price > 0) {
       await Payment.create({

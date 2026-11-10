@@ -106,6 +106,14 @@ const call = async (api, method, params = {}) => {
 
 /** Lists installation packages already created in GravityZone. */
 const getPackagesList = (params = {}) => call("packages", "getPackagesList", params);
+const getEndpointsList = (params = {}) => call("network", "getEndpointsList", params);
+const createScanTask = (params = {}) => call("network", "createScanTask", params);
+const getTaskStatus = (taskId) => {
+  if (!taskId) {
+    throw new Error("[gravityZoneClient] getTaskStatus called with no taskId.");
+  }
+  return call("network", "getTaskStatus", { taskId });
+};
 
 /** Full package details (installer type, OS, available options) for a packageId. */
 const getPackageDetails = (packageId) => call("packages", "getPackageDetails", { packageId });
@@ -181,6 +189,9 @@ const buildPackageDownloadUrl = (packageId, downloadType = 20) => {
 module.exports = {
   call,
   getPackagesList,
+  getEndpointsList,
+  createScanTask,
+  getTaskStatus,
   getPackageDetails,
   createPackage,
   getInstallationLinks,

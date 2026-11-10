@@ -16,6 +16,7 @@ const PLATFORM_ITEMS = [
   { id: 'support', label: 'Support', path: '/user/support', icon: 'support' },
   { id: 'antivirus', label: 'Antivirus', path: '/user/antivirus', icon: 'antivirus' },
   { id: 'rmm', label: 'RMM', path: '/user/rmm', icon: 'monitor-check' },
+  { id: 'company', label: 'Company Workspace', path: '/user/company', icon: 'users' },
   { id: 'billingsubscriptions', label: 'Billing Subscriptions', path: '/user/billingsubscriptions', icon: 'card' }
 ];
 
@@ -24,6 +25,7 @@ const ADMIN_ITEMS = [
   { id: 'users', label: 'User Management', path: '/admin/users', icon: 'users' },
   { id: 'subscriptions', label: 'Subscriptions', path: '/admin/subscriptions', icon: 'card' },
   { id: 'servicerequest', label: 'Support Request', path: '/admin/serviceRequest', icon: 'settings' },
+  { id: 'company-pilot', label: 'Company Pilot', path: '/admin/company-pilot', icon: 'users' },
   // { id: 'supportBookings', label: 'Support Booking', path: '/admin/supportBookings', icon: 'booking' },
   { id: 'Systemlogs', label: 'System Logs', path: '/admin/Systemlogs', icon: 'system-logs' },
 ];

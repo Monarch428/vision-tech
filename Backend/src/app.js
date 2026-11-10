@@ -19,6 +19,7 @@ const dataManagementRoutes = require('./routes/data-management/dataManagement.ro
 // const systemHealthRoutes = require("./routes/systemHealth/systemHealth.route");
 // const deviceRoutes = require('./routes/rmm/device.route');
 const tacticalRmmRoutes = require('./routes/rmm/tacticalRmm.route');
+const companyRoutes = require('./routes/company/company.route');
 
 
 const app = express();
@@ -31,6 +32,7 @@ const allowedOrigins = [
   "http://localhost:5173",
   "http://127.0.0.1:5173",
   "https://depletion-cartoon-nephew.ngrok-free.dev",
+  "http://192.168.1.10:5173"
 ]
   .map(normalizeOrigin)
   .filter(Boolean);
@@ -149,8 +151,17 @@ app.use('/api/antivirus-schedules', antivirusScheduleRoutes);
 app.use('/api/self-help',          selfHelpRoutes);
 app.use('/api/system-config',          systemConfig);
 app.use('/api/data-management',          dataManagementRoutes);
+// Tenant routes deliberately remain unavailable in production and unless the
+// staging pilot explicitly opts in. Provider jobs are separately cron-gated.
+if (process.env.NODE_ENV !== 'production'
+  && process.env.DISABLE_CRON === 'true'
+  && process.env.ENABLE_COMPANY_PILOT === 'true') {
+  app.use('/api/companies', companyRoutes);
+}
 app.use('/api/devices', tacticalRmmRoutes);
 
-startSubscriptionReminder();
+if (process.env.NODE_ENV === 'staging' && process.env.ENABLE_CRON === 'true') {
+  startSubscriptionReminder();
+}
 
 module.exports = app;

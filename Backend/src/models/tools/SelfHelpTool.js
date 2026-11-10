@@ -1,44 +1,60 @@
 const mongoose = require('mongoose');
 
-const deviceAntivirusSchema = new mongoose.Schema(
+const selfHelpToolSchema = new mongoose.Schema(
   {
     user: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'User',
       required: true,
     },
-    rmmAgentId: {
+    category: {
       type: String,
+      enum: ['browser', 'network', 'security', 'backup'],
       required: true,
-      unique: true,
     },
-    hostname: {
+    status: {
       type: String,
-      default: null,
+      enum: ['pending', 'running', 'completed', 'failed'],
+      default: 'pending',
     },
-    installStatus: {
-      type: String,
-      enum: ['not_installed', 'installing', 'installed', 'failed'],
-      default: 'not_installed',
+    progress: {
+      type: Number,
+      default: 0,
     },
-    installStartedAt: {
+    scanStartedAt: {
       type: Date,
       default: null,
     },
-    installCompletedAt: {
+    scanFinishedAt: {
       type: Date,
-      default: null,
-    },
-    installError: {
-      type: String,
-      default: null,
-    },
-    bitdefenderEndpointId: {
-      type: String,
       default: null,
     },
     rmmAgentId: {
       type: String,
+      default: null,
+    },
+    bitdefenderTaskId: {
+      type: String,
+      default: null,
+    },
+    filesScanned: {
+      type: Number,
+      default: null,
+    },
+    threatsDetected: {
+      type: Number,
+      default: 0,
+    },
+    backupPath: {
+      type: String,
+      default: null,
+    },
+    backupFileName: {
+      type: String,
+      default: null,
+    },
+    backupFileSize: {
+      type: Number,
       default: null,
     },
   },
@@ -47,4 +63,4 @@ const deviceAntivirusSchema = new mongoose.Schema(
   }
 );
 
-module.exports = mongoose.model('DeviceAntivirus', deviceAntivirusSchema);
+module.exports = mongoose.model('SelfHelpTool', selfHelpToolSchema);

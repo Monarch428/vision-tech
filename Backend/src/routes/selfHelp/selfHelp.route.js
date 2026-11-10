@@ -11,7 +11,7 @@ const {
   listBackups,
   downloadBackup,
   getReportData,
-  installBitdefender,
+  registerDeviceHostname,
   getBitdefenderInstallStatus,
   getBitdefenderDownloadLink,
 } = require("../../controllers/selfhelp/selfHelp.controller");
@@ -23,6 +23,11 @@ router.get(
   "/bitdefender/status",
   protect,
   getBitdefenderInstallStatus
+);
+router.post(
+  "/bitdefender/register-device",
+  protect,
+  registerDeviceHostname
 );
 
 // Self-help tools

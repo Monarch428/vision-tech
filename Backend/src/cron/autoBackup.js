@@ -130,7 +130,8 @@ async function runBackup() {
 // ─────────────────────────────────────────────
 // Cron Job
 // ─────────────────────────────────────────────
-cron.schedule('55 10 * * *', async () => {
+const runCron = process.env.NODE_ENV === 'staging' && process.env.ENABLE_CRON === 'true';
+if (runCron) cron.schedule('55 10 * * *', async () => {
   console.log('[Cron] Job started at:', new Date().toLocaleString());
 
   try {

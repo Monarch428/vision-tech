@@ -12,6 +12,11 @@ exports.getAgent = async (agentId) => {
   return response.data;
 };
 
+exports.listSites = async (clientId) => {
+  const { data } = await rmm.get(`/clients/${Number(clientId)}/sites/`);
+  return data;
+};
+
 exports.runScript = async (agentId, scriptId, args = [], timeout = 90) => {
   const { data } = await rmm.post(`/agents/${agentId}/runscript/`, {
     output: 'forget',
