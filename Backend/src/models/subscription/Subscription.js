@@ -55,6 +55,13 @@ const subscriptionSchema = new mongoose.Schema(
       type: Boolean,
       default: false
     },
+
+    // Set when a paid plan ends (expired or cancelled period over): service
+    // continues until this date, then the account drops to the Free plan.
+    graceUntil: {
+      type: Date,
+      default: null,
+    },
   },
   {
     timestamps: true,

@@ -1,10 +1,22 @@
 const bcrypt = require('bcryptjs');
+const { isStaff } = require('../../middleware/auth.middleware');
+const { getDeviceLimit } = require('../../utils/planLimits');
 const User = require('../../models/user-management/User');
 const SystemConfig = require('../../models/system-config/SystemConfig')
 const Sub = require('../../models/subscription/Subscription');
 const Plan = require('../../models/subscription/Plan');
 const { formatLastLogin } = require('../../utils/timeFormatter');
 const sendEmail = require('../../utils/sendEmail');
+const systemLogger = require('../../utils/systemLogger');
+const { provisionUserSite } = require('../../utils/rmmTenancy');
+
+// The "new user" email to admins is a courtesy: if it can't be sent (e.g. SMTP
+// not set up), log it and carry on rather than failing the account creation.
+const emailAdminAboutNewUser = (message) =>
+  sendEmail(message).catch((error) => systemLogger({
+    type: 'warning', action: 'NEW_USER_EMAIL_FAILED', userEmail: message.to,
+    details: `New-user notification not sent: ${error.message}`, module: 'email',
+  }));
 
 // Create User
 const createUser = async (req, res) => {
@@ -14,12 +26,12 @@ const createUser = async (req, res) => {
 
     const existingUser = await User.findOne({ email });
 
-    if (role === 'support') {
-      const existingSUpport = await User.findOne({ role: 'support' });
+    if (role === 'superadmin') {
+      const existingSUpport = await User.findOne({ role: 'superadmin' });
       if (existingSUpport) {
         return res.status(400).json({
           success: false,
-          message: 'Only one support user is allowed',
+          message: 'Only one Super Admin is allowed',
         });
       }
     }
@@ -95,7 +107,7 @@ const createUser = async (req, res) => {
       const adminUsers = await User.find({ role: 'admin' }).select('email name').lean();
 
       for (const admin of adminUsers) {
-        await sendEmail({
+        await emailAdminAboutNewUser({
           to: admin.email,
           subject: `New User Registered — ${newUser.name}`,
           html: `
@@ -122,6 +134,9 @@ const createUser = async (req, res) => {
       }
 
     }
+
+    // Customer accounts get their own RMM device group straight away.
+    await provisionUserSite(user._id);
 
     res.status(201).json({
       success: true,
@@ -198,6 +213,10 @@ const getAllUsers = async (req, res) => {
 // Get User By ID
 const getUserById = async (req, res) => {
   try {
+    if (!isStaff(req) && String(req.params.id) !== String(req.user.id)) {
+      return res.status(403).json({ success: false, message: 'You can only view your own profile' });
+    }
+
     const user = await User.findById(req.params.id).select('-password');
 
     if (!user) {
@@ -217,16 +236,65 @@ const getUserById = async (req, res) => {
 // Update User
 const updateUser = async (req, res) => {
   try {
-    const { password, ...rest } = req.body;
-    const updateData = { ...rest };
+    const staff = isStaff(req);
+    const isSelf = String(req.params.id) === String(req.user.id);
 
-    // Check if trying to assign support role to another user
-    if (rest.role === 'support') {
-      const existingSupport = await User.findOne({ role: 'support', _id: { $ne: req.params.id } });
+    if (!staff && !isSelf) {
+      return res.status(403).json({ success: false, message: 'You can only update your own profile' });
+    }
+
+    const {
+      password,
+      currentPassword,
+      deviceName = req.body.deviceNames,
+      serialNumber = req.body.serialNumbers,
+    } = req.body;
+
+    // Only staff may change role, plan, status, email or other account fields.
+    const allowedFields = staff
+      ? ['name', 'email', 'role', 'status', 'avatar', 'plan', 'isActive']
+      : ['name', 'avatar'];
+    const updateData = {};
+    for (const field of allowedFields) {
+      if (req.body[field] !== undefined) updateData[field] = req.body[field];
+    }
+
+    if (updateData.role === 'superadmin' && req.user.role !== 'superadmin') {
+      return res.status(403).json({ success: false, message: 'Only the Super Admin can assign the Super Admin role' });
+    }
+
+    // Get current user first
+    const existingUser = await User.findById(req.params.id);
+
+    if (!existingUser) {
+      return res.status(404).json({
+        success: false,
+        message: 'User not found',
+      });
+    }
+
+    if (password && isSelf) {
+      if (!currentPassword) {
+        return res.status(400).json({ success: false, message: 'Current password is required' });
+      }
+      const withPassword = await User.findById(req.params.id).select('+password');
+      const matches = await bcrypt.compare(currentPassword, withPassword.password || '');
+      if (!matches) {
+        return res.status(400).json({ success: false, message: 'Current password is incorrect' });
+      }
+    }
+
+    // Check if trying to assign the Super Admin role to another user
+    if (updateData.role === 'superadmin') {
+      const existingSupport = await User.findOne({
+        role: 'superadmin',
+        _id: { $ne: req.params.id },
+      });
+
       if (existingSupport) {
         return res.status(400).json({
           success: false,
-          message: 'Only one support user is allowed',
+          message: 'Only one Super Admin is allowed',
         });
       }
     }
@@ -235,14 +303,101 @@ const updateUser = async (req, res) => {
       updateData.password = await bcrypt.hash(password, 10);
     }
 
-    const user = await User.findByIdAndUpdate(req.params.id, updateData, {
-      new: true,
-      runValidators: true,
-    }).select('-password');
+    // ------------------------------------
+    // PLAN DEVICE LIMIT
+    // ------------------------------------
 
-    if (!user) {
-      return res.status(404).json({ success: false, message: 'User not found' });
+    const plan = (existingUser.plan || 'free').toLowerCase();
+
+    const deviceLimit = getDeviceLimit(plan);
+
+    // ------------------------------------
+    // DEVICE NAMES
+    // ------------------------------------
+
+    if (deviceName !== undefined) {
+      const deviceNames = Array.isArray(deviceName)
+        ? deviceName
+            .map((name) => String(name).trim())
+            .filter(Boolean)
+        : deviceName
+          ? [String(deviceName).trim()]
+          : [];
+
+      if (deviceNames.length > deviceLimit) {
+        return res.status(400).json({
+          success: false,
+          message:
+            plan === 'enterprise'
+              ? 'Invalid device limit'
+              : `${plan} plan allows maximum ${deviceLimit} device${
+                  deviceLimit > 1 ? 's' : ''
+                }.`,
+        });
+      }
+
+      updateData.deviceNames = deviceNames;
     }
+
+    // ------------------------------------
+    // SERIAL NUMBERS
+    // ------------------------------------
+
+    if (serialNumber !== undefined) {
+      const serialNumbers = Array.isArray(serialNumber)
+        ? serialNumber
+            .map((num) => String(num).trim())
+            .filter(Boolean)
+        : serialNumber
+          ? [String(serialNumber).trim()]
+          : [];
+
+      if (serialNumbers.length > deviceLimit) {
+        return res.status(400).json({
+          success: false,
+          message:
+            plan === 'enterprise'
+              ? 'Invalid device limit'
+              : `${plan} plan allows maximum ${deviceLimit} device${
+                  deviceLimit > 1 ? 's' : ''
+                }.`,
+        });
+      }
+
+      updateData.serialNumbers = serialNumbers;
+    }
+
+    // ------------------------------------
+    // Device name + serial number count
+    // should match
+    // ------------------------------------
+
+    const finalDeviceNames =
+      updateData.deviceNames ?? existingUser.deviceNames ?? [];
+
+    const finalSerialNumbers =
+      updateData.serialNumbers ?? existingUser.serialNumbers ?? [];
+
+    if (finalDeviceNames.length !== finalSerialNumbers.length) {
+      return res.status(400).json({
+        success: false,
+        message:
+          'Each device must have a corresponding serial number.',
+      });
+    }
+
+    // ------------------------------------
+    // UPDATE
+    // ------------------------------------
+
+    const user = await User.findByIdAndUpdate(
+      req.params.id,
+      updateData,
+      {
+        new: true,
+        runValidators: true,
+      }
+    ).select('-password');
 
     res.status(200).json({
       success: true,
@@ -347,7 +502,6 @@ const getUserSB = async (req, res) => {
       data: users,
     });
   } catch (error) {
-    console.log("❌ ERROR:", error.message);
     res.status(500).json({
       success: false,
       error: error.message,
@@ -378,5 +532,57 @@ const getUserRole = async (req, res) => {
     });
   }
 };
+// Remove a single serial number from the current user's record
+// (used by the RMM page's "stop monitoring / remove device" action —
+// this does NOT touch Tactical RMM itself, it just unlinks the serial
+// number from this user so the device no longer matches their list).
+const removeMySerialNumber = async (req, res) => {
+  try {
+    const { serialNumber } = req.params;
 
-module.exports = { createUser, getAllUsers, getUserById, updateUser, deleteUser, getUserSB, getUserRole };
+    if (!serialNumber) {
+      return res.status(400).json({
+        success: false,
+        message: 'Serial number is required',
+      });
+    }
+
+    const user = await User.findById(req.user.id);
+
+    if (!user) {
+      return res.status(404).json({ success: false, message: 'User not found' });
+    }
+
+    // Device names and serial numbers are paired by position; remove both.
+    const index = (user.serialNumbers || []).findIndex(
+      (s) => s.toLowerCase() === serialNumber.toLowerCase()
+    );
+
+    if (index === -1) {
+      return res.status(404).json({
+        success: false,
+        message: 'That serial number is not registered to your account',
+      });
+    }
+
+    user.serialNumbers.splice(index, 1);
+    if (user.deviceNames?.length > index) user.deviceNames.splice(index, 1);
+    await user.save();
+
+    const updatedUser = await User.findById(user._id).select('-password');
+
+    res.status(200).json({
+      success: true,
+      message: 'Serial number removed successfully',
+      data: updatedUser,
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: 'Error removing serial number',
+      error: error.message,
+    });
+  }
+};
+
+module.exports = { createUser, getAllUsers, getUserById, updateUser, deleteUser, getUserSB, getUserRole,removeMySerialNumber };

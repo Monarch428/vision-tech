@@ -10,22 +10,26 @@ const {
   getSystemHealth
 } = require('../../controllers/systemConfig/systemConfig.controller');
 
-const { protect } = require('../../middleware/auth.middleware');
+const { protect, authorize, STAFF_ROLES } = require('../../middleware/auth.middleware');
+
+const staffOnly = authorize(...STAFF_ROLES);
+// Only the Super Admin may change system configuration.
+const superAdminOnly = authorize('superadmin');
 
 // Create (only once per user)
-router.post('/', protect, createSystemConfig);
+router.post('/', protect, superAdminOnly, createSystemConfig);
 
 // Get logged-in user's config
-router.get('/me', protect, getMySystemConfig);
+router.get('/me', protect, staffOnly, getMySystemConfig);
 
 // Update logged-in user's config
-router.put('/', protect, updateSystemConfig);
+router.put('/', protect, superAdminOnly, updateSystemConfig);
 
 // (Optional) Admin or debug route
-router.get('/user/:userId', protect, getConfigByUserId);
+router.get('/user/:userId', protect, staffOnly, getConfigByUserId);
 
-router.post('/test-email', protect, testEmail);
+router.post('/test-email', protect, superAdminOnly, testEmail);
 
-router.get('/health',protect,getSystemHealth)
+router.get('/health', protect, staffOnly, getSystemHealth);
 
 module.exports = router;

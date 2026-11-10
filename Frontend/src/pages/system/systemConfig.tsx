@@ -2,8 +2,9 @@ import { useState, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { clearCache } from "../../hooks/useCacheStorage";
 import Cookies from "js-cookie";
+import { getErrorMessage } from "../../utils/errors";
 
-type TabType = "general" | "email" | "security" | "notifications";
+type TabType = "general" | "email" | "security" | "notifications" | "rmm";
 
 import {
   getSystemConfig,
@@ -219,86 +220,6 @@ function Toast({
 }
 
 // ─────────────────────────────────────────────
-// System Actions
-// ─────────────────────────────────────────────
-function SystemActions() {
-  const actions = [
-    {
-      label: "Restart Services",
-      icon: (
-        <svg
-          className="w-6 h-6"
-          fill="none"
-          viewBox="0 0 24 24"
-          stroke="currentColor"
-          strokeWidth={1.5}
-        >
-          <path
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
-          />
-        </svg>
-      ),
-    },
-    {
-      label: "Backup Database",
-      icon: (
-        <svg
-          className="w-6 h-6"
-          fill="none"
-          viewBox="0 0 24 24"
-          stroke="currentColor"
-          strokeWidth={1.5}
-        >
-          <ellipse cx="12" cy="5" rx="9" ry="3" />
-          <path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3" />
-          <path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5" />
-        </svg>
-      ),
-    },
-    {
-      label: "Run Security Audit",
-      icon: (
-        <svg
-          className="w-6 h-6"
-          fill="none"
-          viewBox="0 0 24 24"
-          stroke="currentColor"
-          strokeWidth={1.5}
-        >
-          <path
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"
-          />
-        </svg>
-      ),
-    },
-  ];
-
-  return (
-    <div className="bg-white rounded-2xl border border-gray-300 p-5">
-      <h2 className="text-lg font-bold text-gray-900 mb-1">System Actions</h2>
-      <p className="text-md text-gray-700 mb-5">
-        Perform critical system operations
-      </p>
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-        {actions.map((action) => (
-          <button
-            key={action.label}
-            className="flex flex-col items-center justify-center gap-3 border border-gray-300 rounded-2xl px-4 py-6 hover:bg-gray-50 transition-colors text-sm font-semibold text-gray-800"
-          >
-            {action.icon}
-            {action.label}
-          </button>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-// ─────────────────────────────────────────────
 // Main Component
 // ─────────────────────────────────────────────
 export default function SystemConfig() {
@@ -325,6 +246,8 @@ export default function SystemConfig() {
   const [smtpPort, setSmtpPort] = useState("");
   const [smtpUsername, setSmtpUsername] = useState("");
   const [smtpPassword, setSmtpPassword] = useState("");
+  // The API never returns the saved password; it only says whether one is set.
+  const [smtpPasswordSet, setSmtpPasswordSet] = useState(false);
   const [fromEmail, setFromEmail] = useState("");
   const [fromName, setFromName] = useState("");
   const [emailNotifications, setEmailNotifications] = useState(true);
@@ -342,6 +265,11 @@ export default function SystemConfig() {
   const [systemErrors, setSystemErrors] = useState(false);
   const [securityAlerts, setSecurityAlerts] = useState(false);
   const [subscriptionRenewals, setSubscriptionRenewals] = useState(false);
+  const [deviceAlerts, setDeviceAlerts] = useState(true);
+
+  // ── RMM ──
+  const [rmmClientId, setRmmClientId] = useState("");
+  const [rmmSiteIds, setRmmSiteIds] = useState("");
 
   // ── Health ──
   const [health, setHealth] = useState<any>(null);
@@ -351,8 +279,12 @@ export default function SystemConfig() {
   }, []);
 
   const loadHealth = async () => {
-    const res = await getSystemHealth();
-    setHealth(res.data);
+    try {
+      const res = await getSystemHealth();
+      setHealth(res.data);
+    } catch (err) {
+      console.error("Failed to load system health:", err);
+    }
   };
 
   const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -364,7 +296,7 @@ export default function SystemConfig() {
       setToast({ message: "Test email sent!", type: "success" });
     } catch (err: any) {
       setToast({
-        message: err?.response?.data?.message || "Failed to send test email.",
+        message: getErrorMessage(err, "Failed to send test email."),
         type: "error",
       });
     } finally {
@@ -379,7 +311,7 @@ export default function SystemConfig() {
         smtpHost.trim() !== "" &&
         smtpPort.trim() !== "" &&
         smtpUsername.trim() !== "" &&
-        smtpPassword.trim() !== "" &&
+        (smtpPassword.trim() !== "" || smtpPasswordSet) &&
         fromEmail.trim() !== "" &&
         EMAIL_RE.test(fromEmail.trim()) &&
         fromName.trim() !== "",
@@ -388,6 +320,9 @@ export default function SystemConfig() {
         maxLoginAttempts.trim() !== "" &&
         minPasswordLength.trim() !== "",
       notifications: true,
+      rmm:
+        /^\d*$/.test(rmmClientId.trim()) &&
+        (rmmSiteIds.trim() === "" || rmmSiteIds.trim() === "*" || /^\d+(\s*,\s*\d+)*$/.test(rmmSiteIds.trim())),
     }),
     [
       siteName,
@@ -396,11 +331,14 @@ export default function SystemConfig() {
       smtpPort,
       smtpUsername,
       smtpPassword,
+      smtpPasswordSet,
       fromEmail,
       fromName,
       sessionTimeout,
       maxLoginAttempts,
       minPasswordLength,
+      rmmClientId,
+      rmmSiteIds,
     ],
   );
 
@@ -423,7 +361,8 @@ export default function SystemConfig() {
       setSmtpHost(c.email?.smtpHost ?? "");
       setSmtpPort(String(c.email?.smtpPort ?? ""));
       setSmtpUsername(c.email?.smtpUsername ?? "");
-      setSmtpPassword(c.email?.smtpPassword ?? "");
+      setSmtpPassword("");
+      setSmtpPasswordSet(Boolean(c.email?.smtpPasswordSet));
       setFromEmail(c.email?.fromEmail ?? "");
       setFromName(c.email?.fromName ?? "");
       setEmailNotifications(Boolean(c.email?.emailNotificationsEnabled ?? true));
@@ -439,6 +378,10 @@ export default function SystemConfig() {
       setSystemErrors(Boolean(c.notifications?.systemErrors ?? false));
       setSecurityAlerts(Boolean(c.notifications?.securityAlerts ?? false));
       setSubscriptionRenewals(Boolean(c.notifications?.subscriptionRenewals ?? false));
+      setDeviceAlerts(Boolean(c.notifications?.deviceAlerts ?? true));
+
+      setRmmClientId(c.rmm?.clientId ? String(c.rmm.clientId) : "");
+      setRmmSiteIds(c.rmm?.writableSiteIds ?? "");
 
       setIsExisting(true);
     } catch (err: any) {
@@ -448,7 +391,7 @@ export default function SystemConfig() {
       }
       setToast({
         message:
-          err?.response?.data?.message || "Failed to load configuration.",
+          getErrorMessage(err, "Failed to load configuration."),
         type: "error",
       });
     } finally {
@@ -487,6 +430,7 @@ export default function SystemConfig() {
       systemErrors,
       securityAlerts,
       subscriptionRenewals,
+      deviceAlerts,
     },
   });
 
@@ -495,6 +439,12 @@ export default function SystemConfig() {
     try {
       setSavingTab(tab);
       const payload = buildPayload() as SystemConfigPayload;
+      if (tab === "rmm") {
+        payload.rmm = {
+          clientId: rmmClientId.trim() ? Number(rmmClientId.trim()) : null,
+          writableSiteIds: rmmSiteIds.trim(),
+        };
+      }
       if (isExisting) {
         await updateSystemConfig(payload);
       } else {
@@ -510,7 +460,7 @@ export default function SystemConfig() {
       }
     } catch (err: any) {
       setToast({
-        message: err?.response?.data?.message || "Failed to save settings.",
+        message: getErrorMessage(err, "Failed to save settings."),
         type: "error",
       });
     } finally {
@@ -523,6 +473,7 @@ export default function SystemConfig() {
     { label: "Email", value: "email" },
     { label: "Security", value: "security" },
     { label: "Notifications", value: "notifications" },
+    { label: "RMM", value: "rmm" },
   ];
 
   return (
@@ -714,7 +665,6 @@ export default function SystemConfig() {
                 />
               </div>
             </div>
-            <SystemActions />
           </div>
         )}
 
@@ -761,7 +711,7 @@ export default function SystemConfig() {
                     type="password"
                     value={smtpPassword}
                     onChange={(e) => setSmtpPassword(e.target.value)}
-                    placeholder="••••••••"
+                    placeholder={smtpPasswordSet ? "Saved — leave blank to keep" : "••••••••"}
                     className={inputClass}
                   />
                 </Field>
@@ -843,7 +793,6 @@ export default function SystemConfig() {
                 </div>
               </div>
             </div>
-            <SystemActions />
           </div>
         )}
 
@@ -908,7 +857,6 @@ export default function SystemConfig() {
                 />
               </div>
             </div>
-            <SystemActions />
           </div>
         )}
 
@@ -953,6 +901,12 @@ export default function SystemConfig() {
                   enabled={subscriptionRenewals}
                   onChange={() => setSubscriptionRenewals((prev) => !prev)}
                 />
+                <ToggleRow
+                  title="Device Alerts"
+                  description="Email customers and staff when a monitored device goes offline or fails a check"
+                  enabled={deviceAlerts}
+                  onChange={() => setDeviceAlerts((prev) => !prev)}
+                />
                 <div className="pt-2">
                   <SaveButton
                     label="Save Notification Settings"
@@ -963,7 +917,59 @@ export default function SystemConfig() {
                 </div>
               </div>
             </div>
-            <SystemActions />
+          </div>
+        )}
+
+        {/* ── RMM TAB ── */}
+        {!fetchLoading && activeTab === "rmm" && (
+          <div className="space-y-4">
+            <div className="bg-white rounded-2xl border border-gray-300 p-5">
+              <h2 className="text-lg font-bold text-gray-900 mb-1">
+                RMM Settings
+              </h2>
+              <p className="text-md text-gray-700 mb-6">
+                Tactical RMM client and the device groups (Sites) the portal may change. Changes apply immediately.
+              </p>
+              <div className="space-y-5">
+                <Field label="RMM Client ID">
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    value={rmmClientId}
+                    onChange={(e) => setRmmClientId(e.target.value)}
+                    placeholder="e.g. 12"
+                    className={inputClass}
+                  />
+                </Field>
+                <p className="text-xs text-gray-500 -mt-3">
+                  The Tactical RMM Client that holds one Site per customer. Empty turns RMM off.
+                </p>
+                <Field label="RMM Site IDs the portal may change">
+                  <input
+                    type="text"
+                    value={rmmSiteIds}
+                    onChange={(e) => setRmmSiteIds(e.target.value)}
+                    placeholder="* for all Sites, or e.g. 73,74"
+                    className={inputClass}
+                  />
+                </Field>
+                <p className="text-xs text-gray-500 -mt-3">
+                  Use * in production. A list of Site IDs limits installs, removals, scripts and backups to those
+                  Sites (for testing). Empty blocks all changes.
+                </p>
+                {!tabValid.rmm && (
+                  <p className="text-xs text-red-600">
+                    Client ID must be a number; Site IDs must be * or numbers separated by commas.
+                  </p>
+                )}
+                <SaveButton
+                  label="Save RMM Settings"
+                  onClick={() => handleSave("rmm")}
+                  loading={savingTab === "rmm"}
+                  disabled={!tabValid.rmm}
+                />
+              </div>
+            </div>
           </div>
         )}
       </div>

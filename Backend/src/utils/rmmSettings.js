@@ -1,13 +1,67 @@
-const positiveInteger = (value) => {
-  const parsed = Number(value);
-  return Number.isSafeInteger(parsed) && parsed > 0 ? parsed : null;
-};
+const SystemConfig = require('../models/system-config/SystemConfig');
 
-// The legacy/default client must never be allocated to a company. Keeping this
-// in one helper also makes a missing setting fail closed rather than allowing a
-// tenant to be assigned the shared account by accident.
-const getRmmSettings = () => ({
-  clientId: positiveInteger(process.env.TACTICALRMM_LEGACY_CLIENT_ID),
+// Tactical RMM settings edited in System Configuration → RMM:
+//   clientId        Tactical Client that holds one Site per customer
+//   writableSiteIds Sites the app may change: "*" (all), "73,74", or "" (none)
+// They are kept in memory so the many synchronous callers stay synchronous.
+// The first time the server starts with this feature, the old .env values
+// (RMM_CLIENT_ID / RMM_WRITE_ALLOWED_SITE_IDS) are copied into the database
+// once; after that the database is the only source. Until the database has
+// been read (and in tests) the .env values are used.
+
+const httpError = (status, message) => Object.assign(new Error(message), { status });
+
+let cache = null;
+
+const fromEnv = () => ({
+  clientId: Number(process.env.RMM_CLIENT_ID) || null,
+  writableSiteIds: String(process.env.RMM_WRITE_ALLOWED_SITE_IDS || '').trim(),
 });
 
-module.exports = { getRmmSettings };
+const getRmmSettings = () => cache || fromEnv();
+
+const isLegacyRmmClient = (clientId) => clientId === getRmmSettings().clientId
+  || clientId === Number(process.env.TACTICALRMM_LEGACY_CLIENT_ID);
+
+// Validates values from the form; returns them normalized.
+const normalizeRmmSettings = (input = {}) => {
+  const rawClient = input.clientId;
+  let clientId = null;
+  if (rawClient !== null && rawClient !== undefined && String(rawClient).trim() !== '') {
+    clientId = Number(rawClient);
+    if (!Number.isInteger(clientId) || clientId <= 0) throw httpError(400, 'RMM Client ID must be a positive whole number.');
+  }
+
+  const rawSites = String(input.writableSiteIds ?? '').trim();
+  let writableSiteIds = '';
+  if (rawSites === '*') {
+    writableSiteIds = '*';
+  } else if (rawSites) {
+    const ids = rawSites.split(',').map((v) => v.trim()).filter(Boolean);
+    if (ids.some((v) => !/^\d+$/.test(v) || Number(v) <= 0)) {
+      throw httpError(400, 'RMM Site IDs must be "*" or a comma-separated list of numbers, e.g. 73,74.');
+    }
+    writableSiteIds = [...new Set(ids.map(Number))].join(',');
+  }
+  return { clientId, writableSiteIds };
+};
+
+const applyRmmSettings = (rmm) => {
+  cache = { clientId: rmm?.clientId || null, writableSiteIds: String(rmm?.writableSiteIds || '').trim() };
+  return cache;
+};
+
+// Called once the database is connected.
+const loadRmmSettings = async () => {
+  const config = await SystemConfig.findOne();
+  if (!config) return getRmmSettings();
+
+  if (!config.rmm?.initialized) {
+    const initial = normalizeRmmSettings(fromEnv());
+    config.rmm = { ...initial, initialized: true };
+    await config.save();
+  }
+  return applyRmmSettings(config.rmm);
+};
+
+module.exports = { getRmmSettings, isLegacyRmmClient, normalizeRmmSettings, applyRmmSettings, loadRmmSettings };

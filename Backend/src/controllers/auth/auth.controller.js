@@ -11,8 +11,17 @@ const { createSessionLogger, destroySessionLogger, logger } = require("../../uti
 const sendEmail = require('../../utils/sendEmail');
 const systemLogger = require("../../utils/systemLogger");
 const systemConfigModel = require('../../models/system-config/SystemConfig');
+const { provisionUserSite } = require('../../utils/rmmTenancy');
 
 const LOCK_DURATION_MS = 24 * 60 * 60 * 1000;
+
+// The "new user" email to admins is a courtesy: if it can't be sent (e.g. SMTP
+// not set up), log it and carry on rather than failing the account creation.
+const emailAdminAboutNewUser = (message) =>
+  sendEmail(message).catch((error) => systemLogger({
+    type: 'warning', action: 'NEW_USER_EMAIL_FAILED', userEmail: message.to,
+    details: `New-user notification not sent: ${error.message}`, module: 'email',
+  }));
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -28,12 +37,60 @@ const generateToken = async (user) => {
 
 const generateOtp = () => crypto.randomInt(100000, 999999).toString();
 
+const hashResetToken = (token) => crypto.createHash('sha256').update(String(token)).digest('hex');
+
+const OTP_TTL_MS = 10 * 60 * 1000;
+const OTP_RESEND_COOLDOWN_MS = 60 * 1000;
+const MAX_OTP_ATTEMPTS = 5;
+
+// Admin deactivation sets deletedAt. Self-signups also start with
+// isActive:false (no deletedAt) until their code is verified, so isActive
+// alone can't tell the two apart.
+const getAccountState = async (userId) => {
+  const doc = await ManagementUser.findById(userId).select('isActive deletedAt').lean();
+  return {
+    deactivated: doc?.isActive === false && Boolean(doc?.deletedAt),
+    pendingActivation: doc?.isActive === false && !doc?.deletedAt,
+  };
+};
+
+// Checks every login path must respect (password login and emailed-code login).
+// Returns { status, message } to refuse, or null to allow.
+const checkLoginPolicy = async (user, req) => {
+  const config = await systemConfigModel.findOne().lean();
+
+  if (config?.general?.maintenanceMode) {
+    return { status: 503, message: 'The system is currently under maintenance. Please try again later.' };
+  }
+
+  const allowed = config?.security?.allowedIpAddresses || [];
+  if (allowed.length > 0 && !allowed.includes('*') && !allowed.includes(req.ip)) {
+    await systemLogger({
+      type: 'warning', action: 'BLOCKED_IP_LOGIN_ATTEMPT', userEmail: user?.email || '',
+      details: `Unauthorized IP ${req.ip} attempted to log in`, module: 'auth', ipAddress: req.ip,
+    });
+    return { status: 403, message: 'Access denied from this IP address' };
+  }
+
+  if (user) {
+    if (user.lockUntil && user.lockUntil > Date.now()) {
+      return { status: 403, message: 'Your account is locked due to too many failed attempts.' };
+    }
+    if ((await getAccountState(user._id)).deactivated) {
+      return { status: 403, message: 'This account has been deactivated. Please contact support.' };
+    }
+  }
+  return null;
+};
+
 // ── Controllers ───────────────────────────────────────────────────────────────
 
 const refreshToken = async (req, res) => {
   try {
     const user = await User.findById(req.user.id);
-    if (!user) return res.status(401).json({ message: "User not found" });
+    if (!user || (await getAccountState(user._id)).deactivated) {
+      return res.status(401).json({ message: "User not found or deactivated" });
+    }
 
     const newToken = await generateToken(user);
     return res.status(200).json({ token: newToken });
@@ -43,12 +100,14 @@ const refreshToken = async (req, res) => {
 };
 
 const register = async (req, res) => {
+  let createdUserId = null;
+
   try {
-    const { name, email, password, source } = req.body;
+    const { name, email, password, source, deviceName, serialNumber } = req.body;
     const isUserCreatedFlow = source === 'usercreated';
 
-    if (!name || !email || !password) {
-      return res.status(400).json({ message: 'Name, email, and password are required' });
+    if (!name || !email || !password || (isUserCreatedFlow && (!deviceName || deviceName.length === 0) || !serialNumber || serialNumber.length === 0)) {
+      return res.status(400).json({ message: 'Name, email, password, device name, and serial number are required' });
     }
 
     if (name.trim().length < 2) {
@@ -73,6 +132,18 @@ const register = async (req, res) => {
 
     const hashedPassword = await bcrypt.hash(password, 10);
 
+    const deviceNames = Array.isArray(deviceName)
+  ? deviceName.map((name) => String(name).trim()).filter(Boolean)
+  : deviceName
+    ? [String(deviceName).trim()]
+    : [];
+
+    const serialNumbers = Array.isArray(serialNumber)
+  ? serialNumber.map((number) => String(number).trim()).filter(Boolean)
+  : serialNumber
+    ? [String(serialNumber).trim()]
+    : [];
+
     const user = await ManagementUser.create({
       name: name.trim(),
       email: emailNormalized,
@@ -82,7 +153,14 @@ const register = async (req, res) => {
       isActive: isUserCreatedFlow ? false : true,
       avatar: '',
       plan: 'free',
+      deviceNames,
+      serialNumbers,
     });
+
+    // Track this so we can roll it back manually if anything below fails —
+    // there's no DB transaction here, so a failed subscription creation
+    // must not leave an orphaned user record behind.
+    createdUserId = user._id;
 
     // ── Assign free plan, same pattern as admin createUser ──────────────────
     const freePlan = await Plan.findOne({ name: /free/i });
@@ -91,7 +169,10 @@ const register = async (req, res) => {
       throw new Error('Free plan not found. Please ensure a Free plan exists in the database.');
     }
 
-    const lastSub = await Subscription.findOne({ sub_id: { $exists: true, $ne: null } })
+    // Only trust sub_id values that actually match the expected SUB-### format.
+    // A malformed/legacy value here (or a previous NaN bug) must not poison
+    // every future signup with a duplicate key error.
+    const lastSub = await Subscription.findOne({ sub_id: { $regex: /^SUB-\d+$/ } })
       .sort({ createdAt: -1 });
 
     let nextSubId = 'SUB-001';
@@ -123,7 +204,7 @@ const register = async (req, res) => {
       const adminUsers = await ManagementUser.find({ role: 'admin' }).select('email name').lean();
 
       for (const admin of adminUsers) {
-        await sendEmail({
+        await emailAdminAboutNewUser({
           to: admin.email,
           subject: `New User Registered — ${user.name}`,
           html: `
@@ -156,7 +237,8 @@ const register = async (req, res) => {
       const otp = generateOtp();
       const salt = await bcrypt.genSalt(10);
       authUser.otpCode = await bcrypt.hash(otp, salt);
-      authUser.otpExpiry = new Date(Date.now() + 10 * 60 * 1000);
+      authUser.otpExpiry = new Date(Date.now() + OTP_TTL_MS);
+      authUser.otpAttempts = 0;
       await authUser.save();
 
       await sendEmail({
@@ -188,6 +270,8 @@ const register = async (req, res) => {
     }
 
     // ── normal public self-registration: issue token right away ─────────────
+    // The account is active now, so it gets its own RMM device group.
+    await provisionUserSite(user._id);
     const token = await generateToken(user);
 
     res.status(201).json({
@@ -196,6 +280,17 @@ const register = async (req, res) => {
       user: { id: user._id, name: user.name, email: user.email, role: user.role },
     });
   } catch (error) {
+    // Roll back the user record if it was created but something after it
+    // failed (e.g. subscription creation) — otherwise every failure here
+    // leaves a permanent orphaned account with sub_id: null, isActive: false.
+    if (createdUserId) {
+      try {
+        await ManagementUser.findByIdAndDelete(createdUserId);
+      } catch (cleanupError) {
+        console.error('Failed to roll back orphaned user after register error:', cleanupError);
+      }
+    }
+
     res.status(500).json({ message: 'Register failed', error: error.message });
   }
 };
@@ -303,6 +398,10 @@ const login = async (req, res) => {
     }
 
     // ── Credentials valid ──────────────────────────────────────────────────
+    if ((await getAccountState(user._id)).deactivated) {
+      return res.status(403).json({ message: 'This account has been deactivated. Please contact support.' });
+    }
+
     user.loginAttempts = 0;
     user.lockUntil = undefined;
     user.lastLogin = new Date();
@@ -332,7 +431,8 @@ const login = async (req, res) => {
     const otp = generateOtp();
     const salt = await bcrypt.genSalt(10);
     user.otpCode = await bcrypt.hash(otp, salt);
-    user.otpExpiry = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
+    user.otpExpiry = new Date(Date.now() + OTP_TTL_MS);
+    user.otpAttempts = 0;
     await user.save();
 
     await sendEmail({
@@ -382,11 +482,14 @@ const verifyOtp = async (req, res) => {
 
     const emailNormalized = email.toLowerCase().trim();
     const user = await User.findOne({ email: emailNormalized })
-      .select('+otpCode +otpExpiry');
+      .select('+otpCode +otpExpiry +otpAttempts +lockUntil');
 
     if (!user || !user.otpCode || !user.otpExpiry) {
       return res.status(400).json({ message: 'No pending verification found.' });
     }
+
+    const refusal = await checkLoginPolicy(user, req);
+    if (refusal) return res.status(refusal.status).json({ message: refusal.message });
 
     // OTP expired
     if (user.otpExpiry < new Date()) {
@@ -396,15 +499,32 @@ const verifyOtp = async (req, res) => {
       return res.status(400).json({ message: 'OTP has expired. Please log in again.' });
     }
 
-    const isValid = await bcrypt.compare(otp, user.otpCode);
+    const isValid = await bcrypt.compare(String(otp), user.otpCode);
     if (!isValid) {
+      user.otpAttempts = (user.otpAttempts || 0) + 1;
+      if (user.otpAttempts >= MAX_OTP_ATTEMPTS) {
+        user.otpCode = undefined;
+        user.otpExpiry = undefined;
+        user.otpAttempts = 0;
+        await user.save();
+        return res.status(429).json({ message: 'Too many incorrect codes. Please request a new code.' });
+      }
+      await user.save();
       return res.status(400).json({ message: 'Invalid OTP.' });
     }
 
     // Clear OTP and issue token
     user.otpCode = undefined;
     user.otpExpiry = undefined;
+    user.otpAttempts = 0;
+    user.lastLogin = new Date();
     await user.save();
+
+    // A self-signup becomes active once its emailed code is confirmed.
+    if ((await getAccountState(user._id)).pendingActivation) {
+      await ManagementUser.updateOne({ _id: user._id }, { $set: { isActive: true, isVerified: true } });
+      await provisionUserSite(user._id);
+    }
 
     const token = await generateToken(user);
 
@@ -486,7 +606,10 @@ const getMe = async (req, res) => {
 const forgotPassword = async (req, res) => {
   const { email } = req.body;
   try {
-    const emailNormalized = email.toLowerCase().trim();
+    if (!email) {
+      return res.status(400).json({ message: 'Email is required.' });
+    }
+    const emailNormalized = String(email).toLowerCase().trim();
     const user = await User.findOne({ email: emailNormalized });
 
     if (!user) {
@@ -496,11 +619,14 @@ const forgotPassword = async (req, res) => {
     const resetToken = crypto.randomBytes(32).toString('hex');
     const resetExpiry = Date.now() + 60 * 60 * 1000;
 
-    user.resetPasswordToken = resetToken;
+    // Only a hash is stored, so a leaked database or backup can't be used to reset passwords.
+    user.resetPasswordToken = hashResetToken(resetToken);
     user.resetPasswordExpiry = resetExpiry;
     await user.save();
 
-    const resetLink = `${process.env.FRONTEND_URL}/reset-password?token=${resetToken}`;
+    // FRONTEND_URL in production; locally fall back to the (CORS-allowlisted) origin of the request.
+    const appUrl = (process.env.FRONTEND_URL || req.get('origin') || '').replace(/\/$/, '');
+    const resetLink = `${appUrl}/reset-password?token=${resetToken}`;
 
     await sendEmail({
       to: emailNormalized,
@@ -527,8 +653,18 @@ const forgotPassword = async (req, res) => {
 const resetPassword = async (req, res) => {
   const { token, password } = req.body;
   try {
+    if (!token || !password) {
+      return res.status(400).json({ message: 'Token and new password are required.' });
+    }
+
+    const config = await systemConfigModel.findOne().lean();
+    const minLength = config?.security?.minimumPasswordLength || 8;
+    if (String(password).length < minLength) {
+      return res.status(400).json({ message: `Password must be at least ${minLength} characters long.` });
+    }
+
     const user = await User.findOne({
-      resetPasswordToken: token,
+      resetPasswordToken: hashResetToken(token),
       resetPasswordExpiry: { $gt: Date.now() },
     });
 
@@ -536,10 +672,19 @@ const resetPassword = async (req, res) => {
       return res.status(400).json({ message: 'Invalid or expired reset link.' });
     }
 
-    user.password = await bcrypt.hash(password, 10);
+    // Plain value: the model's pre-save hook hashes it (hashing here too made reset passwords unusable).
+    user.password = password;
     user.resetPasswordToken = undefined;
     user.resetPasswordExpiry = undefined;
+    user.loginAttempts = 0;
+    user.lockUntil = undefined;
     await user.save();
+
+    await systemLogger({
+      type: 'success', action: 'USER_PASSWORD_RESET', user: user._id,
+      userEmail: user.email, details: 'Password reset via email link',
+      module: 'auth', ipAddress: req.ip,
+    });
 
     res.status(200).json({ message: 'Password reset successful.' });
   } catch (error) {
@@ -566,16 +711,28 @@ const resendOtp = async (req, res) => {
 
     const emailNormalized = email.toLowerCase().trim();
     const user = await User.findOne({ email: emailNormalized })
-      .select('+otpCode +otpExpiry');
+      .select('+otpCode +otpExpiry +otpAttempts +lockUntil');
 
-    if (!user)
-      return res.status(400).json({ message: 'User not found.' });
+    // Also used by "Forgot password?" to sign in with an emailed code, so it
+    // applies the same policy as password login. Unknown emails get the same
+    // reply as real ones, so the response doesn't reveal which accounts exist.
+    const generic = { message: 'If this account exists, a code has been sent to its email.' };
+
+    const refusal = await checkLoginPolicy(user, req);
+    if (refusal) return res.status(refusal.status).json({ message: refusal.message });
+    if (!user) return res.status(200).json(generic);
+
+    const lastIssuedAt = user.otpExpiry ? user.otpExpiry.getTime() - OTP_TTL_MS : 0;
+    if (Date.now() - lastIssuedAt < OTP_RESEND_COOLDOWN_MS) {
+      return res.status(429).json({ message: 'Please wait a minute before requesting another code.' });
+    }
 
     // Generate new OTP
     const otp = generateOtp();
     const salt = await bcrypt.genSalt(10);
     user.otpCode = await bcrypt.hash(otp, salt);
-    user.otpExpiry = new Date(Date.now() + 10 * 60 * 1000); // fresh 10 min
+    user.otpExpiry = new Date(Date.now() + OTP_TTL_MS);
+    user.otpAttempts = 0;
     await user.save();
 
     await sendEmail({

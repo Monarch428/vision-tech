@@ -112,6 +112,19 @@ const systemConfigSchema = new mongoose.Schema(
                 type: Boolean,
                 default: true,
             },
+            // Emails customers and staff when a monitored device raises an alert.
+            deviceAlerts: {
+                type: Boolean,
+                default: true,
+            },
+        },
+
+        // Tactical RMM (utils/rmmSettings.js). `initialized` records that the
+        // old .env values were copied in, so they are never read again.
+        rmm: {
+            clientId: { type: Number, default: null },
+            writableSiteIds: { type: String, default: '' },
+            initialized: { type: Boolean, default: false },
         },
 
         updatedBy: {

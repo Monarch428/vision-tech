@@ -113,7 +113,7 @@ export default function DataManagement() {
   useEffect(() => {
     getLogFiles()
       .then(async (res: any) => {
-        const fetched: LogFile[] = res.data.data;
+        const fetched: LogFile[] = Array.isArray(res.data?.data) ? res.data.data : [];
         setFiles(fetched);
         // Sync the full file list metadata into Cache Storage so it's
         // available offline. Runs in background — doesn't block the UI.
@@ -129,7 +129,7 @@ export default function DataManagement() {
       })
       .catch(async () => {
         // Network/API failure — serve from Cache Storage
-        const cached = await getCachedFileList();
+        const cached = await getCachedFileList().catch(() => []);
         if (cached.length > 0) {
           setFiles(cached as LogFile[]);
           setCachedIds(new Set(cached.map((f: any) => f.public_id)));
@@ -175,8 +175,9 @@ export default function DataManagement() {
     const errs: string[] = [];
 
     results.forEach((r, i) => {
-      if (r.status === "fulfilled") uploaded.push(r.value.data.data);
-      else
+      if (r.status === "fulfilled") {
+        if (r.value.data?.data) uploaded.push(r.value.data.data);
+      } else
         errs.push(
           `${list[i].name}: ${
             (r.reason as any)?.response?.data?.message ?? "Upload failed"
@@ -190,7 +191,7 @@ export default function DataManagement() {
     if (errs.length) setErrors(errs);
 
     // Update the cached metadata list to include newly uploaded files
-    await cacheFileList(next);
+    await cacheFileList(next).catch(() => undefined);
   }
 
   function handleDrop(e: React.DragEvent) {

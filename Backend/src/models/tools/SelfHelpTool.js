@@ -12,14 +12,14 @@ const selfHelpToolSchema = new mongoose.Schema(
       enum: ['browser', 'network', 'security', 'backup'],
       required: true,
     },
+    progress: {
+      type: Number,
+      default: 0,
+    },
     status: {
       type: String,
       enum: ['pending', 'running', 'completed', 'failed'],
       default: 'pending',
-    },
-    progress: {
-      type: Number,
-      default: 0,
     },
     scanStartedAt: {
       type: Date,
@@ -45,6 +45,7 @@ const selfHelpToolSchema = new mongoose.Schema(
       type: Number,
       default: 0,
     },
+    endpointId: { type: String, default: null },
     backupPath: {
       type: String,
       default: null,
@@ -63,4 +64,6 @@ const selfHelpToolSchema = new mongoose.Schema(
   }
 );
 
-module.exports = mongoose.model('SelfHelpTool', selfHelpToolSchema);
+module.exports =
+  mongoose.models.SelfHelpTool ||
+  mongoose.model('SelfHelpTool', selfHelpToolSchema);

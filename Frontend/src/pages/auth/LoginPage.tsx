@@ -144,7 +144,7 @@ export default function LoginPage() {
           <div className="flex justify-center mb-2 sm:mb-3">
             <img
               src={logo}
-              alt="newVISIONtech"
+              alt="NVTSE Logo"
               className="h-6 xs:h-7 sm:h-8 w-auto object-contain"
             />
           </div>
@@ -152,7 +152,7 @@ export default function LoginPage() {
           {/* Heading */}
           <div className="text-center mb-4 sm:mb-5">
             <h1 className="text-md xs:text-xl sm:text-xl font-semibold text-black leading-tight">
-              Welcome to SOLO
+              Welcome to NVTSE
             </h1>
             <p className="mt-0.5 text-[11px] xs:text-xs sm:text-sm text-gray-500">
               Sign in to access your dashboard
@@ -214,7 +214,6 @@ export default function LoginPage() {
                 </button>
               </div>
             </div>
-
             {/* Attempts warning */}
             {!locked && attemptsLeft !== null && attemptsLeft < maxAttempts && (
               <p className="text-[11px] xs:text-xs font-medium text-orange-500 bg-orange-50 px-3 py-1.5 rounded-lg">

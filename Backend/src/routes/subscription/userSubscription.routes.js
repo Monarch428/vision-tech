@@ -10,18 +10,19 @@ const {
   getAllSubscriptions
 } = require('../../controllers/subscription/userSubscription.controller');
 
-const { protect } = require('../../middleware/auth.middleware');
+const { protect, authorize, STAFF_ROLES } = require('../../middleware/auth.middleware');
 
-// User routes
+const staffOnly = authorize(...STAFF_ROLES);
+
+// User routes (ownership and allowed changes are checked in the controllers)
 router.get('/my', protect, getMySubscription);
-router.post('/', protect, createUserSubscription);
 router.put('/:id', protect, updateUserSubscription);
 
-// Admin routes (protect only for now)
-router.get('/', protect, getAllUserSubscriptions);
-router.get('/subscriptions', getAllSubscriptions);
+// Staff routes
+router.post('/', protect, staffOnly, createUserSubscription);
+router.get('/', protect, staffOnly, getAllUserSubscriptions);
+router.get('/subscriptions', protect, staffOnly, getAllSubscriptions);
 router.get('/:id', protect, getUserSubscriptionById);
-router.get('/subscriptions',protect, getAllSubscriptions);
-router.delete('/:id', protect, deleteUserSubscription);
+router.delete('/:id', protect, staffOnly, deleteUserSubscription);
 
 module.exports = router;

@@ -8,13 +8,15 @@ interface FormState {
     email: string;
     password: string;
     confirmPassword: string;
+    deviceName: string;
+    serialNumber: string;
 }
 
 type FieldErrors = Partial<Record<keyof FormState, string>>;
 type Step = "form" | "otp";
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-const MIN_PASSWORD_LENGTH = 6;
+const MIN_PASSWORD_LENGTH = 8;
 const OTP_LENGTH = 6;
 const RESEND_COOLDOWN_SECONDS = 30;
 
@@ -23,6 +25,45 @@ const EMPTY_FORM: FormState = {
     email: "",
     password: "",
     confirmPassword: "",
+    deviceName: "",
+    serialNumber: "",
+};
+
+const HOSTNAME_COMMANDS: Record<"windows" | "mac" | "linux", { label: string; command: string; note: string }> = {
+    windows: {
+        label: "Windows",
+        command: "hostname",
+        note: "Open Command Prompt (search 'cmd' in the Start menu), paste the command, and press Enter. It should return your device's hostname.",
+    },
+    mac: {
+        label: "macOS",
+        command: "hostname",
+        note: "Open Terminal (Cmd+Space, type 'Terminal'), paste the command, and press Enter. If you'd prefer the friendly device name instead, use 'scutil --get ComputerName'.",
+    },
+    linux: {
+        label: "Linux",
+        command: "hostname",
+        note: "Open a terminal, paste the command, and press Enter.",
+    },
+};
+
+// ── Serial number command reference ─────────────────────────────────────────
+const SERIAL_COMMANDS: Record<"windows" | "mac" | "linux", { label: string; command: string; note: string }> = {
+    windows: {
+        label: "Windows",
+        command: 'powershell -Command "(Get-CimInstance Win32_BIOS).SerialNumber"',
+        note: "Open Command Prompt or PowerShell (search 'cmd' or 'powershell' in the Start menu), paste the command, and press Enter. It should return your device's serial number.",
+    },
+    mac: {
+        label: "macOS",
+        command: "system_profiler SPHardwareDataType | awk '/Serial/ {print $4}'",
+        note: "Open Terminal (Cmd+Space, type 'Terminal'), paste the command, and press Enter. It should return your Mac's serial number.",
+    },
+    linux: {
+        label: "Linux",
+        command: "sudo dmidecode -s system-serial-number",
+        note: "Open a terminal, paste the command, and press Enter (you may be prompted for your password). If dmidecode isn't available, try 'cat /sys/class/dmi/id/product_serial' with sudo instead.",
+    },
 };
 
 function validate(form: FormState): FieldErrors {
@@ -45,6 +86,12 @@ function validate(form: FormState): FieldErrors {
     else if (form.password !== form.confirmPassword)
         errors.confirmPassword = "Passwords do not match.";
 
+    if (!form.deviceName.trim())
+        errors.deviceName = "Please enter your device's name.";
+
+    if (!form.serialNumber.trim())
+        errors.serialNumber = "Please enter your device's serial number.";
+
     return errors;
 }
 
@@ -55,6 +102,16 @@ export default function CreateAccountPage() {
     const [loading, setLoading] = useState(false);
     const [errorMessage, setErrorMessage] = useState("");
     const navigate = useNavigate();
+
+    // ── Hostname command reference state ────────────────────────────────────
+    const [activeOS, setActiveOS] = useState<"windows" | "mac" | "linux">("windows");
+    const [copied, setCopied] = useState(false);
+    const activeCommand = HOSTNAME_COMMANDS[activeOS];
+
+    // ── Serial number command reference state ───────────────────────────────
+    const [activeSerialOS, setActiveSerialOS] = useState<"windows" | "mac" | "linux">("windows");
+    const [serialCopied, setSerialCopied] = useState(false);
+    const activeSerialCommand = SERIAL_COMMANDS[activeSerialOS];
 
     // ── OTP step state ──────────────────────────────────────────────────────
     const [otp, setOtp] = useState("");
@@ -83,6 +140,26 @@ export default function CreateAccountPage() {
         }
     };
 
+    const handleCopyCommand = async () => {
+        try {
+            await navigator.clipboard.writeText(activeCommand.command);
+            setCopied(true);
+            setTimeout(() => setCopied(false), 2000);
+        } catch (err) {
+            console.error("Copy failed:", err);
+        }
+    };
+
+    const handleCopySerialCommand = async () => {
+        try {
+            await navigator.clipboard.writeText(activeSerialCommand.command);
+            setSerialCopied(true);
+            setTimeout(() => setSerialCopied(false), 2000);
+        } catch (err) {
+            console.error("Copy failed:", err);
+        }
+    };
+
     const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
         e.preventDefault();
         setErrorMessage("");
@@ -100,6 +177,8 @@ export default function CreateAccountPage() {
                 email: formData.email.trim(),
                 password: formData.password,
                 source: "usercreated",
+                deviceName: formData.deviceName.trim() ? [formData.deviceName.trim()] : [],
+                serialNumber: formData.serialNumber.trim() ? [formData.serialNumber.trim()] : []
             });
 
             if (res?.requiresOtp) {
@@ -178,7 +257,7 @@ export default function CreateAccountPage() {
 
     return (
         <div className="min-h-screen w-full bg-[#eef5ef] flex items-center justify-center p-4">
-            <div className="w-full max-w-full xs:max-w-sm sm:max-w-[420px]">
+            <div className="w-full max-w-full xs:max-w-sm sm:max-w-[460px]">
                 <div className="bg-white rounded-2xl shadow-md px-4 py-5 xs:px-6 xs:py-6 sm:px-7 sm:py-6">
 
                     {/* Logo */}
@@ -198,7 +277,7 @@ export default function CreateAccountPage() {
                                     Create your account
                                 </h1>
                                 <p className="mt-0.5 text-[11px] xs:text-xs sm:text-sm text-gray-500">
-                                    Sign up to get started with SOLO
+                                    Sign up to get started with NVTSE
                                 </p>
                             </div>
 
@@ -274,6 +353,112 @@ export default function CreateAccountPage() {
                                     />
                                     {errors.confirmPassword && (
                                         <p className="mt-1 text-[11px] text-red-500">{errors.confirmPassword}</p>
+                                    )}
+                                </div>
+
+                                {/* ── Device Name ─────────────────────────────────────────── */}
+                                <div className="pt-1">
+                                    <label className="block mb-1 text-xs sm:text-sm font-semibold text-black">
+                                        Device Name
+                                    </label>
+                                    <p className="text-[11px] xs:text-xs text-gray-500 mb-2">
+                                        This helps us match your device to your antivirus records.
+                                        Run the command below, then paste the result.
+                                    </p>
+
+                                    <div className="flex gap-1 bg-gray-100 rounded-lg p-1 w-fit mb-2">
+                                        {(Object.keys(HOSTNAME_COMMANDS) as Array<keyof typeof HOSTNAME_COMMANDS>).map((os) => (
+                                            <button
+                                                key={os}
+                                                type="button"
+                                                onClick={() => setActiveOS(os)}
+                                                className={`px-3 py-1 rounded-md text-[11px] xs:text-xs font-semibold transition-colors ${
+                                                    activeOS === os ? "bg-white text-gray-900 shadow-sm" : "text-gray-500"
+                                                }`}
+                                            >
+                                                {HOSTNAME_COMMANDS[os].label}
+                                            </button>
+                                        ))}
+                                    </div>
+
+                                    <div className="bg-gray-900 text-gray-100 rounded-lg p-2.5 font-mono text-[11px] xs:text-xs flex items-center justify-between gap-2 mb-1.5">
+                                        <code className="break-all">{activeCommand.command}</code>
+                                        <button
+                                            type="button"
+                                            onClick={handleCopyCommand}
+                                            className="text-[11px] xs:text-xs font-semibold text-green-400 hover:text-green-300 shrink-0"
+                                        >
+                                            {copied ? "Copied!" : "Copy"}
+                                        </button>
+                                    </div>
+
+                                    <p className="text-[10px] xs:text-[11px] text-gray-500 mb-2">
+                                        {activeCommand.note}
+                                    </p>
+
+                                    <input
+                                        type="text"
+                                        name="deviceName"
+                                        placeholder="e.g. DESKTOP-4J8K2QP"
+                                        value={formData.deviceName}
+                                        onChange={handleChange}
+                                        className={inputCls(errors.deviceName)}
+                                    />
+                                    {errors.deviceName && (
+                                        <p className="mt-1 text-[11px] text-red-500">{errors.deviceName}</p>
+                                    )}
+                                </div>
+
+                                {/* ── Serial Number ───────────────────────────────────────── */}
+                                <div className="pt-1">
+                                    <label className="block mb-1 text-xs sm:text-sm font-semibold text-black">
+                                        Serial Number
+                                    </label>
+                                    <p className="text-[11px] xs:text-xs text-gray-500 mb-2">
+                                        This helps us uniquely identify your device. Run the
+                                        command below, then paste the result.
+                                    </p>
+
+                                    <div className="flex gap-1 bg-gray-100 rounded-lg p-1 w-fit mb-2">
+                                        {(Object.keys(SERIAL_COMMANDS) as Array<keyof typeof SERIAL_COMMANDS>).map((os) => (
+                                            <button
+                                                key={os}
+                                                type="button"
+                                                onClick={() => setActiveSerialOS(os)}
+                                                className={`px-3 py-1 rounded-md text-[11px] xs:text-xs font-semibold transition-colors ${
+                                                    activeSerialOS === os ? "bg-white text-gray-900 shadow-sm" : "text-gray-500"
+                                                }`}
+                                            >
+                                                {SERIAL_COMMANDS[os].label}
+                                            </button>
+                                        ))}
+                                    </div>
+
+                                    <div className="bg-gray-900 text-gray-100 rounded-lg p-2.5 font-mono text-[11px] xs:text-xs flex items-center justify-between gap-2 mb-1.5">
+                                        <code className="break-all">{activeSerialCommand.command}</code>
+                                        <button
+                                            type="button"
+                                            onClick={handleCopySerialCommand}
+                                            className="text-[11px] xs:text-xs font-semibold text-green-400 hover:text-green-300 shrink-0"
+                                        >
+                                            {serialCopied ? "Copied!" : "Copy"}
+                                        </button>
+                                    </div>
+
+                                    <p className="text-[10px] xs:text-[11px] text-gray-500 mb-2">
+                                        {activeSerialCommand.note}
+                                    </p>
+
+                                    <input
+                                        type="text"
+                                        name="serialNumber"
+                                        placeholder="e.g. 5CD1234ABC"
+                                        value={formData.serialNumber}
+                                        onChange={handleChange}
+                                        className={inputCls(errors.serialNumber)}
+                                    />
+                                    {errors.serialNumber && (
+                                        <p className="mt-1 text-[11px] text-red-500">{errors.serialNumber}</p>
                                     )}
                                 </div>
 

@@ -1,5 +1,3 @@
-// Backend/src/models/user-management/User.js
-
 const mongoose = require('mongoose');
 
 const userSchema = new mongoose.Schema(
@@ -22,7 +20,7 @@ const userSchema = new mongoose.Schema(
     },
     role: {
       type: String,
-      enum: ['admin', 'user', 'support'],
+      enum: ['admin', 'user', 'superadmin'], // superadmin = Super Admin (formerly "support")
       default: 'user',
       required: true,
     },
@@ -54,6 +52,24 @@ const userSchema = new mongoose.Schema(
     sub_id: {
       type: String,
       default: null,
+    },
+    deviceNames: {
+      type: [String],
+      default: [],
+      required: [true, 'Device name is required'],
+    },
+        serialNumbers: {
+  type: [String],
+  default: [],
+  required: [true, 'Serial number is required'],
+},
+    // The Tactical RMM Site that holds this customer's devices. Device
+    // ownership is decided by this link, not by typed serial numbers.
+    rmm: {
+      clientId: { type: Number, default: null },
+      siteId: { type: Number, default: null },
+      siteName: { type: String, default: null },
+      linkedAt: { type: Date, default: null },
     },
   },
   {

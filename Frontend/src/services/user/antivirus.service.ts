@@ -34,6 +34,7 @@ export interface AntivirusSchedulePayload {
   preferredDate: string;
   preferredTime: string;
   numberOfDevices: string;
+  endpointId?: string;
 }
 
 export interface AntivirusScheduleResponse {
@@ -68,38 +69,41 @@ export interface UserLastScan {
 
 export interface ScanReport {
   success: boolean;
-  machine: {
-    name: string;
-    ip: string;
-    os: string;
-    agentVersion: string;
-    detection: boolean;
-    engineVersion: string;
-    infected: boolean;
-    lastSeen: string;
-    lastUpdate: string;
-    securityStatus: number;
-  };
-  recentScan: {
-    taskId: string;
-    taskName: string;
-    filesScanned: number;
-    isClean: boolean;
-    scanDate: string;
-    threatsDetected: number;
-    // Who requested the machine's actual latest scan, resolved by joining
-    // the Bitdefender task name back to our own SelfHelpTool records.
-    scannedBy: ScanUser | null;
-  };
-  scans: Array<{
-    id: string;
-    name: string;
-    startDate?: string;
-    filesScanned?: number;
-    threatsDetected?: number;
-    status?: string;
-    requestedBy: ScanUser | null;
-  }>;
+ machine: {
+  name: string;
+  ip: string;
+  os: string;
+  agentVersion: string;
+  detection: boolean;
+  engineVersion: string;
+  infected: boolean;
+  lastSeen: string;
+  lastUpdate: string;
+  securityStatus: number;
+  signatureOutdated: boolean;
+  productOutdated: boolean;
+  updateDisabled: boolean;
+} | null;
+recentScan: {
+  taskId: string;
+  taskName: string;
+  filesScanned: number | null;
+  filesScannedAvailable: boolean;
+  isClean: boolean;
+  scanDate: string;
+  threatsDetected: number;
+  scannedBy: ScanUser | null;
+} | null;
+scans: Array<{
+  id: string;
+  name: string;
+  startDate?: string;
+  filesScanned?: number | null;
+  filesScannedAvailable?: boolean;
+  threatsDetected?: number;
+  status?: string;
+  requestedBy: ScanUser | null;
+}>;
   stats: {
     filesScanned: number;
     threatsBlocked: number;
@@ -111,8 +115,13 @@ export interface ScanReport {
   userLastScan: UserLastScan | null;
 }
 
-export const getScanReport = async (): Promise<ScanReport> => {
-  const response = await API.get<ScanReport>('/self-help/bitdefender/scan-report');
+// Pass an endpointId to get the scan report for a specific company device
+// (looked up directly by id). Omit it to get the report for the device
+// tied to the logged-in user's own account, same as before.
+export const getScanReport = async (endpointId?: string): Promise<ScanReport> => {
+  const response = await API.get<ScanReport>('/self-help/bitdefender/scan-report', {
+    params: endpointId ? { endpointId } : undefined,
+  });
   return response.data;
 };
 

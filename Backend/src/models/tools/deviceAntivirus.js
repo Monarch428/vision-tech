@@ -7,11 +7,11 @@ const deviceAntivirusSchema = new mongoose.Schema(
       ref: 'User',
       required: true,
     },
-    hostname: {
+    rmmAgentId: {
       type: String,
       default: null,
     },
-    ipAddress: {
+    hostname: {
       type: String,
       default: null,
     },
@@ -32,6 +32,10 @@ const deviceAntivirusSchema = new mongoose.Schema(
       type: String,
       default: null,
     },
+    ipAddress: {
+      type: String,
+      default: null,
+    },
     bitdefenderEndpointId: {
       type: String,
       default: null,
@@ -42,4 +46,6 @@ const deviceAntivirusSchema = new mongoose.Schema(
   }
 );
 
-module.exports = mongoose.model('DeviceAntivirus', deviceAntivirusSchema);
+module.exports =
+  mongoose.models.DeviceAntivirus ||
+  mongoose.model('DeviceAntivirus', deviceAntivirusSchema);

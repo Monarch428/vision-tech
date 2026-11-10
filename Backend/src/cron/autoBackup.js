@@ -130,8 +130,10 @@ async function runBackup() {
 // ─────────────────────────────────────────────
 // Cron Job
 // ─────────────────────────────────────────────
-const runCron = process.env.NODE_ENV === 'staging' && process.env.ENABLE_CRON === 'true';
-if (runCron) cron.schedule('55 10 * * *', async () => {
+// Scheduled when this module loads; DISABLE_CRON=true (automated tests) skips it.
+if (process.env.DISABLE_CRON !== 'true'
+  && (process.env.NODE_ENV !== 'staging' || process.env.ENABLE_CRON === 'true')) {
+cron.schedule('55 10 * * *', async () => {
   console.log('[Cron] Job started at:', new Date().toLocaleString());
 
   try {
@@ -157,5 +159,6 @@ if (runCron) cron.schedule('55 10 * * *', async () => {
 }, {
   timezone: "Asia/Kolkata"
 });
+}
 
 module.exports = { runBackup, backupDir };

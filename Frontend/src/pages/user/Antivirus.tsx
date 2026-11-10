@@ -4,6 +4,11 @@ import {
   getScanReport,
   type ScanReport,
 } from "../../services/user/antivirus.service";
+import {
+  listCompanyEndpoints,
+  getCurrentUser,
+  type CompanyEndpoint,
+} from "../../services/user/selfhelp.service";
 
 type TabType = "status" | "schedule" | "assistance";
 
@@ -35,23 +40,55 @@ const statusIcons: Record<string, JSX.Element> = {
   ),
 };
 
-function formatRelativeTime(isoDate: string | null | undefined): string {
+function parseBitdefenderDate(dateString: string): Date {
+  // If Bitdefender already provides Z / +hh:mm / -hh:mm,
+  // don't modify it.
+  if (/Z$|[+-]\d{2}:\d{2}$/.test(dateString)) {
+    return new Date(dateString);
+  }
+
+  // Bitdefender Control Center timestamp is GMT-04:00
+  return new Date(`${dateString}-04:00`);
+}
+
+function formatRelativeTime(
+  isoDate: string | null | undefined
+): string {
   if (!isoDate) return "Never";
-  const diff = Date.now() - new Date(isoDate).getTime();
-  const mins = Math.floor(diff / 60000);
-  if (mins < 60) return `${mins} minute${mins !== 1 ? "s" : ""} ago`;
+
+  const scanTime = parseBitdefenderDate(isoDate);
+  const diff = Date.now() - scanTime.getTime();
+
+  const mins = Math.max(0, Math.floor(diff / 60000));
+
+  if (mins < 60) {
+    return `${mins} minute${mins !== 1 ? "s" : ""} ago`;
+  }
+
   const hrs = Math.floor(mins / 60);
-  if (hrs < 24) return `${hrs} hour${hrs !== 1 ? "s" : ""} ago`;
+
+  if (hrs < 24) {
+    return `${hrs} hour${hrs !== 1 ? "s" : ""} ago`;
+  }
+
   const days = Math.floor(hrs / 24);
+
   return `${days} day${days !== 1 ? "s" : ""} ago`;
 }
 
-function formatDate(isoDate: string | null | undefined): string {
+function formatDate(
+  isoDate: string | null | undefined
+): string {
   if (!isoDate) return "N/A";
-  return new Date(isoDate).toLocaleDateString("en-US", {
+
+  const date = parseBitdefenderDate(isoDate);
+
+  return date.toLocaleString("en-US", {
     month: "long",
     day: "numeric",
     year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
   });
 }
 
@@ -61,10 +98,15 @@ export default function Antivirus() {
   const [reportLoading, setReportLoading] = useState(true);
   const [reportError, setReportError] = useState("");
 
+  // ── Device picker (which device's results are being viewed) ──
+  const [endpoints, setEndpoints] = useState<CompanyEndpoint[]>([]);
+  const [endpointsLoading, setEndpointsLoading] = useState(false);
+  const [selectedEndpointId, setSelectedEndpointId] = useState("");
+  const [scheduledEndpointId, setScheduledEndpointId] = useState("");
+
   // Schedule form state (scan-only)
   const [preferredDate, setPreferredDate] = useState("");
   const [preferredTime, setPreferredTime] = useState("");
-  const [numDevices, setNumDevices] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [submitSuccess, setSubmitSuccess] = useState("");
   const [submitError, setSubmitError] = useState("");
@@ -88,49 +130,92 @@ export default function Antivirus() {
     container.scrollTo({ top: 0, behavior: "smooth" });
   }, []);
 
-  // ── GET: Fetch scan report ──
-  // Guards against React 18 StrictMode double-invoking this effect in dev.
-  const fetchedReportRef = useRef(false);
+  // ── GET: List company devices matching the user's device names, for the picker ──
+  const fetchedEndpointsRef = useRef(false);
   useEffect(() => {
-    if (fetchedReportRef.current) return;
-    fetchedReportRef.current = true;
+    if (fetchedEndpointsRef.current) return;
+    fetchedEndpointsRef.current = true;
+
+    (async () => {
+      try {
+        setEndpointsLoading(true);
+
+        const [all, currentUser] = await Promise.all([
+          listCompanyEndpoints(),
+          getCurrentUser().catch(() => null), // don't block the page if this fails
+        ]);
+
+        // Match endpoints by name against the current user's known device
+        // names (not ipAddresses — that field isn't actually declared on
+        // CurrentUser; deviceNames is the field that corresponds to a
+        // GravityZone endpoint's `name`).
+        const userDeviceNames = currentUser?.deviceNames ?? [];
+        const matched = all.filter((ep) => ep.name && userDeviceNames.includes(ep.name));
+
+        setEndpoints(matched);
+      } catch (err) {
+        console.error("Failed to load devices:", err);
+        setEndpoints([]);
+      } finally {
+        setEndpointsLoading(false);
+      }
+    })();
+  }, []);
+
+  // ── GET: Fetch scan report for whichever device is selected ──
+  // Re-runs whenever selectedEndpointId changes, including the initial
+  // "" (my own device) load.
+  useEffect(() => {
+    let cancelled = false;
 
     (async () => {
       try {
         setReportLoading(true);
-        const data = await getScanReport();
-        setScanReport(data);
+        setReportError("");
+        const data = await getScanReport(selectedEndpointId || undefined);
+        if (!cancelled) setScanReport(data);
       } catch {
-        setReportError("Failed to load scan report.");
+        if (!cancelled) setReportError("Failed to load scan report.");
       } finally {
-        setReportLoading(false);
+        if (!cancelled) setReportLoading(false);
       }
     })();
-  }, []);
+
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedEndpointId]);
 
   // ── POST: Schedule a scan ──
   const handleScheduleSubmit = async () => {
     setSubmitError("");
     setSubmitSuccess("");
 
-    if (!preferredDate || !preferredTime || !numDevices) {
-      setSubmitError("Please fill in all fields before submitting.");
+    if (!preferredDate || !preferredTime) {
+      setSubmitError("Please select a preferred date and time.");
       return;
     }
 
     try {
       setSubmitting(true);
+
       await createAntivirusSchedule({
         serviceType: "scan",
         preferredDate,
         preferredTime,
-        numberOfDevices: numDevices,
+        numberOfDevices: "1",
+
+        // This device is specifically for the cron/scheduled scan
+        endpointId: scheduledEndpointId || undefined,
       });
+
       setSubmitSuccess("Scan scheduled successfully!");
+
       setPreferredDate("");
       setPreferredTime("");
-      setNumDevices("");
-    } catch {
+      setScheduledEndpointId("");
+    } catch (err) {
+      console.error("Schedule scan failed:", err);
       setSubmitError("Server error. Please try again.");
     } finally {
       setSubmitting(false);
@@ -176,26 +261,16 @@ export default function Antivirus() {
     ]
     : [];
 
-  // Always surface the most recent scan's filesScanned/threatsDetected by
-  // pulling from the last (most recent, by startDate) entry in scans[],
-  // rather than only trusting userLastScan. The backend's report-matching
-  // fallback patches whichever entry in scans[] it identifies as matching —
-  // that isn't always the same record referenced by userLastScan.
-  const latestScanEntry = scanReport?.scans?.length
-    ? [...scanReport.scans].sort((a, b) => {
-        const aTime = a.startDate ? new Date(a.startDate).getTime() : 0;
-        const bTime = b.startDate ? new Date(b.startDate).getTime() : 0;
-        return bTime - aTime;
-      })[0]
-    : null;
-
-  const displayScan = latestScanEntry
+  // Trust the backend's recentScan directly — it already resolves to the
+  // correct tracked Quick Scan (taskId, filesScanned, scanDate all sourced
+  // from the same task on the backend now), so there's nothing to re-derive
+  // here. Falls back to userLastScan only when no completed scan exists yet.
+  const displayScan = scanReport?.recentScan
     ? {
-        status: latestScanEntry.status ?? "unknown",
-        filesScanned: latestScanEntry.filesScanned ?? null,
-        filesScannedAvailable:
-          latestScanEntry.filesScanned != null && latestScanEntry.filesScanned > 0,
-        threatsDetected: latestScanEntry.threatsDetected ?? 0,
+        status: "completed" as const,
+        filesScanned: scanReport.recentScan.filesScanned ?? null,
+        filesScannedAvailable: Boolean(scanReport.recentScan.filesScannedAvailable),
+        threatsDetected: scanReport.recentScan.threatsDetected ?? 0,
       }
     : scanReport?.userLastScan
     ? {
@@ -214,10 +289,47 @@ export default function Antivirus() {
         <p className="text-md text-gray-700 mt-1">Protect your devices with professional antivirus services</p>
       </div>
 
+      {/* Device picker — controls which device's results are shown below */}
+      <div className="bg-white rounded-2xl border border-gray-300 p-4 mb-6 flex flex-col sm:flex-row sm:items-center gap-3 sm:justify-between">
+       <div>
+  <p className="text-md font-bold text-gray-900">Device</p>
+  <p className="text-sm text-gray-500">
+    {endpointsLoading
+      ? "Loading devices…"
+      : endpoints.length
+      ? "Choose a device to view its scan results"
+      : "No matching device found — update your hostname in the Profile tab"}
+  </p>
+</div>
+        <select
+          value={selectedEndpointId}
+          onChange={(e) => setSelectedEndpointId(e.target.value)}
+          disabled={endpointsLoading || !endpoints.length}
+          className="w-full sm:w-72 px-4 py-2.5 rounded-xl bg-gray-100 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-green-400 disabled:opacity-50 appearance-none cursor-pointer"
+        >
+          {endpointsLoading && <option>Loading devices…</option>}
+
+          {!endpointsLoading && !endpoints.length && (
+  <option>Update your hostname in the Profile tab</option>
+)}
+
+          {!endpointsLoading && endpoints.length > 0 && (
+            <option value="">Select your device…</option>
+          )}
+
+          {!endpointsLoading &&
+            endpoints.map((ep) => (
+              <option key={ep.id} value={ep.id}>
+                {ep.name}
+              </option>
+            ))}
+        </select>
+      </div>
+
       {/* Stat Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6 items-stretch">
         {/* Protection Status */}
-        <div className="bg-white rounded-2xl border border-gray-300 p-4 flex items-center justify-between">
+        <div className="bg-white rounded-2xl border border-gray-300 p-4 flex items-center justify-between h-full">
           <div>
             <p className="text-md text-gray-700 mb-1">Protection Status</p>
             <p className={`text-2xl font-bold ${protectionActive ? "text-green-600" : "text-red-500"}`}>
@@ -246,7 +358,7 @@ export default function Antivirus() {
           </div>
         </div>
 
-        {/* Total Scans Requested */}
+        {/* Total Scans Requested
         <div className="bg-white rounded-2xl border border-gray-300 p-4 flex items-center justify-between">
           <div>
             <p className="text-md text-gray-700 mb-1">Total Scans</p>
@@ -259,7 +371,7 @@ export default function Antivirus() {
               <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
             </svg>
           </div>
-        </div>
+        </div> */}
       </div>
 
       {/* Tab Switcher */}
@@ -347,20 +459,18 @@ export default function Antivirus() {
 
                 <div className="flex justify-between text-sm border-t border-gray-100 pt-3">
                   <span className="text-gray-600">Threats detected</span>
-                  <span
-                    className={`font-bold ${(displayScan.threatsDetected ?? 0) > 0 ? "text-red-600" : "text-green-600"
-                      }`}
-                  >
+                  <span className={`font-bold ${(displayScan.threatsDetected ?? 0) > 0 ? "text-red-600" : "text-green-600"}`}>
                     {displayScan.threatsDetected ?? 0}
                   </span>
                 </div>
               </div>
             ) : (
               <p className="text-sm text-gray-400 text-center py-4">
-                You haven't requested a scan yet.
+                No scan has been run on this device yet.
               </p>
             )}
           </div>
+
         </div>
       )}
 
@@ -390,36 +500,50 @@ export default function Antivirus() {
             </div>
 
             <div>
-              <label className="block text-md font-bold text-gray-900 mb-2">Preferred Time</label>
-              <select
+              <label className="block text-md font-bold text-gray-900 mb-2">
+                Preferred Time
+              </label>
+
+              <input
+                type="time"
                 value={preferredTime}
                 onChange={(e) => setPreferredTime(e.target.value)}
-                className="w-full px-4 py-3 rounded-xl bg-gray-100 text-sm text-gray-600 focus:outline-none focus:ring-2 focus:ring-green-400 appearance-none cursor-pointer"
-              >
-                <option value="">Select time</option>
-                <option value="09:00">09:00 AM</option>
-                <option value="10:00">10:00 AM</option>
-                <option value="11:00">11:00 AM</option>
-                <option value="12:00">12:00 PM</option>
-                <option value="14:00">02:00 PM</option>
-                <option value="15:00">03:00 PM</option>
-                <option value="16:00">04:00 PM</option>
-              </select>
+                className="w-full px-4 py-3 rounded-xl bg-gray-100 text-sm text-gray-600 focus:outline-none focus:ring-2 focus:ring-green-400"
+              />
+
+              <p className="mt-2 text-sm text-amber-700">
+                ⚠️ Kindly make sure your system is switched on and connected to the internet
+                at the scheduled time so the antivirus scan can run successfully.
+              </p>
             </div>
 
             <div>
-              <label className="block text-md font-bold text-gray-900 mb-2">Number of Devices</label>
+              <label className="block text-md font-bold text-gray-900 mb-2">
+                Select device to schedule
+              </label>
+
               <select
-                value={numDevices}
-                onChange={(e) => setNumDevices(e.target.value)}
-                className="w-full px-4 py-3 rounded-xl bg-gray-100 text-sm text-gray-600 focus:outline-none focus:ring-2 focus:ring-green-400 appearance-none cursor-pointer"
+                value={scheduledEndpointId}
+                onChange={(e) => setScheduledEndpointId(e.target.value)}
+                disabled={endpointsLoading || !endpoints.length}
+                className="w-full px-4 py-3 rounded-xl bg-gray-100 text-sm text-gray-600 focus:outline-none focus:ring-2 focus:ring-green-400 appearance-none cursor-pointer disabled:opacity-50"
               >
-                <option value="">Select devices</option>
-                <option value="1">1 Device</option>
-                <option value="2">2 Devices</option>
-                <option value="3">3 Devices</option>
-                <option value="5">5 Devices</option>
-                <option value="10">10+ Devices</option>
+                {endpointsLoading && <option>Loading devices…</option>}
+
+                {!endpointsLoading && !endpoints.length && (
+  <option>No matching device found — update your hostname in the Profile tab</option>
+)}
+
+                {!endpointsLoading && endpoints.length > 0 && (
+                  <option value="">Select your device…</option>
+                )}
+
+                {!endpointsLoading &&
+                  endpoints.map((ep) => (
+                    <option key={ep.id} value={ep.id}>
+                      {ep.name}
+                    </option>
+                  ))}
               </select>
             </div>
 

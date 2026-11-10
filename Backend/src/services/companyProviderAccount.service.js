@@ -1,6 +1,6 @@
 const tacticalRmm = require('./tacticalRmm.service');
 const gravityZone = require('../utils/gravityZoneClient');
-const { getRmmSettings } = require('../utils/rmmSettings');
+const { isLegacyRmmClient } = require('../utils/rmmSettings');
 const CompanyProviderAccount = require('../models/company/CompanyProviderAccount');
 const UserManagement = require('../models/user-management/User');
 
@@ -14,7 +14,7 @@ const verifyProviderScope = async (provider, body) => {
       || siteIds.length > 100 || !siteIds.every(positiveId)) {
       throw httpError(400, 'Provide a numeric clientId and between 1 and 100 numeric siteIds');
     }
-    if (clientId === getRmmSettings().clientId) {
+    if (isLegacyRmmClient(clientId)) {
       throw httpError(409, 'Use a dedicated Tactical RMM client for the company pilot');
     }
     const sites = await tacticalRmm.listSites(clientId);

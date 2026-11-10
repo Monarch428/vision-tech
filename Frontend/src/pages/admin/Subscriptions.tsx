@@ -21,6 +21,7 @@ import {
   getAllSubscriptions,
   updateSubscriptionStatus,
 } from "../../services/admin/subscriptions.service";
+import { getErrorMessage } from "../../utils/errors";
 
 interface BackendSubscription {
   _id: string;
@@ -97,12 +98,12 @@ export default function Subscriptions() {
       const mapped: Subscription[] = (res.data.data || []).map(
         (item: BackendSubscription) => ({
           _id: item._id,
-          id: item.sub_id,
+          id: item.sub_id || "",
           user: item.user?.name || "N/A",
           email: item.user?.email || "N/A",
           plan: item.plan?.name || "free",
-          amount: item.amount || 0,
-          status: item.status,
+          amount: Number(item.amount) || 0,
+          status: item.status || "unknown",
           startDate: formatDate(item.startDate),
           nextRenewal:
             item.status === "paused"
@@ -114,7 +115,7 @@ export default function Subscriptions() {
       );
       setSubs(mapped);
     } catch (err: any) {
-      setError(err?.response?.data?.message || "Something went wrong");
+      setError(getErrorMessage(err, "Something went wrong"));
     } finally {
       setLoading(false);
     }
@@ -164,7 +165,7 @@ export default function Subscriptions() {
         ),
       );
     } catch (err: any) {
-      alert(err?.response?.data?.message || "Failed to update subscription");
+      alert(getErrorMessage(err, "Failed to update subscription"));
     }
   };
 

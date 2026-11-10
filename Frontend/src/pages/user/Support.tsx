@@ -10,6 +10,7 @@ import {
   getMySubscription,
   type SupportUsage,
 } from "../../services/user/dashboard.service";
+import { getErrorMessage } from "../../utils/errors";
 type Tab = "my-tickets" | "support-request";
 
 const statusStyles: Record<Status, string> = {
@@ -366,7 +367,7 @@ function MyTickets() {
   useEffect(() => {
     getSupportTickets()
       .then((data) => setTickets(data))
-      .catch((err: any) => setError(err.response?.data?.message || "Failed to load tickets"))
+      .catch((err: any) => setError(getErrorMessage(err, "Failed to load tickets")))
       .finally(() => setLoading(false));
   }, []);
 
@@ -515,7 +516,7 @@ function SupportRequestForm() {
       setWantsCall(false); setDate(""); setDuration("");
       setTimeout(() => setSubmitted(false), 3000);
     } catch (err: any) {
-      alert(err.response?.data?.message || "Server error");
+      alert(getErrorMessage(err, "Server error"));
     } finally {
       setSubmitting(false);
     }

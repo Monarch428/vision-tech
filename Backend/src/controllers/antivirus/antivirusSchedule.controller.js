@@ -1,5 +1,6 @@
 const Antivirus = require('../../models/antivirus/AntivirusSchedule');
 const systemLogger = require("../../utils/systemLogger");
+const bitdefender = require("../../services/bitdefender.service");
 
 const createAntivirusSchedule = async (req, res) => {
   try {
@@ -9,6 +10,7 @@ const createAntivirusSchedule = async (req, res) => {
       preferredDate,
       preferredTime,
       numberOfDevices,
+      endpointId,
     } = req.body;
 
     const lastBooking = await Antivirus.findOne({
@@ -28,7 +30,8 @@ const createAntivirusSchedule = async (req, res) => {
       preferredDate,
       preferredTime,
       numberOfDevices,
-      createdBy: user
+      endpointId: endpointId || null,
+      createdBy: user,
     });
 
     await systemLogger({
@@ -133,8 +136,9 @@ const getAllAntivirusSchedules = async (req, res) => {
   }
 };
 
+
 module.exports = {
   createAntivirusSchedule,
   getAntivirusSchedules,
-  getAllAntivirusSchedules,
+  getAllAntivirusSchedules
 };

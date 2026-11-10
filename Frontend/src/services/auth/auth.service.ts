@@ -61,6 +61,8 @@ export interface RegisterPayload {
   email: string;
   password: string;
   source?: 'usercreated';
+  deviceName?: string[];
+  serialNumber?: string[];
 }
 
 export interface RegisterResponse {
@@ -97,5 +99,22 @@ export const verifyOtp = async (payload: VerifyOtpPayload): Promise<VerifyOtpRes
 
 export const resendOtp = async (payload: ResendOtpPayload): Promise<ResendOtpResponse> => {
   const response = await API.post('/auth/resend-otp', payload);
+  return response.data;
+};
+export const requestPasswordReset = async (email: string): Promise<{ message: string }> => {
+  const response = await API.post('/auth/forgot-password', { email });
+  return response.data;
+};
+
+export const resetPassword = async (token: string, password: string): Promise<{ message: string }> => {
+  const response = await API.post('/auth/reset-password', { token, password });
+  return response.data;
+};
+
+// Exchanges a still-valid token for a fresh one (sliding session).
+export const refreshAuthToken = async (token: string): Promise<{ token: string }> => {
+  const response = await API.post('/auth/refresh-token', null, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
   return response.data;
 };

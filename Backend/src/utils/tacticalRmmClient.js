@@ -1,4 +1,5 @@
 const axios = require("axios");
+const { toSafeHttpError } = require("./safeHttpError");
 
 if (
   !process.env.TACTICALRMM_BASE_URL ||
@@ -29,6 +30,6 @@ rmm.interceptors.response.use((response) => {
     );
   }
   return response;
-});
+}, toSafeHttpError("tacticalRmm")); // errors never carry the X-API-KEY header
 
 module.exports = rmm;
