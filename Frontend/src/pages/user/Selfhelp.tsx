@@ -11,7 +11,8 @@ import {
   getBitdefenderDownloadLink,
   runScanOnEndpoint,
   listCompanyEndpoints,
-  getCurrentUser
+  getCurrentUser,
+  registerBitdefenderHostname
 } from "../../services/user/selfhelp.service";
 import type {
   BackupRecord,
@@ -22,6 +23,7 @@ import { clearCache } from "../../hooks/useCacheStorage";
 import { useEffect } from "react";
 import { getErrorMessage } from "../../utils/errors";
 import FileBackupCard from "../../components/FileBackupCard";
+import DeviceIdentityAssistant from "../../components/DeviceIdentityAssistant";
 
 type ToolStatus = "idle" | "running" | "completed" | "failed";
 
@@ -623,6 +625,20 @@ if (usesApi) {
       )}
 
      {tool.id === "antivirus-scan" && status === "idle" && (
+        <DeviceIdentityAssistant
+          compact
+          onIdentity={async ({ hostname }) => {
+            try {
+              await registerBitdefenderHostname(hostname);
+              setInfoMessage(`Saved ${hostname} for Bitdefender matching. Install the selected package, then refresh this page when installation completes.`);
+            } catch (error: any) {
+              setErrorMessage(getErrorMessage(error, "Could not save this device for Bitdefender matching."));
+            }
+          }}
+        />
+      )}
+
+      {tool.id === "antivirus-scan" && status === "idle" && (
   <div className="relative" ref={dropdownRef}>
     <button
       onClick={handleToggleDropdown}
