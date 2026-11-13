@@ -9,7 +9,7 @@ const {
   deleteUser,
   getUserSB,
   getUserRole,
-  removeMySerialNumber 
+  removeMySerialNumber
 } = require('../../controllers/user-management/user.controller');
 
 const { protect, authorize, STAFF_ROLES } = require('../../middleware/auth.middleware');

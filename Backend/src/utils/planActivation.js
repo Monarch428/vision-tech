@@ -1,5 +1,7 @@
 const Subscription = require('../models/subscription/Subscription');
 const Payment = require('../models/subscription/Payment');
+const User = require('../models/auth/User');
+const { provisionPaidCompany } = require('../services/companyProvisioning.service');
 const UserManagement = require('../models/user-management/User');
 
 const nextSubId = async () => {
@@ -80,6 +82,10 @@ const activatePlan = async ({ userId, plan, payment }) => {
       planName: plan.name,
       paidAt: now,
     });
+  }
+
+  if (plan.price > 0) {
+    await provisionPaidCompany(await User.findById(userId));
   }
 
   return { subscription, payment: paymentRecord };

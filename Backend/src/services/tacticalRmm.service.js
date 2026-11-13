@@ -22,12 +22,6 @@ exports.listAgentsBySite = async (siteId) => {
   return response.data;
 };
 
-exports.listSites = async (clientId) => {
-  const { data } = await rmm.get('/clients/');
-  const client = data.find((c) => c.id === Number(clientId));
-  return client ? client.sites : [];
-};
-
 exports.createSite = async (clientId, name) => {
   await rmm.post('/clients/sites/', { site: { client: Number(clientId), name }, custom_fields: [] });
   const sites = await exports.listSites(clientId);
@@ -52,6 +46,11 @@ exports.getAgentWinUpdates = async (agentId) => {
 exports.getAgentChecks = async (agentId) => {
   const response = await rmm.get(`/agents/${agentId}/checks/`);
   return response.data;
+};
+
+exports.listSites = async (clientId) => {
+  const { data } = await rmm.get(`/clients/${Number(clientId)}/sites/`);
+  return data;
 };
 
 exports.runScript = async (agentId, scriptId, args = [], timeout = 90) => {

@@ -6,6 +6,8 @@ const { runBackup, backupDir } = require('../../cron/autoBackup');
 const systemLogger = require("../../utils/systemLogger");
 const rmm = require('../../utils/tacticalRmmClient');
 const gz = require('../../utils/gravityZoneClient');
+const { getAntivirusRunLimit, canRunAntivirusScan } = require('../../utils/antivirusRunLimit');
+
 const { agentsForUser, userOwnsAgent, filterEndpointsForUser } = require('../../utils/deviceOwnership');
 const categoryMap = {
   'browser-cleanup': 'browser',
@@ -23,6 +25,74 @@ const categoryMap = {
 // "Invalid params" (the packageId still reads as truthy, so the "not
 // configured" guard below won't catch it).
 const DEFAULT_PACKAGE_ID = process.env.BITDEFENDER_PACKAGE_ID?.trim();
+
+const normalizeBitdefenderValue = (value) => {
+  if (value == null) return '';
+  return String(value)
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, '')
+    .replace(/\.(local|lan)$/i, '')
+    .replace(/['"`]/g, '');
+};
+
+const findMatchingBitdefenderEndpoint = async (req, hostname, ipAddress = null) => {
+  const targetHost = normalizeBitdefenderValue(hostname);
+  const targetIp = normalizeBitdefenderValue(ipAddress);
+
+  if (!process.env.CYBERSHIELD_SOLO_ID || (!targetHost && !targetIp)) return null;
+
+  try {
+    const { items = [] } = await gz.getEndpointsList({
+      parentId: process.env.CYBERSHIELD_SOLO_ID,
+      isManaged: true,
+    });
+
+    const owned = await filterEndpointsForUser(req, items || []);
+    const match = owned.find((endpoint) => {
+      const candidates = [
+        endpoint?.name,
+        endpoint?.hostname,
+        endpoint?.computerName,
+        endpoint?.displayName,
+        endpoint?.deviceName,
+        endpoint?.localName,
+        endpoint?.hostName,
+        endpoint?.friendlyName,
+      ];
+
+      const ips = [
+        endpoint?.ip,
+        endpoint?.ipAddress,
+        endpoint?.localIp,
+        endpoint?.localIP,
+        endpoint?.lanIp,
+        endpoint?.internalIp,
+        endpoint?.privateIp,
+        endpoint?.networkIp,
+      ];
+
+      const normalizedCandidates = candidates.map(normalizeBitdefenderValue);
+      const normalizedIps = ips.map(normalizeBitdefenderValue);
+
+      const hostMatches = normalizedCandidates.some((value) => {
+        return Boolean(targetHost) && value === targetHost;
+      });
+
+      const ipMatches = normalizedIps.some((value) => {
+        if (!value || !targetIp) return false;
+        return value === targetIp;
+      });
+
+      return hostMatches || ipMatches;
+    });
+
+    return match || null;
+  } catch (err) {
+    console.warn('[findMatchingBitdefenderEndpoint] lookup failed:', err.message);
+    return null;
+  }
+};
 
 // ─── Backup storage location ──────────────────────────────────────────────
 const BACKUP_DIR = path.resolve(backupDir);
@@ -131,43 +201,75 @@ const startTool = async (req, res) => {
     }
 
     if (toolId === 'antivirus-scan') {
-  // ─── Antivirus scan via GravityZone (Bitdefender) ───────────────────
-  // Looked up by the logged-in user, not any RMM agent id — GravityZone
-  // and Tactical RMM are unrelated here.
-  try {
-    const antivirusRecord = await DeviceAntivirus.findOne({ user: req.user.id });
-    const endpointId = antivirusRecord?.bitdefenderEndpointId;
-    if (!endpointId) {
-      throw new Error('Bitdefender is not installed on your device yet.');
+      try {
+        const scanLimit = getAntivirusRunLimit();
+        const completedRuns = await SelfHelpTool.countDocuments({
+          user: req.user.id,
+          category: 'security',
+          status: 'completed',
+        });
+
+        if (!canRunAntivirusScan(completedRuns, scanLimit)) {
+          return res.status(403).json({
+            success: false,
+            message: `Your antivirus scan run limit has been reached (${scanLimit} completed scans). Please contact your admin to reset the quota or reinstall the package.`,
+            limit: scanLimit,
+            completedRuns,
+          });
+        }
+
+        const antivirusRecord = await DeviceAntivirus.findOne({ user: req.user.id });
+        let endpointId = antivirusRecord?.bitdefenderEndpointId;
+
+        if (!endpointId) {
+          const match = await findMatchingBitdefenderEndpoint(
+            req,
+            antivirusRecord?.hostname || req.user?.hostname || null,
+            antivirusRecord?.ipAddress || null
+          );
+
+          if (match) {
+            endpointId = match.id;
+            if (antivirusRecord) {
+              antivirusRecord.installStatus = 'installed';
+              antivirusRecord.installCompletedAt = new Date();
+              antivirusRecord.bitdefenderEndpointId = endpointId;
+              await antivirusRecord.save();
+            }
+          }
+        }
+
+        if (!endpointId) {
+          throw new Error('Bitdefender is not installed on your device yet.');
+        }
+
+        const task = await gz.createScanTask({ endpointId });
+        const taskId = task?.taskId || task?.id || task;
+
+        const updated = await SelfHelpTool.findByIdAndUpdate(
+          record._id,
+          { status: 'running', progress: 10, bitdefenderTaskId: taskId, endpointId },
+          { new: true }
+        );
+
+        return res.status(200).json({
+          success: true,
+          tool: updated,
+        });
+      } catch (err) {
+        console.error('[antivirus-scan] failed:', err.message);
+        if (err.response) {
+          console.error('[antivirus-scan] response status:', err.response.status);
+          console.error('[antivirus-scan] response data:', JSON.stringify(err.response.data));
+        }
+        await SelfHelpTool.findByIdAndUpdate(record._id, { status: "failed" });
+        return res.status(500).json({
+          success: false,
+          message: err.message || "Antivirus scan failed to start",
+          debug: err.response?.data || err.message,
+        });
+      }
     }
-
-    const task = await gz.createScanTask({ endpointId });
-    const taskId = task?.taskId || task?.id || task;
-
-    const updated = await SelfHelpTool.findByIdAndUpdate(
-      record._id,
-      { status: 'running', progress: 10, bitdefenderTaskId: taskId, endpointId },
-      { new: true }
-    );
-
-    return res.status(200).json({
-      success: true,
-      tool: updated,
-    });
-  } catch (err) {
-    console.error('[antivirus-scan] failed:', err.message);
-    if (err.response) {
-      console.error('[antivirus-scan] response status:', err.response.status);
-      console.error('[antivirus-scan] response data:', JSON.stringify(err.response.data));
-    }
-    await SelfHelpTool.findByIdAndUpdate(record._id, { status: "failed" });
-    return res.status(500).json({
-      success: false,
-      message: err.message || "Antivirus scan failed to start",
-      debug: err.response?.data || err.message, // TEMPORARY — remove once fixed
-    });
-  }
-}
     return res.status(200).json({ success: true, tool: record });
   } catch (error) {
     return res.status(500).json({ success: false, message: error.message });
@@ -700,7 +802,7 @@ async function matchEndpointByIp(req) {
 // then the existing install-status polling (by hostname) takes it from here.
 const registerDeviceHostname = async (req, res) => {
   try {
-    const { hostname } = req.body;
+    const { hostname, ipAddress } = req.body;
     if (!hostname || typeof hostname !== 'string' || !hostname.trim()) {
       return res.status(400).json({ success: false, message: 'hostname is required' });
     }
@@ -710,6 +812,7 @@ const registerDeviceHostname = async (req, res) => {
       {
         user: req.user.id,
         hostname: hostname.trim(),
+        ipAddress: ipAddress ? String(ipAddress).trim() : null,
         installStatus: 'installing',
         installStartedAt: new Date(),
         installError: null,

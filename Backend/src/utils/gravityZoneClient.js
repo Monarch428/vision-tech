@@ -509,7 +509,7 @@ module.exports = {
   getEndpointsList,
   getAllEndpoints,
   getManagedEndpoints,
-  getManagedEndpointDetails,  
+  getManagedEndpointDetails,
   getTaskStatus,
 
   // Scan
@@ -520,5 +520,5 @@ module.exports = {
   authHeader,
   createReport, getReportDownloadLinks, deleteReport, downloadReportCSV, getOnDemandScanCsvRows
 
-  
+
 };

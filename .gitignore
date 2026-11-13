@@ -20,4 +20,5 @@ rmm/dist/
 
 # Logs
 *.log
+.DS_Store
 .archify/

@@ -28,6 +28,8 @@ import CreateAccountPage from "./pages/auth/userAccountPage";
 import HomePage from "./pages/home/homePage";
 import PrivacyPolicy from "./pages/home/privacyPolicy";
 import TermsConditions from "./pages/home/termsConditions";
+import CompanyWorkspace from "./pages/user/CompanyWorkspace";
+import CompanyPilot from "./pages/admin/CompanyPilot";
 import NotFound from "./pages/NotFound";
 import { RouteErrorBoundary } from "./components/ErrorBoundary";
 
@@ -65,6 +67,7 @@ function App() {
           <Route path="/admin/payments" element={<Payments />} />
           <Route path="/user/support" element={<Support />} />
           <Route path="/user/rmm" element={<RMM />} />
+          <Route path="/user/company" element={<CompanyWorkspace />} />
           <Route path="/admin/serviceRequest" element={<ServiceRequest />} />
           <Route path="/user/selfhelp" element={<SelfHelp />} />
           <Route path="/user/network-restart-guide" element={<NetworkRestartGuide />} />
@@ -74,6 +77,7 @@ function App() {
           <Route path="/admin/adminManagement" element={<AdminManagement />} />
           <Route path="/admin/dataManagement" element={<DataManagement />} />
           <Route path="/admin/external" element={<ExternalServiceAccess />} />
+          <Route path="/admin/company-pilot" element={<CompanyPilot />} />
           {/* <Route path="/admin/supportBookings" element={<SupportBookings />} /> */}
         </Route>
 

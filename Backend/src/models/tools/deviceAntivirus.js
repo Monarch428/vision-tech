@@ -1,4 +1,4 @@
-﻿const mongoose = require('mongoose');
+const mongoose = require('mongoose');
 
 const deviceAntivirusSchema = new mongoose.Schema(
   {
@@ -29,6 +29,10 @@ const deviceAntivirusSchema = new mongoose.Schema(
       default: null,
     },
     installError: {
+      type: String,
+      default: null,
+    },
+    ipAddress: {
       type: String,
       default: null,
     },

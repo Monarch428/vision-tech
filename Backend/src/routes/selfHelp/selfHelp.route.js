@@ -57,6 +57,11 @@ router.get(
   protect,
   getBitdefenderInstallStatus
 );
+router.post(
+  "/bitdefender/register-device",
+  protect,
+  registerDeviceHostname
+);
 
 // Direct endpoint lookup — called when the page loads, to resolve the
 // per-user target/endpoint id without waiting for the "installing" poll.

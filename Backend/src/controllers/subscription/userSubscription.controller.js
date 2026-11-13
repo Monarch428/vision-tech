@@ -1,10 +1,10 @@
 const Subscription = require('../../models/subscription/Subscription');
 const Plan = require('../../models/subscription/Plan');
-const Payment = require('../../models/subscription/Payment');
 const User = require('../../models/auth/User');
 const { v4: uuidv4 } = require('uuid');
 const { getSupportUsage } = require('../../utils/supportUserHelper');
 const systemLogger = require("../../utils/systemLogger");
+const { provisionPaidCompany } = require('../../services/companyProvisioning.service');
 const { activatePlan } = require('../../utils/planActivation');
 const { isStaff } = require('../../middleware/auth.middleware');
 
@@ -94,6 +94,7 @@ const createUserSubscription = async (req, res) => {
 
     // Staff-assigned plan: no payment is recorded (paid upgrades go through the gateway).
     const { subscription } = await activatePlan({ userId: user, plan });
+
 
     await systemLogger({
       type: "success",
@@ -194,6 +195,10 @@ const updateUserSubscription = async (req, res) => {
       }
 
       await target.save();
+    }
+
+    if (!planChanged && status === 'active' && target.amount > 0) {
+      await provisionPaidCompany(await User.findById(target.user));
     }
 
     // Build a meaningful details string based on what changed

@@ -20,6 +20,9 @@ const fromEnv = () => ({
 
 const getRmmSettings = () => cache || fromEnv();
 
+const isLegacyRmmClient = (clientId) => clientId === getRmmSettings().clientId
+  || clientId === Number(process.env.TACTICALRMM_LEGACY_CLIENT_ID);
+
 // Validates values from the form; returns them normalized.
 const normalizeRmmSettings = (input = {}) => {
   const rawClient = input.clientId;
@@ -61,4 +64,4 @@ const loadRmmSettings = async () => {
   return applyRmmSettings(config.rmm);
 };
 
-module.exports = { getRmmSettings, normalizeRmmSettings, applyRmmSettings, loadRmmSettings };
+module.exports = { getRmmSettings, isLegacyRmmClient, normalizeRmmSettings, applyRmmSettings, loadRmmSettings };

@@ -622,7 +622,7 @@ if (usesApi) {
         </div>
       )}
 
-     {tool.id === "antivirus-scan" && status === "idle" && (
+      {tool.id === "antivirus-scan" && status === "idle" && (
   <div className="relative" ref={dropdownRef}>
     <button
       onClick={handleToggleDropdown}

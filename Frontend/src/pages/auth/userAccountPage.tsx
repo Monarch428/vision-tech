@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import logo from "../../assets/logo.png";
 import { registerUser, verifyOtp, resendOtp } from "../../services/auth/auth.service";
+import DeviceIdentityAssistant from "../../components/DeviceIdentityAssistant";
 
 interface FormState {
     name: string;
@@ -158,6 +159,11 @@ export default function CreateAccountPage() {
         } catch (err) {
             console.error("Copy failed:", err);
         }
+    };
+
+    const applyDeviceIdentity = ({ hostname, serialNumber }: { hostname: string; serialNumber: string }) => {
+        setFormData((previous) => ({ ...previous, deviceName: hostname, serialNumber }));
+        setErrors((previous) => ({ ...previous, deviceName: undefined, serialNumber: undefined }));
     };
 
     const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
@@ -355,6 +361,8 @@ export default function CreateAccountPage() {
                                         <p className="mt-1 text-[11px] text-red-500">{errors.confirmPassword}</p>
                                     )}
                                 </div>
+
+                                <DeviceIdentityAssistant onIdentity={applyDeviceIdentity} />
 
                                 {/* ── Device Name ─────────────────────────────────────────── */}
                                 <div className="pt-1">

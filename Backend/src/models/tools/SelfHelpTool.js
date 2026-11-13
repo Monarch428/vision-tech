@@ -29,13 +29,17 @@ const selfHelpToolSchema = new mongoose.Schema(
       type: Date,
       default: null,
     },
+    rmmAgentId: {
+      type: String,
+      default: null,
+    },
     bitdefenderTaskId: {
       type: String,
       default: null,
     },
     filesScanned: {
       type: Number,
-      default: 0,
+      default: null,
     },
     threatsDetected: {
       type: Number,
