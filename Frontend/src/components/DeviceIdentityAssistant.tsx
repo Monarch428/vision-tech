@@ -9,6 +9,21 @@ const commands: Record<SupportedPlatform, { hostname: string; serial: string }> 
   linux: { hostname: "hostnamectl --static", serial: "cat /sys/class/dmi/id/product_serial" },
 };
 
+const collectorFiles: Record<SupportedPlatform, { href: string; filename: string; label: string; instruction: string }> = {
+  windows: {
+    href: "/NVT-Device-Web-v1.3/NVT-Device-Web.exe", filename: "NVT-Device-Web.exe", label: "Download Windows app",
+    instruction: "Double-click the downloaded app, approve its consent prompt, then choose Save JSON. It creates device-info.json locally.",
+  },
+  darwin: {
+    href: "/device-identity/NVT-Device-Info-macOS-pilot-v0.1.1.zip", filename: "NVT-Device-Info-macOS-pilot-v0.1.1.zip", label: "Download macOS app",
+    instruction: "Open the ZIP, then Control-click NVT Device Info.app and choose Open (it is an unsigned pilot). Approve the consent prompt; it creates device-info.json on your Desktop.",
+  },
+  linux: {
+    href: "/device-identity/collect-device-info.sh", filename: "collect-device-info-linux.sh", label: "Download Linux collector",
+    instruction: "In Terminal, run: chmod +x ~/Downloads/collect-device-info-linux.sh && ~/Downloads/collect-device-info-linux.sh. It creates device-info.json in Downloads.",
+  },
+};
+
 const detectPlatform = (): SupportedPlatform => {
   const value = `${navigator.userAgent} ${navigator.platform}`.toLowerCase();
   if (value.includes("mac")) return "darwin";
@@ -32,6 +47,7 @@ export default function DeviceIdentityAssistant({
   const [platform, setPlatform] = useState<SupportedPlatform>(detectPlatform);
   const [consent, setConsent] = useState(false);
   const [message, setMessage] = useState("Your operating system was detected from this browser.");
+  const [showInstructions, setShowInstructions] = useState(false);
   const uploadRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => { onPlatformChange?.(platform); }, [platform, onPlatformChange]);
@@ -45,7 +61,11 @@ export default function DeviceIdentityAssistant({
     try {
       const value = JSON.parse(await file.text());
       if (typeof value.hostname !== "string" || typeof value.serialNumber !== "string") throw new Error("invalid");
-      onIdentity({ hostname: value.hostname.trim(), serialNumber: value.serialNumber.trim(), platform });
+      const filePlatform = (["windows", "darwin", "linux"] as string[]).includes(value.platform)
+        ? value.platform as SupportedPlatform
+        : platform;
+      setPlatform(filePlatform);
+      onIdentity({ hostname: value.hostname.trim(), serialNumber: value.serialNumber.trim(), platform: filePlatform });
       setMessage("Device information was imported and filled into this form. Review it before continuing.");
     } catch { setMessage("That file is not a valid device-info.json file."); }
   };
@@ -58,11 +78,12 @@ export default function DeviceIdentityAssistant({
     <label className="mt-3 flex items-start gap-2 text-xs text-green-950"><input type="checkbox" checked={consent} onChange={(event) => setConsent(event.target.checked)} className="mt-0.5" />I consent to use this device’s hostname and serial number to configure RMM and antivirus for this account.</label>
     <div className="mt-3 flex flex-wrap gap-2">
       <button type="button" disabled={!consent} onClick={() => uploadRef.current?.click()} className="rounded-lg bg-green-700 px-3 py-2 text-xs font-semibold text-white disabled:opacity-50">Import device-info.json</button>
-      {platform === "windows" && <a href="/NVT-Device-Web-v1.3/NVT-Device-Web.exe" download="NVT-Device-Web.exe" className={`rounded-lg border border-green-700 px-3 py-2 text-xs font-semibold text-green-800 ${consent ? "" : "pointer-events-none opacity-50"}`}>Download Windows helper</a>}
+      <a href={collectorFiles[platform].href} download={collectorFiles[platform].filename} onClick={() => setShowInstructions(true)} className={`rounded-lg border border-green-700 px-3 py-2 text-xs font-semibold text-green-800 ${consent ? "" : "pointer-events-none opacity-50"}`}>{collectorFiles[platform].label}</a>
       <button type="button" disabled={!consent} onClick={() => copy(commands[platform].hostname)} className="rounded-lg border border-green-300 bg-white px-3 py-2 text-xs font-semibold text-green-900 disabled:opacity-50">Copy hostname command</button>
       <button type="button" disabled={!consent} onClick={() => copy(commands[platform].serial)} className="rounded-lg border border-green-300 bg-white px-3 py-2 text-xs font-semibold text-green-900 disabled:opacity-50">Copy serial command</button>
     </div>
     <input ref={uploadRef} hidden type="file" accept="application/json,.json" onChange={(event) => importFile(event.target.files?.[0])} />
-    <p className="mt-2 text-[11px] text-green-900">{message} The included helper is Windows-only and runs only when you start it. Deleting it stops local reads; deleting an installed RMM or Bitdefender agent requires reinstalling that product separately.</p>
+    {showInstructions && <p className="mt-2 rounded-md bg-white p-2 text-[11px] text-green-950">{collectorFiles[platform].instruction} Then choose <strong>Import device-info.json</strong> above.</p>}
+    <p className="mt-2 text-[11px] text-green-900">{message} The collector creates a local file only after you run it. Deleting it stops local reads; deleting an installed RMM or Bitdefender agent requires reinstalling that product separately.</p>
   </section>;
 }
