@@ -454,9 +454,14 @@ const pricingPlans = [
 const footerLinks = navLinks;
 
 const contactDetails = [
-    { icon: MapPin, label: "99 Main St. Nyack NY 10960" },
-    { icon: Phone, label: "+1 (888) 661-2048" },
-    { icon: Mail, label: "support@newvtech.com" },
+    {
+        icon: MapPin,
+        label: "99 Main St. Nyack NY 10960",
+        href: "https://www.google.com/maps/search/?api=1&query=99+Main+St,+Nyack,+NY+10960",
+        external: true,
+    },
+    { icon: Phone, label: "+1 (888) 661-2048", href: "tel:+18886612048" },
+    { icon: Mail, label: "support@newvtech.com", href: "mailto:support@newvtech.com", email: true },
 ];
 
 const legalLinks = [
@@ -473,9 +478,19 @@ const SoloLandingPage: React.FC = () => {
         platformModules.find((m) => m.label === activeModule) ?? platformModules[0];
 
     const [openIndex, setOpenIndex] = useState<number | null>(null);
+    const [contactMessage, setContactMessage] = useState("");
 
     const toggle = (index: number) => {
         setOpenIndex((prev) => (prev === index ? null : index));
+    };
+
+    const copySupportEmail = async () => {
+        try {
+            await navigator.clipboard.writeText("support@newvtech.com");
+            setContactMessage("Email address copied. Opening your email app…");
+        } catch {
+            setContactMessage("Opening your email app with support@newvtech.com prefilled.");
+        }
     };
 
     return (
@@ -799,33 +814,6 @@ const SoloLandingPage: React.FC = () => {
                     </div>
                 </div>
 
-                {/* Trusted by */}
-                <section className="max-w-6xl mx-auto px-6 pb-8 sm:pb-20 mt-4">
-                    <p className="font-semibold text-center text-sm text-gray-900 mb-8">
-                        Trusted by 2,000+ teams, startups and creators
-                    </p>
-
-                    <div className="flex flex-wrap items-center justify-center gap-x-12 gap-y-6 opacity-60 grayscale">
-                        <span className="text-xl font-semibold text-slate-400 tracking-tight">
-                            logo <span className="font-normal">ipsum</span>
-                        </span>
-                        <span className="text-xl font-bold text-slate-400 tracking-tight">
-                            Logoipsum
-                        </span>
-                        <span className="text-xl font-serif italic text-slate-400 tracking-tight">
-                            LOGOIPSUM
-                        </span>
-                        <span className="text-xl font-semibold text-slate-400 tracking-tight">
-                            Logoipsum
-                        </span>
-                        <span className="text-xl font-medium text-slate-400 tracking-tight">
-                            Logoipsum
-                        </span>
-                        <span className="text-lg font-bold text-slate-400 tracking-widest">
-                            LOGOIP/UM
-                        </span>
-                    </div>
-                </section>
             </section>
 
             {/* Core Features */}
@@ -1380,6 +1368,17 @@ const SoloLandingPage: React.FC = () => {
                     </p>
                 </div>
 
+                <div className="mt-8 rounded-2xl border border-emerald-200 bg-emerald-50 p-5 sm:p-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-5">
+                    <div>
+                        <p className="text-sm font-bold text-emerald-950">Try SOLO free before choosing a paid plan</p>
+                        <p className="mt-1 text-sm text-emerald-900">Explore the dashboard, add one device profile, submit basic support requests, use self-help tools, and view your billing workspace. No card required.</p>
+                    </div>
+                    <Link to="/new-user" className="shrink-0 inline-flex items-center justify-center gap-2 rounded-lg bg-emerald-700 px-5 py-2.5 text-sm font-semibold text-white hover:bg-emerald-800 transition-colors">
+                        Start free
+                        <ArrowRight className="w-4 h-4" />
+                    </Link>
+                </div>
+
                 {/* Billing toggle */}
                 <div className="mt-8 flex justify-center">
                     <div className="inline-flex items-center gap-1 bg-slate-50 border border-slate-200 rounded-full p-1">
@@ -1563,9 +1562,9 @@ const SoloLandingPage: React.FC = () => {
                             Start free trial
                             <ArrowRight className="w-4 h-4" />
                         </Link>
-                        <button className="w-full sm:w-auto flex items-center justify-center gap-2 text-white text-sm font-semibold px-6 py-3 rounded-full border border-white/70 hover:bg-white/10 transition-colors">
+                        <a href="#modules" className="w-full sm:w-auto flex items-center justify-center gap-2 text-white text-sm font-semibold px-6 py-3 rounded-full border border-white/70 hover:bg-white/10 transition-colors">
                             Explore the platform
-                        </button>
+                        </a>
                     </div>
                 </div>
             </section>
@@ -1622,15 +1621,20 @@ const SoloLandingPage: React.FC = () => {
                                 </h3>
 
                                 <div className="mt-5 flex flex-col gap-3.5">
-                                    {contactDetails.map(({ icon: Icon, label }) => (
-                                        <div
+                                    {contactDetails.map(({ icon: Icon, label, href, external, email }) => (
+                                        <a
                                             key={label}
+                                            href={href}
+                                            target={external ? "_blank" : undefined}
+                                            rel={external ? "noreferrer" : undefined}
+                                            onClick={email ? copySupportEmail : undefined}
                                             className="flex items-start gap-2.5"
                                         >
                                             <Icon className="w-4 h-4 text-slate-400 shrink-0 mt-0.5" />
-                                            <span className="text-sm">{label}</span>
-                                        </div>
+                                            <span className="text-sm hover:text-emerald-400 transition-colors">{label}</span>
+                                        </a>
                                     ))}
+                                    {contactMessage && <p className="text-xs text-emerald-400" role="status">{contactMessage}</p>}
                                 </div>
                             </div>
                         </div>
