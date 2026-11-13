@@ -5,7 +5,6 @@ import DeviceDetailsModal from "../../components/DeviceDetailsModal";
 import type { Device, DeviceLimit, GenerateInstallerPayload } from "../../services/user/rmm.service";
 import { currentUserRole } from "../../services/admin/userManagement.service";
 import { getErrorMessage } from "../../utils/errors";
-import DeviceIdentityAssistant from "../../components/DeviceIdentityAssistant";
 
 // ─── Icons ────────────────────────────────────────────────────────────────────
 
@@ -477,15 +476,6 @@ function AddDeviceModal({ onClose, onDeviceLikelyAdded }: { onClose: () => void;
               Pick the operating system and we'll generate a one-line install command
               for the new device.
             </p>
-
-            <DeviceIdentityAssistant
-              compact
-              onIdentity={() => setError(null)}
-              onPlatformChange={(platform) => {
-                setPlat(platform);
-                setArch(platform === "darwin" ? "arm64" : "amd64");
-              }}
-            />
 
             <div className="flex flex-col gap-5">
               {/* Operating system */}

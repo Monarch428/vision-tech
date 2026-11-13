@@ -5,6 +5,7 @@ import {
   updateUser,
 } from "../../services/admin/userManagement.service";
 import { jwtDecode } from "jwt-decode";
+import DeviceIdentityAssistant from "../../components/DeviceIdentityAssistant";
 
 export default function Profile() {
 
@@ -22,6 +23,7 @@ export default function Profile() {
   const [serialNumbers, setSerialNumbers] = useState<string[]>([]);
   const [serialNumberInput, setSerialNumberInput] = useState("");
   const [showServiceHelp, setShowServiceHelp] = useState(false);
+  const [deviceIdentityMessage, setDeviceIdentityMessage] = useState("");
 
   const [form, setForm] = useState({
     currentPassword: "",
@@ -183,6 +185,39 @@ const deviceLimit = getDeviceLimit();
     }
   };
 
+  const applyDeviceIdentity = ({ hostname, serialNumber }: { hostname: string; serialNumber: string }) => {
+    if (!hostname || !serialNumber) {
+      setDeviceNameInput(hostname || "");
+      setSerialNumberInput(serialNumber || "");
+      setDeviceIdentityMessage("Your device did not provide both values. Complete the missing field, then select Update Profile.");
+      return;
+    }
+
+    const indexBySerial = serialNumbers.findIndex((value) => value.toLowerCase() === serialNumber.toLowerCase());
+    const indexByName = deviceNames.findIndex((value) => value.toLowerCase() === hostname.toLowerCase());
+    const existingIndex = indexBySerial >= 0 ? indexBySerial : indexByName;
+
+    if (existingIndex >= 0) {
+      const nextNames = [...deviceNames];
+      const nextSerials = [...serialNumbers];
+      nextNames[existingIndex] = hostname;
+      nextSerials[existingIndex] = serialNumber;
+      setDeviceNames(nextNames);
+      setSerialNumbers(nextSerials);
+      setDeviceIdentityMessage("Existing device details updated locally. Select Update Profile to save them.");
+      return;
+    }
+
+    if (deviceNames.length >= deviceLimit || serialNumbers.length >= deviceLimit) {
+      setDeviceIdentityMessage(`Your ${user.plan} plan has reached its ${deviceLimit} device limit. Remove a device before importing another.`);
+      return;
+    }
+
+    setDeviceNames([...deviceNames, hostname]);
+    setSerialNumbers([...serialNumbers, serialNumber]);
+    setDeviceIdentityMessage("Device details added locally. Select Update Profile to save them.");
+  };
+
   const handleSubmit = async () => {
   const wantsPasswordChange =
     form.currentPassword || form.newPassword || form.confirmPassword;
@@ -315,6 +350,11 @@ if (finalDeviceNames.length !== finalSerialNumbers.length) {
               className="w-full border rounded-lg pl-10 py-3 bg-gray-100"
             />
           </div>
+        </div>
+
+        <div className="mb-5">
+          <DeviceIdentityAssistant onIdentity={applyDeviceIdentity} />
+          {deviceIdentityMessage && <p className="mt-2 text-sm text-green-700">{deviceIdentityMessage}</p>}
         </div>
 
         {/* Device Names (multiple) */}
