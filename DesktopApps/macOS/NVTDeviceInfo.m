@@ -45,9 +45,15 @@ int main(int argc, const char * argv[]) {
       [[NSAlert alertWithError:error] runModal];
       return 1;
     }
+    NSData *clipboardData = [NSData dataWithContentsOfURL:destination];
+    if (clipboardData) {
+      NSPasteboard *pasteboard = [NSPasteboard generalPasteboard];
+      [pasteboard clearContents];
+      [pasteboard setData:clipboardData forType:NSPasteboardTypeString];
+    }
     NSAlert *done = [NSAlert new];
     done.messageText = @"Device information saved";
-    done.informativeText = @"Created device-info.json on your Desktop. Return to NVT and choose Import device-info.json.";
+    done.informativeText = @"Created device-info.json on your Desktop and copied the details. Return to NVT and choose Paste & fill device details.";
     [done addButtonWithTitle:@"Show File"];
     [done addButtonWithTitle:@"Done"];
     if ([done runModal] == NSAlertFirstButtonReturn) {

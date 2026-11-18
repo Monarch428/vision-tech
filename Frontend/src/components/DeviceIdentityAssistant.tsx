@@ -3,25 +3,10 @@ import { useEffect, useRef, useState } from "react";
 export type SupportedPlatform = "windows" | "darwin" | "linux";
 export type DeviceIdentity = { hostname: string; serialNumber: string; platform: SupportedPlatform };
 
-const commands: Record<SupportedPlatform, { hostname: string; serial: string }> = {
-  windows: { hostname: "hostname", serial: 'powershell -NoProfile -Command "(Get-CimInstance Win32_BIOS).SerialNumber"' },
-  darwin: { hostname: "scutil --get ComputerName", serial: "system_profiler SPHardwareDataType | awk '/Serial/ {print $4}'" },
-  linux: { hostname: "hostnamectl --static", serial: "cat /sys/class/dmi/id/product_serial" },
-};
-
 const collectorFiles: Record<SupportedPlatform, { href: string; filename: string; label: string; instruction: string }> = {
-  windows: {
-    href: "/NVT-Device-Web-v1.3/NVT-Device-Web.exe", filename: "NVT-Device-Web.exe", label: "Download Windows app",
-    instruction: "Double-click the downloaded app, approve its consent prompt, then choose Save JSON. It creates device-info.json locally.",
-  },
-  darwin: {
-    href: "/device-identity/NVT-Device-Info-macOS-pilot-v0.1.1.zip", filename: "NVT-Device-Info-macOS-pilot-v0.1.1.zip", label: "Download macOS app",
-    instruction: "Open the ZIP, then Control-click NVT Device Info.app and choose Open (it is an unsigned pilot). Approve the consent prompt; it creates device-info.json on your Desktop.",
-  },
-  linux: {
-    href: "/device-identity/collect-device-info.sh", filename: "collect-device-info-linux.sh", label: "Download Linux collector",
-    instruction: "In Terminal, run: chmod +x ~/Downloads/collect-device-info-linux.sh && ~/Downloads/collect-device-info-linux.sh. It creates device-info.json in Downloads.",
-  },
+  windows: { href: "/device-identity/collect-device-info.ps1", filename: "collect-device-info.ps1", label: "Download Windows collector", instruction: "Right-click the downloaded file and choose Run with PowerShell. It saves device-info.json on your Desktop and copies the same details to your clipboard." },
+  darwin: { href: "/device-identity/NVT-Device-Info-macOS-pilot-v0.1.1.zip", filename: "NVT-Device-Info-macOS-pilot-v0.1.1.zip", label: "Download macOS app", instruction: "Open the ZIP, then Control-click NVT Device Info.app and choose Open (it is an unsigned pilot). Approve the consent prompt; it saves device-info.json on your Desktop and copies the details to your clipboard." },
+  linux: { href: "/device-identity/collect-device-info.sh", filename: "collect-device-info-linux.sh", label: "Download Linux collector", instruction: "In Terminal, run: chmod +x ~/Downloads/collect-device-info-linux.sh && ~/Downloads/collect-device-info-linux.sh. It saves device-info.json in Downloads and copies the details when a clipboard utility is available." },
 };
 
 const detectPlatform = (): SupportedPlatform => {
@@ -31,44 +16,41 @@ const detectPlatform = (): SupportedPlatform => {
   return "windows";
 };
 
-function platformName(platform: SupportedPlatform) {
-  return platform === "darwin" ? "macOS" : platform[0].toUpperCase() + platform.slice(1);
+function platformName(platform: SupportedPlatform) { return platform === "darwin" ? "macOS" : platform[0].toUpperCase() + platform.slice(1); }
+
+function parseDeviceIdentity(value: string, fallbackPlatform: SupportedPlatform): DeviceIdentity {
+  const parsed = JSON.parse(value);
+  if (!parsed || typeof parsed.hostname !== "string" || typeof parsed.serialNumber !== "string") throw new Error("invalid");
+  const filePlatform = (["windows", "darwin", "linux"] as string[]).includes(parsed.platform) ? parsed.platform as SupportedPlatform : fallbackPlatform;
+  return { hostname: parsed.hostname.trim(), serialNumber: parsed.serialNumber.trim(), platform: filePlatform };
 }
 
-export default function DeviceIdentityAssistant({
-  onIdentity,
-  onPlatformChange,
-  compact = false,
-}: {
-  onIdentity: (identity: DeviceIdentity) => void;
-  onPlatformChange?: (platform: SupportedPlatform) => void;
-  compact?: boolean;
-}) {
+export default function DeviceIdentityAssistant({ onIdentity, onPlatformChange, compact = false }: { onIdentity: (identity: DeviceIdentity) => void; onPlatformChange?: (platform: SupportedPlatform) => void; compact?: boolean }) {
   const [platform, setPlatform] = useState<SupportedPlatform>(detectPlatform);
   const [consent, setConsent] = useState(false);
   const [message, setMessage] = useState("Your operating system was detected from this browser.");
   const [showInstructions, setShowInstructions] = useState(false);
+  const [pastedDetails, setPastedDetails] = useState("");
   const uploadRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => { onPlatformChange?.(platform); }, [platform, onPlatformChange]);
   const setSelectedPlatform = (value: SupportedPlatform) => { setPlatform(value); setMessage(`${platformName(value)} selected.`); };
-  const copy = async (value: string) => {
-    await navigator.clipboard.writeText(value);
-    setMessage("Command copied. Run it in Terminal/Command Prompt, then paste the result.");
+  const applyIdentity = (value: string) => {
+    const identity = parseDeviceIdentity(value, platform);
+    setPlatform(identity.platform); onIdentity(identity); setPastedDetails("");
+    setMessage("Device information was pasted and filled into this form. Review it before continuing.");
   };
   const importFile = async (file?: File) => {
     if (!file || !consent) return;
-    try {
-      const value = JSON.parse(await file.text());
-      if (typeof value.hostname !== "string" || typeof value.serialNumber !== "string") throw new Error("invalid");
-      const filePlatform = (["windows", "darwin", "linux"] as string[]).includes(value.platform)
-        ? value.platform as SupportedPlatform
-        : platform;
-      setPlatform(filePlatform);
-      onIdentity({ hostname: value.hostname.trim(), serialNumber: value.serialNumber.trim(), platform: filePlatform });
-      setMessage("Device information was imported and filled into this form. Review it before continuing.");
-    } catch { setMessage("That file is not a valid device-info.json file."); }
+    try { applyIdentity(await file.text()); setMessage("Device information was imported and filled into this form. Review it before continuing."); }
+    catch { setMessage("That file is not a valid device-info.json file."); }
   };
+  const pasteFromClipboard = async () => {
+    if (!consent) return;
+    try { applyIdentity(await navigator.clipboard.readText()); }
+    catch { setMessage("Clipboard access was unavailable or did not contain device details. Paste the copied JSON in the box below, then select Fill device details."); }
+  };
+  const handlePastedDetails = (value: string) => { setPastedDetails(value); try { applyIdentity(value); } catch { /* Wait until the complete JSON has been pasted. */ } };
 
   return <section className={`rounded-xl border border-green-200 bg-green-50 ${compact ? "p-3" : "p-4"}`}>
     <div className="flex flex-wrap items-center justify-between gap-2">
@@ -79,11 +61,15 @@ export default function DeviceIdentityAssistant({
     <div className="mt-3 flex flex-wrap gap-2">
       <button type="button" disabled={!consent} onClick={() => uploadRef.current?.click()} className="rounded-lg bg-green-700 px-3 py-2 text-xs font-semibold text-white disabled:opacity-50">Import device-info.json</button>
       <a href={collectorFiles[platform].href} download={collectorFiles[platform].filename} onClick={() => setShowInstructions(true)} className={`rounded-lg border border-green-700 px-3 py-2 text-xs font-semibold text-green-800 ${consent ? "" : "pointer-events-none opacity-50"}`}>{collectorFiles[platform].label}</a>
-      <button type="button" disabled={!consent} onClick={() => copy(commands[platform].hostname)} className="rounded-lg border border-green-300 bg-white px-3 py-2 text-xs font-semibold text-green-900 disabled:opacity-50">Copy hostname command</button>
-      <button type="button" disabled={!consent} onClick={() => copy(commands[platform].serial)} className="rounded-lg border border-green-300 bg-white px-3 py-2 text-xs font-semibold text-green-900 disabled:opacity-50">Copy serial command</button>
+      <button type="button" disabled={!consent} onClick={pasteFromClipboard} className="rounded-lg border border-green-700 bg-white px-3 py-2 text-xs font-semibold text-green-800 disabled:opacity-50">Paste &amp; fill device details</button>
     </div>
     <input ref={uploadRef} hidden type="file" accept="application/json,.json" onChange={(event) => importFile(event.target.files?.[0])} />
-    {showInstructions && <p className="mt-2 rounded-md bg-white p-2 text-[11px] text-green-950">{collectorFiles[platform].instruction} Then choose <strong>Import device-info.json</strong> above.</p>}
+    {showInstructions && <p className="mt-2 rounded-md bg-white p-2 text-[11px] text-green-950">{collectorFiles[platform].instruction} Return here and select <strong>Paste &amp; fill device details</strong>; if your browser blocks clipboard access, paste the copied JSON below instead.</p>}
+    <div className="mt-2">
+      <label className="block text-[11px] font-medium text-green-950" htmlFor="device-details-paste">Or paste copied device details</label>
+      <textarea id="device-details-paste" value={pastedDetails} disabled={!consent} onChange={(event) => handlePastedDetails(event.target.value)} rows={2} placeholder='{"hostname":"...","serialNumber":"...","platform":"windows"}' className="mt-1 w-full rounded-md border border-green-200 bg-white p-2 font-mono text-[11px] text-green-950 disabled:opacity-50" />
+      <button type="button" disabled={!consent || !pastedDetails.trim()} onClick={() => { try { applyIdentity(pastedDetails); } catch { setMessage("Paste the complete device-details JSON created by the collector."); } }} className="mt-1 rounded-md border border-green-300 bg-white px-2 py-1 text-[11px] font-semibold text-green-900 disabled:opacity-50">Fill device details</button>
+    </div>
     <p className="mt-2 text-[11px] text-green-900">{message} The collector creates a local file only after you run it. Deleting it stops local reads; deleting an installed RMM or Bitdefender agent requires reinstalling that product separately.</p>
   </section>;
 }

@@ -5,6 +5,10 @@ unsigned Windows pilot. It presents its own consent prompt and can save
 `device-info.json` through its **Save JSON** action. It is not a background
 agent and does not upload information by itself.
 
+This archived build cannot copy the JSON to the clipboard. The website now
+downloads `collect-device-info.ps1`, which saves the same file and copies its
+JSON to the clipboard for the **Paste & fill device details** action.
+
 The current Windows build is unsigned, so Windows SmartScreen may warn pilot
 testers. Production distribution requires an Authenticode certificate and a
 new build that is configured for the production website origin.
