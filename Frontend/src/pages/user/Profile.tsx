@@ -24,6 +24,7 @@ export default function Profile() {
   const [serialNumberInput, setSerialNumberInput] = useState("");
   const [showServiceHelp, setShowServiceHelp] = useState(false);
   const [deviceIdentityMessage, setDeviceIdentityMessage] = useState("");
+  const [deviceIdentityReady, setDeviceIdentityReady] = useState(false);
 
   const [form, setForm] = useState({
     currentPassword: "",
@@ -44,6 +45,7 @@ export default function Profile() {
     const token = localStorage.getItem("token");
     if (!token) {
       console.error("No token found in localStorage.");
+      setDeviceIdentityReady(true);
       return;
     }
 
@@ -53,11 +55,13 @@ export default function Profile() {
       userId = decoded.id ?? decoded._id ?? decoded.userId ?? decoded.sub;
     } catch (err) {
       console.error("Failed to decode token:", err);
+      setDeviceIdentityReady(true);
       return;
     }
 
     if (!userId) {
       console.error("Could not find a user id in the decoded token.");
+      setDeviceIdentityReady(true);
       return;
     }
 
@@ -74,7 +78,7 @@ export default function Profile() {
       setSerialNumbers(data.serialNumbers ?? []);
     } catch (err) {
       console.error(err);
-    }
+    } finally { setDeviceIdentityReady(true); }
   };
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -353,7 +357,7 @@ if (finalDeviceNames.length !== finalSerialNumbers.length) {
         </div>
 
         <div className="mb-5">
-          <DeviceIdentityAssistant onIdentity={applyDeviceIdentity} />
+          <DeviceIdentityAssistant onIdentity={applyDeviceIdentity} autoFillReady={deviceIdentityReady} />
           {deviceIdentityMessage && <p className="mt-2 text-sm text-green-700">{deviceIdentityMessage}</p>}
         </div>
 

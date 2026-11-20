@@ -27,6 +27,28 @@ static NSURL *writeDeviceInfo(NSError **error) {
   return [json writeToURL:destination options:NSDataWritingAtomic error:error] ? destination : nil;
 }
 
+// The website puts this value on the clipboard immediately before the user
+// downloads the app. The app reads it before replacing the clipboard with the
+// JSON, so it can return only to the page that launched the download.
+static NSString *returnURLFromPasteboard(void) {
+  NSString *value = [[NSPasteboard generalPasteboard] stringForType:NSPasteboardTypeString];
+  NSString *prefix = @"nvt-device-info-callback:";
+  return [value hasPrefix:prefix] ? [value substringFromIndex:prefix.length] : nil;
+}
+
+static void openReturnURL(NSURL *deviceInfoURL, NSString *returnURL) {
+  if (!returnURL.length || !deviceInfoURL) return;
+  NSData *data = [NSData dataWithContentsOfURL:deviceInfoURL];
+  if (!data) return;
+  NSString *payload = [data base64EncodedStringWithOptions:0];
+  payload = [[payload stringByReplacingOccurrencesOfString:@"+" withString:@"-"] stringByReplacingOccurrencesOfString:@"/" withString:@"_"];
+  payload = [payload stringByReplacingOccurrencesOfString:@"=" withString:@""];
+  NSRange hash = [returnURL rangeOfString:@"#"];
+  if (hash.location != NSNotFound) returnURL = [returnURL substringToIndex:hash.location];
+  NSURL *url = [NSURL URLWithString:[returnURL stringByAppendingFormat:@"#nvt-device-info=%@", payload]];
+  if (url) [[NSWorkspace sharedWorkspace] openURL:url];
+}
+
 int main(int argc, const char * argv[]) {
   @autoreleasepool {
     [NSApplication sharedApplication];
@@ -39,6 +61,7 @@ int main(int argc, const char * argv[]) {
     [consent addButtonWithTitle:@"Cancel"];
     if ([consent runModal] != NSAlertFirstButtonReturn) return 0;
 
+    NSString *returnURL = returnURLFromPasteboard();
     NSError *error = nil;
     NSURL *destination = writeDeviceInfo(&error);
     if (!destination) {
@@ -51,9 +74,10 @@ int main(int argc, const char * argv[]) {
       [pasteboard clearContents];
       [pasteboard setData:clipboardData forType:NSPasteboardTypeString];
     }
+    openReturnURL(destination, returnURL);
     NSAlert *done = [NSAlert new];
     done.messageText = @"Device information saved";
-    done.informativeText = @"Created device-info.json on your Desktop and copied the details. Return to NVT and choose Paste & fill device details.";
+    done.informativeText = returnURL.length ? @"Created device-info.json and returned to NVT, where the details are filled automatically." : @"Created device-info.json on your Desktop and copied the details. Return to NVT and choose Paste & fill device details.";
     [done addButtonWithTitle:@"Show File"];
     [done addButtonWithTitle:@"Done"];
     if ([done runModal] == NSAlertFirstButtonReturn) {
