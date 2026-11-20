@@ -29,6 +29,7 @@ const tacticalRmmRoutes = require('./routes/rmm/tacticalRmm.route');
 const companyRoutes = require('./routes/company/company.route');
 const fileBackupRoutes = require('./routes/backup/fileBackup.route');
 const { startFileBackupJobs } = require('./cron/fileBackups');
+const deviceIdentityRoutes = require('./routes/deviceIdentity/deviceIdentity.route');
 
 
 const app = express();
@@ -183,6 +184,7 @@ if (process.env.NODE_ENV !== 'production'
 }
 app.use('/api/devices', tacticalRmmRoutes);
 app.use('/api/file-backups', fileBackupRoutes);
+app.use('/api/device-identity', deviceIdentityRoutes);
 
 app.use(notFound);
 app.use(errorHandler);

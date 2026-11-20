@@ -33,6 +33,7 @@ Object.assign(process.env, {
   STRIPE_WEBHOOK_SECRET: 'whsec_test_secret',
   PAYPAL_WEBHOOK_ID: 'WH-TEST',
   FRONTEND_URL: 'http://localhost:5173',
+  DEVICE_IDENTITY_PUBLIC_API_URL: 'http://localhost:5001/api',
 });
 
 const mongoose = require('mongoose');

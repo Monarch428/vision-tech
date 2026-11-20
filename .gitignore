@@ -22,3 +22,4 @@ rmm/dist/
 *.log
 .DS_Store
 .archify/
+DesktopApps/windows/NVTDeviceInfo/bin/
