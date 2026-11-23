@@ -21,10 +21,27 @@ DEVICE_IDENTITY_PUBLIC_API_URL=http://localhost:5001/api
 VITE_API_BASE_URL=http://localhost:5001/api
 ```
 
-To serve the new Windows EXE instead of the PowerShell fallback, set
-`DEVICE_IDENTITY_WINDOWS_HELPER_PATH` to the signed `NVTDeviceInfo.exe` build.
-The API packages it with a request-specific `Run NVT Device Info.cmd` launcher
-that supplies the one-time callback URL to the EXE.
+For Windows production, set `DEVICE_IDENTITY_WINDOWS_HELPER_PATH` to the
+signed `NVTDeviceInfo.exe` build. The API packages it with a request-specific
+`Run NVT Device Info.cmd` launcher that supplies the one-time callback URL to
+the EXE. This is the preferred path: the EXE has its own approval and status
+dialogs and returns approved details to the already-open browser tab.
+
+Build the Windows x64 helper with:
+
+```sh
+dotnet publish DesktopApps/windows/NVTDeviceInfo/NVTDeviceInfo.csproj --configuration Release --runtime win-x64 --self-contained true --output ./nvt-device-info-publish
+```
+
+Set the environment variable to `./nvt-device-info-publish/NVTDeviceInfo.exe`
+after Authenticode-signing that executable. This is a Windows `.exe`; an APK is
+an Android package and cannot run on Windows.
+
+If that setting is absent, the API sends `NVT-Device-Info-Windows.zip`, not a
+bare PowerShell file. The customer extracts the ZIP and opens `Run NVT Device
+Info.cmd`; it explicitly starts PowerShell, shows a Windows approval dialog,
+and displays any error instead of silently closing. A `.ps1` file must not be
+double-clicked because many Windows installations open it in Notepad.
 
 In production set `DEVICE_IDENTITY_PUBLIC_API_URL=https://essentials.newvtech.com/api`.
 HTTPS is required in production. HTTP is accepted only for loopback addresses
@@ -43,10 +60,12 @@ outside production.
    reference site.
 
 The helpers are intentionally not RMM or antivirus installers. Windows gets a
-PowerShell `.ps1`; macOS gets a request-specific `NVT Device Info.app` inside
-a ZIP, so Finder launches it as an app instead of opening a shell script in an
-editor; Linux gets a shell collector. Each asks for a second explicit approval
-before collecting or sending details. They do not request administrator rights
-or change execution-policy settings. A new Windows EXE project is at
+request-specific Windows EXE when configured, otherwise a ZIP containing a CMD
+launcher and PowerShell collector; macOS gets a request-specific `NVT Device
+Info.app` inside a ZIP, so Finder launches it as an app instead of opening a
+shell script in an editor; Linux gets a shell collector. Each asks for a second
+explicit approval before collecting or sending details. They do not request
+administrator rights or change machine-wide execution-policy settings. The
+Windows EXE project is at
 `DesktopApps/windows/NVTDeviceInfo`; it must be Authenticode-signed before
 customer distribution.

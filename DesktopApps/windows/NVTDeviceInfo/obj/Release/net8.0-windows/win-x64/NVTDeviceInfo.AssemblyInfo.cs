@@ -13,7 +13,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("NVTDeviceInfo")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Release")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+632fc110e6d39026155b96c71b8a3d7bb21f7b17")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+adce0323dc20ea052c9ceae54266486ee276a82f")]
 [assembly: System.Reflection.AssemblyProductAttribute("NVTDeviceInfo")]
 [assembly: System.Reflection.AssemblyTitleAttribute("NVTDeviceInfo")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]

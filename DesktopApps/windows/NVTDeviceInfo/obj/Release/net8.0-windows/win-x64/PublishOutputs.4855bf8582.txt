@@ -1,0 +1,7 @@
+/private/tmp/nvt-device-info-publish/NVTDeviceInfo.pdb
+/private/tmp/nvt-device-info-publish/D3DCompiler_47_cor3.dll
+/private/tmp/nvt-device-info-publish/PenImc_cor3.dll
+/private/tmp/nvt-device-info-publish/PresentationNative_cor3.dll
+/private/tmp/nvt-device-info-publish/vcruntime140_cor3.dll
+/private/tmp/nvt-device-info-publish/wpfgfx_cor3.dll
+/private/tmp/nvt-device-info-publish/NVTDeviceInfo.exe

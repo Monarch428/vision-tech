@@ -1,5 +1,6 @@
 const { test, before, after } = require('node:test');
 const assert = require('node:assert/strict');
+const AdmZip = require('adm-zip');
 const { startTestServer } = require('./helpers');
 const DeviceIdentityRequest = require('../src/models/device-identity/DeviceIdentityRequest');
 
@@ -26,4 +27,25 @@ test('device requests require consent and reject expired requests', async () => 
   const created = await ctx.request('POST', '/device-identity/requests', { body: { platform: 'darwin', consent: true } });
   await DeviceIdentityRequest.updateOne({ _id: created.body.requestId }, { $set: { expiresAt: new Date(Date.now() - 1000) } });
   assert.equal((await ctx.request('GET', `/device-identity/requests/${created.body.requestId}?token=${created.body.readToken}`)).status, 404);
+});
+
+test('Windows fallback is a launched ZIP package, not a bare PowerShell file', async () => {
+  const previousHelper = process.env.DEVICE_IDENTITY_WINDOWS_HELPER_PATH;
+  delete process.env.DEVICE_IDENTITY_WINDOWS_HELPER_PATH;
+  try {
+    const created = await ctx.request('POST', '/device-identity/requests', { body: { platform: 'windows', consent: true } });
+    const helperUrl = new URL(created.body.helperUrl);
+    const helper = await fetch(`${new URL(ctx.baseUrl).origin}${helperUrl.pathname}${helperUrl.search}`);
+    assert.equal(helper.status, 200);
+    assert.match(helper.headers.get('content-type') || '', /application\/zip/);
+    const zip = new AdmZip(Buffer.from(await helper.arrayBuffer()));
+    const launcher = zip.readAsText('Run NVT Device Info.cmd');
+    const script = zip.readAsText('NVT Device Info.ps1');
+    assert.match(launcher, /PowerShell\.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File/);
+    assert.match(script, /MessageBox/);
+    assert.match(script, /\/result\?token=/);
+  } finally {
+    if (previousHelper === undefined) delete process.env.DEVICE_IDENTITY_WINDOWS_HELPER_PATH;
+    else process.env.DEVICE_IDENTITY_WINDOWS_HELPER_PATH = previousHelper;
+  }
 });
