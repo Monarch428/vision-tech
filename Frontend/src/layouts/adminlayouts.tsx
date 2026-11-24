@@ -5,6 +5,7 @@ import Sidebar from '../components/Sidebar';
 import { RouteErrorBoundary } from '../components/ErrorBoundary';
 import { checkTokenValidity, refreshTokenIfExpiring } from '../utils/auth';
 import { getUserById } from '../services/admin/userManagement.service';
+import RmmOnboarding from '../components/RmmOnboarding';
 
 export default function AdminLayout() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -37,6 +38,7 @@ export default function AdminLayout() {
 
   return (
     <div className="flex h-screen bg-gray-50 overflow-hidden">
+      <RmmOnboarding />
       <Sidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
 
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
