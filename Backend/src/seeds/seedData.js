@@ -205,13 +205,25 @@ const ensurePlans = async (dryRun) => {
   }
 };
 
-const ensureAdminUser = async ({ name, email, password, dryRun }) => {
+const ensureStaffUser = async ({ name, email, password, role, dryRun }) => {
   const normalizedEmail = email.toLowerCase().trim();
   const existingUser = await AuthUser.findOne({ email: normalizedEmail }).select("+password");
 
+  // The schema deliberately permits only one super-admin. Never silently
+  // replace an existing owner account merely because a seed environment has a
+  // different email address.
+  if (role === "superadmin") {
+    const existingSuperAdmin = await AuthUser.findOne({ role: "superadmin" });
+    if (existingSuperAdmin && existingSuperAdmin.email !== normalizedEmail) {
+      throw new Error(
+        `A super-admin already exists (${existingSuperAdmin.email}). Use that email in SEED_SUPERADMIN_EMAIL instead of creating another account.`
+      );
+    }
+  }
+
   if (dryRun) {
     console.log(
-      `[dry-run] ${existingUser ? "Update" : "Create"} admin user: ${normalizedEmail}`
+      `[dry-run] ${existingUser ? "Update" : "Create"} ${role} user: ${normalizedEmail}`
     );
     return existingUser;
   }
@@ -223,22 +235,24 @@ const ensureAdminUser = async ({ name, email, password, dryRun }) => {
       name,
       email: normalizedEmail,
       password,
-      role: "admin",
+      role,
       isActive: true,
+      isVerified: true,
     });
   } else {
     authUser.name = name;
     authUser.email = normalizedEmail;
     authUser.password = password;
-    authUser.role = "admin";
+    authUser.role = role;
     authUser.isActive = true;
+    authUser.isVerified = true;
     await authUser.save();
   }
 
   return authUser;
 };
 
-const ensureAdminAccess = async (authUser, dryRun) => {
+const ensureStaffAccess = async (authUser, role, dryRun) => {
   if (!authUser) {
     return;
   }
@@ -252,7 +266,7 @@ const ensureAdminAccess = async (authUser, dryRun) => {
   const subId = `SUB-${authUser._id.toString().slice(-6).toUpperCase()}`;
 
   if (dryRun) {
-    console.log(`[dry-run] Sync admin access for user: ${authUser.email}`);
+    console.log(`[dry-run] Sync ${role} access for user: ${authUser.email}`);
     return;
   }
 
@@ -262,7 +276,7 @@ const ensureAdminAccess = async (authUser, dryRun) => {
       $set: {
         name: authUser.name,
         email: authUser.email,
-        role: "admin",
+        role,
         status: "active",
         isActive: true,
         avatar: "",
@@ -334,6 +348,9 @@ Environment variables:
   SEED_ADMIN_NAME
   SEED_ADMIN_EMAIL
   SEED_ADMIN_PASSWORD
+  SEED_SUPERADMIN_NAME
+  SEED_SUPERADMIN_EMAIL
+  SEED_SUPERADMIN_PASSWORD
   SEED_ALLOWED_IPS
 `);
 };
@@ -350,6 +367,18 @@ const main = async () => {
   const seedName = args.name || process.env.SEED_ADMIN_NAME || "Vision Tech Admin";
   const seedEmail = args.email || process.env.SEED_ADMIN_EMAIL || "admin@visiontech.local";
   const seedPassword = args.password || process.env.SEED_ADMIN_PASSWORD || "Admin@12345";
+  const superAdminName = process.env.SEED_SUPERADMIN_NAME || "NVT Essentials Owner";
+  const superAdminEmail = process.env.SEED_SUPERADMIN_EMAIL?.trim();
+  const superAdminPassword = process.env.SEED_SUPERADMIN_PASSWORD;
+
+  if (Boolean(superAdminEmail) !== Boolean(superAdminPassword)) {
+    throw new Error(
+      "Set both SEED_SUPERADMIN_EMAIL and SEED_SUPERADMIN_PASSWORD, or leave both unset."
+    );
+  }
+  if (superAdminEmail && superAdminEmail.toLowerCase() === seedEmail.toLowerCase()) {
+    throw new Error("SEED_SUPERADMIN_EMAIL must be different from SEED_ADMIN_EMAIL.");
+  }
 
   console.log(`Seeding ${mode} database...`);
   console.log(`Mongo URI: ${uri.replace(/\/\/([^:]+):([^@]+)@/, "//***:***@")}`);
@@ -358,20 +387,38 @@ const main = async () => {
 
   try {
     await ensurePlans(args.dryRun);
-    const authUser = await ensureAdminUser({
+    const adminUser = await ensureStaffUser({
       name: seedName,
       email: seedEmail,
       password: seedPassword,
+      role: "admin",
       dryRun: args.dryRun,
     });
 
-    await ensureAdminAccess(authUser, args.dryRun);
-    await ensureSystemConfig(authUser?._id, args.dryRun);
+    await ensureStaffAccess(adminUser, "admin", args.dryRun);
+
+    let superAdminUser = null;
+    if (superAdminEmail) {
+      superAdminUser = await ensureStaffUser({
+        name: superAdminName,
+        email: superAdminEmail,
+        password: superAdminPassword,
+        role: "superadmin",
+        dryRun: args.dryRun,
+      });
+      await ensureStaffAccess(superAdminUser, "superadmin", args.dryRun);
+    } else {
+      console.warn(
+        "No super-admin was seeded. Set SEED_SUPERADMIN_EMAIL and SEED_SUPERADMIN_PASSWORD to create the System Configuration owner account."
+      );
+    }
+
+    await ensureSystemConfig(superAdminUser?._id || adminUser?._id, args.dryRun);
 
     console.log(
       args.dryRun
         ? "Dry run complete. No data was written."
-        : `Seed complete. Admin user ready: ${seedEmail}`
+        : `Seed complete. Admin user ready: ${seedEmail}${superAdminEmail ? `; super-admin ready: ${superAdminEmail}` : ""}`
     );
   } finally {
     await mongoose.disconnect();

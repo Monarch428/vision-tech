@@ -9,7 +9,7 @@ Cloudinary (admin file uploads) and SMTP (login codes, alerts, reminders).
 ```bash
 cp .env.example .env    # fill in the values
 npm install
-npm run seed:dev        # plans, system configuration, first admin (SEED_ADMIN_*)
+npm run seed:dev        # plans, system configuration, staff accounts (SEED_* variables)
 npm run dev             # nodemon on PORT (default 5000)
 ```
 
@@ -20,7 +20,7 @@ frontend's `VITE_API_BASE_URL` at it) or turn AirPlay Receiver off.
 |---|---|
 | `npm run dev` | Development server with auto-reload |
 | `npm start` | Production server |
-| `npm run seed:dev` / `seed:prod` | Create or update plans, system config and the admin user |
+| `npm run seed:dev` / `seed:prod` | Create or update plans, system config and configured staff accounts |
 | `npm test` | Automated tests (own `*_test` database, fake Tactical/GravityZone; never touches real data) |
 | `npm run preflight` | Read-only pre-launch check of settings, data and Tactical access (see `docs/ROLLOUT.md`) |
 
@@ -29,6 +29,11 @@ frontend's `VITE_API_BASE_URL` at it) or turn AirPlay Receiver off.
 Roles: `user` (customer), `admin` (operations), `superadmin` — shown as **Super Admin** (system owner;
 only one allowed; formerly `support`, migrated automatically at startup).
 Routes use `protect` (valid JWT) and `authorize(...roles)` from `src/middleware/auth.middleware.js`.
+
+Set `SEED_SUPERADMIN_NAME`, `SEED_SUPERADMIN_EMAIL`, and
+`SEED_SUPERADMIN_PASSWORD` before the first production seed. The seed creates the
+single Super Admin account and its Enterprise access. It refuses to replace a
+different existing Super Admin.
 
 | Area | user | admin | superadmin |
 |---|---|---|---|
