@@ -1,0 +1,2 @@
+/private/tmp/nvt-device-info-auto/NVTDeviceInfo.pdb
+/private/tmp/nvt-device-info-auto/NVTDeviceInfo.exe

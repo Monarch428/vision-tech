@@ -221,7 +221,7 @@ const register = async (req, res) => {
               <p style="color: #6b7280; font-size: 13px;">
                 You can manage this user from the User Management section.
               </p>
-              <p>Thanks,<br/><strong>SOLO Support Team</strong></p>
+              <p>Thanks,<br/><strong>NVT Essentials Support Team</strong></p>
             </div>
           `,
         });
@@ -243,7 +243,7 @@ const register = async (req, res) => {
 
       await sendEmail({
         to: authUser.email,
-        subject: 'Verify your SOLO account',
+        subject: 'Verify your NVT Essentials account',
         html: `
           <div style="font-family:sans-serif;max-width:480px;margin:auto;padding:24px">
             <h2 style="color:#1a1a1a">Verify your account</h2>
@@ -437,7 +437,7 @@ const login = async (req, res) => {
 
     await sendEmail({
       to: user.email,
-      subject: 'Your login verification code',
+      subject: 'Your NVT Essentials login verification code',
       html: `
         <div style="font-family:sans-serif;max-width:480px;margin:auto;padding:24px">
           <h2 style="color:#1a1a1a">Verify your login</h2>
@@ -630,7 +630,7 @@ const forgotPassword = async (req, res) => {
 
     await sendEmail({
       to: emailNormalized,
-      subject: 'Reset your SOLO password',
+      subject: 'Reset your NVT Essentials password',
       html: `
         <div style="font-family:sans-serif;max-width:480px;margin:auto;padding:24px">
           <h2 style="color:#1a1a1a">Reset your password</h2>
@@ -737,7 +737,7 @@ const resendOtp = async (req, res) => {
 
     await sendEmail({
       to: user.email,
-      subject: 'Your new login verification code',
+      subject: 'Your new NVT Essentials login verification code',
       html: `
         <div style="font-family:sans-serif;max-width:480px;margin:auto;padding:24px">
           <h2 style="color:#1a1a1a">New verification code</h2>
