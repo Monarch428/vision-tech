@@ -1,6 +1,7 @@
 const { test, before, after } = require('node:test');
 const assert = require('node:assert/strict');
-const AdmZip = require('adm-zip');
+const fs = require('node:fs');
+const path = require('node:path');
 const { startTestServer } = require('./helpers');
 const DeviceIdentityRequest = require('../src/models/device-identity/DeviceIdentityRequest');
 
@@ -29,21 +30,21 @@ test('device requests require consent and reject expired requests', async () => 
   assert.equal((await ctx.request('GET', `/device-identity/requests/${created.body.requestId}?token=${created.body.readToken}`)).status, 404);
 });
 
-test('Windows fallback is a launched ZIP package, not a bare PowerShell file', async () => {
+test('Windows helper is a directly runnable EXE with a one-time callback filename', async () => {
   const previousHelper = process.env.DEVICE_IDENTITY_WINDOWS_HELPER_PATH;
-  delete process.env.DEVICE_IDENTITY_WINDOWS_HELPER_PATH;
+  const helperPath = path.resolve(__dirname, '../../DesktopApps/windows/NVTDeviceInfo/bin/Release/net8.0-windows/win-x64/NVTDeviceInfo.exe');
+  assert.ok(fs.existsSync(helperPath), 'Windows helper fixture must be built before this test runs');
+  process.env.DEVICE_IDENTITY_WINDOWS_HELPER_PATH = helperPath;
   try {
     const created = await ctx.request('POST', '/device-identity/requests', { body: { platform: 'windows', consent: true } });
     const helperUrl = new URL(created.body.helperUrl);
     const helper = await fetch(`${new URL(ctx.baseUrl).origin}${helperUrl.pathname}${helperUrl.search}`);
     assert.equal(helper.status, 200);
-    assert.match(helper.headers.get('content-type') || '', /application\/zip/);
-    const zip = new AdmZip(Buffer.from(await helper.arrayBuffer()));
-    const launcher = zip.readAsText('Run NVT Device Info.cmd');
-    const script = zip.readAsText('NVT Device Info.ps1');
-    assert.match(launcher, /PowerShell\.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File/);
-    assert.match(script, /MessageBox/);
-    assert.match(script, /\/result\?token=/);
+    assert.match(helper.headers.get('content-type') || '', /application\/(vnd\.microsoft\.portable-executable|x-msdos-program)/);
+    assert.match(helper.headers.get('content-disposition') || '', /NVT-Device-Info--.*\.exe/);
+    const executable = Buffer.from(await helper.arrayBuffer());
+    assert.equal(executable.subarray(0, 2).toString('ascii'), 'MZ');
+    assert.deepEqual(executable, fs.readFileSync(helperPath));
   } finally {
     if (previousHelper === undefined) delete process.env.DEVICE_IDENTITY_WINDOWS_HELPER_PATH;
     else process.env.DEVICE_IDENTITY_WINDOWS_HELPER_PATH = previousHelper;

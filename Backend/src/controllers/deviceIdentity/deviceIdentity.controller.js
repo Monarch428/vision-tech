@@ -16,6 +16,7 @@ const validPublicApiUrl = (value) => {
   } catch { return false; }
 };
 const safeValue = (value, max = 255) => typeof value === 'string' && value.trim().length <= max && !/[\u0000-\u001f\u007f]/.test(value);
+const windowsHelperFilename = (callback) => `NVT-Device-Info--${Buffer.from(callback, 'utf8').toString('base64url')}.exe`;
 
 exports.createRequest = async (req, res) => {
   const platform = req.body?.platform;
@@ -63,23 +64,14 @@ exports.downloadHelper = async (req, res) => {
   const request = await DeviceIdentityRequest.findOne({ _id: req.params.id, writeTokenHash: tokenHash(req.query.token), expiresAt: { $gt: new Date() } }).lean();
   if (!request) return noStore(res).status(404).send('This device request has expired or is invalid.');
   const endpoint = `${callbackBase()}/device-identity/requests/${request._id}/result?token=${encodeURIComponent(req.query.token)}`;
-  const ps1 = `# NVT Device Info — launched by Run NVT Device Info.cmd\n# Do not double-click this file: Windows may associate .ps1 files with Notepad.\n$ErrorActionPreference = 'Stop'\nAdd-Type -AssemblyName PresentationFramework\n$choice = [System.Windows.MessageBox]::Show('Share this computer''s hostname and hardware serial number with Vision Tech?', 'NVT Device Info', 'YesNo', 'Question')\nif ($choice -ne 'Yes') { exit 0 }\ntry {\n  $serial = ''\n  try { $serial = (Get-CimInstance -ClassName Win32_BIOS -ErrorAction Stop).SerialNumber } catch {}\n  $body = @{ hostname = $env:COMPUTERNAME; serialNumber = [string]$serial; platform = 'windows' } | ConvertTo-Json -Compress\n  Invoke-RestMethod -Method Post -Uri '${endpoint}' -ContentType 'application/json' -Body $body | Out-Null\n  [System.Windows.MessageBox]::Show('Device details shared. Return to the Vision Tech browser tab.', 'NVT Device Info', 'OK', 'Information') | Out-Null\n} catch {\n  [System.Windows.MessageBox]::Show(\"Could not share device details. Check your connection and start a new request in Vision Tech.\\n\\n$($_.Exception.Message)\", 'NVT Device Info', 'OK', 'Error') | Out-Null\n  exit 1\n}\n`;
   if (request.platform === 'windows' && process.env.DEVICE_IDENTITY_WINDOWS_HELPER_PATH && fs.existsSync(process.env.DEVICE_IDENTITY_WINDOWS_HELPER_PATH)) {
-    const zip = new AdmZip();
-    zip.addFile('NVTDeviceInfo.exe', fs.readFileSync(process.env.DEVICE_IDENTITY_WINDOWS_HELPER_PATH), '', 0o755);
-    zip.addFile('Run NVT Device Info.cmd', Buffer.from(`@echo off\r\nset "NVT_DEVICE_INFO_CALLBACK=${endpoint}"\r\nstart "" "%~dp0NVTDeviceInfo.exe"\r\n`), '', 0o644);
-    noStore(res).type('application/zip'); res.attachment('NVT-Device-Info-Windows.zip');
-    return res.send(zip.toBuffer());
+    const filename = windowsHelperFilename(endpoint);
+    if (filename.length > 250) return noStore(res).status(503).json({ message: 'The configured public API URL is too long for the Windows device-info application.' });
+    noStore(res).type('application/vnd.microsoft.portable-executable'); res.attachment(filename);
+    return res.send(fs.readFileSync(process.env.DEVICE_IDENTITY_WINDOWS_HELPER_PATH));
   }
   if (request.platform === 'windows') {
-    // A bare .ps1 download is often opened in Notepad. This package gives the
-    // user one obvious launcher and retains failures long enough to inspect.
-    const zip = new AdmZip();
-    zip.addFile('NVT Device Info.ps1', Buffer.from(ps1), '', 0o644);
-    zip.addFile('Run NVT Device Info.cmd', Buffer.from('@echo off\r\nPowerShell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File "%~dp0NVT Device Info.ps1"\r\nif errorlevel 1 pause\r\n'), '', 0o644);
-    zip.addFile('README.txt', Buffer.from('1. Extract this ZIP before running it.\r\n2. Double-click "Run NVT Device Info.cmd". Do not open the .ps1 file directly.\r\n3. Choose Yes in the approval dialog. The original Vision Tech browser tab will fill automatically.\r\n'), '', 0o644);
-    noStore(res).type('application/zip'); res.attachment('NVT-Device-Info-Windows.zip');
-    return res.send(zip.toBuffer());
+    return noStore(res).status(503).json({ message: 'The Windows device-info application is not configured on this server.' });
   }
   const sh = `#!/usr/bin/env sh\nset -eu\nprintf 'Share this computer hostname and hardware serial number with Vision Tech? Type YES to continue: ' >&2\nread answer\n[ "$answer" = YES ] || { echo 'No details were shared.'; exit 0; }\nhostname_value="$(hostname 2>/dev/null || uname -n)"\nserial_number="$(cat /sys/class/dmi/id/product_serial 2>/dev/null || true)"\n[ "$(uname -s)" = Darwin ] && serial_number="$(system_profiler SPHardwareDataType 2>/dev/null | awk '/Serial/ {print $4; exit}')"\njson_escape() { printf '%s' "$1" | sed 's/\\\\/\\\\\\\\/g; s/"/\\\\"/g'; }\nbody=$(printf '{"hostname":"%s","serialNumber":"%s","platform":"${request.platform}"}' "$(json_escape "$hostname_value")" "$(json_escape "$serial_number")")\ncurl --fail --silent --show-error -X POST -H 'Content-Type: application/json' --data "$body" '${endpoint}'\necho 'Details shared. Return to the Vision Tech tab.'\n`;
   if (request.platform === 'darwin') {
