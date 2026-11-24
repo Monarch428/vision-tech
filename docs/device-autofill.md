@@ -22,11 +22,12 @@ VITE_API_BASE_URL=http://localhost:5001/api
 ```
 
 For Windows, set `DEVICE_IDENTITY_WINDOWS_HELPER_PATH` to the published
-`NVTDeviceInfo.exe` build. The API supplies the one-time callback in the
-downloaded filename, so the customer receives one directly runnable Windows
-EXE—no ZIP, CMD file, PowerShell script, JSON import, or clipboard step. The
-app displays its approval/status dialogs and returns approved details to the
-already-open browser tab.
+`NVTDeviceInfo.exe` build. The API supplies a short one-time request ID and
+token in the downloaded filename; the app is built for
+`https://essentials.newvtech.com/api`. The customer receives one directly
+runnable Windows EXE—no ZIP, CMD file, PowerShell script, JSON import, or
+clipboard step. The app displays its approval/status dialogs and returns
+approved details to the already-open browser tab.
 
 Build the Windows x64 helper with:
 

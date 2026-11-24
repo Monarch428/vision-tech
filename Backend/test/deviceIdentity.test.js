@@ -41,7 +41,7 @@ test('Windows helper is a directly runnable EXE with a one-time callback filenam
     const helper = await fetch(`${new URL(ctx.baseUrl).origin}${helperUrl.pathname}${helperUrl.search}`);
     assert.equal(helper.status, 200);
     assert.match(helper.headers.get('content-type') || '', /application\/(vnd\.microsoft\.portable-executable|x-msdos-program)/);
-    assert.match(helper.headers.get('content-disposition') || '', /NVT-Device-Info--.*\.exe/);
+    assert.match(helper.headers.get('content-disposition') || '', /NVT-Device-Info--[a-f0-9]{24}--[A-Za-z0-9_-]+\.exe/);
     const executable = Buffer.from(await helper.arrayBuffer());
     assert.equal(executable.subarray(0, 2).toString('ascii'), 'MZ');
     assert.deepEqual(executable, fs.readFileSync(helperPath));

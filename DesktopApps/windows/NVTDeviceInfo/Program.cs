@@ -3,27 +3,33 @@ using System.IO;
 using System.Management;
 using System.Net.Http;
 using System.Net.Http.Json;
-using System.Text;
 using System.Windows.Forms;
 
 const string CallbackFilePrefix = "NVT-Device-Info--";
+const string PublicApiBaseUrl = "https://essentials.newvtech.com/api";
+
+static bool IsHexObjectId(string value)
+{
+    if (value.Length != 24) return false;
+    foreach (var character in value) if (!Uri.IsHexDigit(character)) return false;
+    return true;
+}
+
+static bool IsWriteToken(string value)
+{
+    if (value.Length < 32 || value.Length > 128) return false;
+    foreach (var character in value) if (!(char.IsLetterOrDigit(character) || character == '-' || character == '_')) return false;
+    return true;
+}
 
 static string ReadCallbackFromFilename()
 {
     var path = Environment.ProcessPath;
     var filename = string.IsNullOrWhiteSpace(path) ? "" : Path.GetFileNameWithoutExtension(path);
     if (!filename.StartsWith(CallbackFilePrefix, StringComparison.Ordinal)) return null;
-    var encoded = filename.Substring(CallbackFilePrefix.Length);
-    var suffix = encoded.IndexOf(' '); // Chrome may append " (1)" to duplicate downloads.
-    if (suffix >= 0) encoded = encoded.Substring(0, suffix);
-    if (encoded.Length == 0 || encoded.Length > 240) return null;
-    try {
-        var padded = encoded.Replace('-', '+').Replace('_', '/');
-        padded = padded.PadRight(padded.Length + (4 - padded.Length % 4) % 4, '=');
-        var callback = Encoding.UTF8.GetString(Convert.FromBase64String(padded));
-        if (!Uri.TryCreate(callback, UriKind.Absolute, out var uri)) return null;
-        return uri.Scheme == Uri.UriSchemeHttps || (uri.Scheme == Uri.UriSchemeHttp && uri.IsLoopback) ? callback : null;
-    } catch (FormatException) { return null; }
+    var parts = filename.Substring(CallbackFilePrefix.Length).Split("--", StringSplitOptions.None);
+    if (parts.Length != 2 || !IsHexObjectId(parts[0]) || !IsWriteToken(parts[1])) return null;
+    return $"{PublicApiBaseUrl}/device-identity/requests/{parts[0]}/result?token={parts[1]}";
 }
 
 ApplicationConfiguration.Initialize();

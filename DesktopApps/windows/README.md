@@ -6,10 +6,10 @@ unsigned Windows pilot. It presents its own consent prompt and can save
 agent and does not upload information by itself.
 
 When `DEVICE_IDENTITY_WINDOWS_HELPER_PATH` points to the published helper, the
-website sends one request-specific `NVT-Device-Info.exe`. Its filename carries
-the one-time callback, so the customer runs one file, approves collection, and
-the originating form fills automatically. There is no ZIP, CMD launcher,
-PowerShell script, JSON import, or clipboard step.
+website sends one request-specific `NVT-Device-Info.exe`. Its short filename
+carries the one-time request ID and token, so the customer runs one file,
+approves collection, and the originating form fills automatically. There is no
+ZIP, CMD launcher, PowerShell script, JSON import, or clipboard step.
 
 The current Windows build is unsigned, so Windows SmartScreen may warn pilot
 testers. Production distribution requires an Authenticode certificate and a

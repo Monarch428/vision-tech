@@ -16,7 +16,7 @@ const validPublicApiUrl = (value) => {
   } catch { return false; }
 };
 const safeValue = (value, max = 255) => typeof value === 'string' && value.trim().length <= max && !/[\u0000-\u001f\u007f]/.test(value);
-const windowsHelperFilename = (callback) => `NVT-Device-Info--${Buffer.from(callback, 'utf8').toString('base64url')}.exe`;
+const windowsHelperFilename = (requestId, writeToken) => `NVT-Device-Info--${requestId}--${writeToken}.exe`;
 
 exports.createRequest = async (req, res) => {
   const platform = req.body?.platform;
@@ -65,8 +65,7 @@ exports.downloadHelper = async (req, res) => {
   if (!request) return noStore(res).status(404).send('This device request has expired or is invalid.');
   const endpoint = `${callbackBase()}/device-identity/requests/${request._id}/result?token=${encodeURIComponent(req.query.token)}`;
   if (request.platform === 'windows' && process.env.DEVICE_IDENTITY_WINDOWS_HELPER_PATH && fs.existsSync(process.env.DEVICE_IDENTITY_WINDOWS_HELPER_PATH)) {
-    const filename = windowsHelperFilename(endpoint);
-    if (filename.length > 250) return noStore(res).status(503).json({ message: 'The configured public API URL is too long for the Windows device-info application.' });
+    const filename = windowsHelperFilename(request._id, req.query.token);
     noStore(res).type('application/vnd.microsoft.portable-executable'); res.attachment(filename);
     return res.send(fs.readFileSync(process.env.DEVICE_IDENTITY_WINDOWS_HELPER_PATH));
   }
