@@ -23,7 +23,7 @@ VITE_API_BASE_URL=http://localhost:5001/api
 
 For Windows, set `DEVICE_IDENTITY_WINDOWS_HELPER_PATH` to the published
 `NVTDeviceInfo.exe` build. The API supplies a six-character, one-time callback
-code in the downloaded filename (for example, `NVT-Device-Info--A3K9P2.exe`);
+code in the downloaded filename (for example, `NVT-Device-Info-A3K9P2.exe`);
 the app is built for
 `https://essentials.newvtech.com/api`. The customer receives one directly
 runnable Windows EXE—no ZIP, CMD file, PowerShell script, JSON import, or

@@ -3,8 +3,9 @@ using System.IO;
 using System.Management;
 using System.Net.Http;
 using System.Net.Http.Json;
+using System.Windows.Forms;
 
-const string CallbackFilePrefix = "NVT-Device-Info--";
+const string CallbackFilePrefix = "NVT-Device-Info-";
 const string PublicApiBaseUrl = "https://essentials.newvtech.com/api";
 
 static bool IsCallbackCode(string value)
@@ -25,11 +26,21 @@ static string ReadCallbackFromFilename()
 }
 
 var callback = Environment.GetEnvironmentVariable("NVT_DEVICE_INFO_CALLBACK") ?? ReadCallbackFromFilename();
-if (string.IsNullOrWhiteSpace(callback)) return;
+if (string.IsNullOrWhiteSpace(callback))
+{
+    MessageBox.Show("This helper filename is invalid. Download a new NVT Device Info helper and run it without renaming it.", "NVT Device Info", MessageBoxButtons.OK, MessageBoxIcon.Error);
+    return;
+}
+
+if (MessageBox.Show("Share this computer's name and hardware serial number with NVT? Nothing is installed.", "NVT Device Info", MessageBoxButtons.OKCancel, MessageBoxIcon.Information) != DialogResult.OK) return;
+
 var serial = "";
 try { foreach (ManagementObject bios in new ManagementObjectSearcher("SELECT SerialNumber FROM Win32_BIOS").Get()) { serial = Convert.ToString(bios["SerialNumber"])?.Trim() ?? ""; break; } } catch { /* Hardware serial unavailable: never invent one. */ }
 try {
     using var client = new HttpClient();
     var response = await client.PostAsJsonAsync(callback, new { hostname = Environment.MachineName, serialNumber = serial, platform = "windows" });
-    if (!response.IsSuccessStatusCode) throw new HttpRequestException();
-} catch { /* The one-time request expires if it cannot be sent. */ }
+    if (!response.IsSuccessStatusCode) throw new HttpRequestException($"The request was not accepted ({(int)response.StatusCode}).");
+    MessageBox.Show("Device details were shared. Return to the NVT browser tab to continue.", "NVT Device Info", MessageBoxButtons.OK, MessageBoxIcon.Information);
+} catch (Exception error) {
+    MessageBox.Show($"Device details could not be shared. {error.Message} Download a new helper and try again.", "NVT Device Info", MessageBoxButtons.OK, MessageBoxIcon.Error);
+}

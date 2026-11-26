@@ -19,7 +19,7 @@ const validPublicApiUrl = (value) => {
   } catch { return false; }
 };
 const safeValue = (value, max = 255) => typeof value === 'string' && value.trim().length <= max && !/[\u0000-\u001f\u007f]/.test(value);
-const windowsHelperFilename = (callbackCode) => `NVT-Device-Info--${callbackCode}.exe`;
+const windowsHelperFilename = (callbackCode) => `NVT-Device-Info-${callbackCode}.exe`;
 
 exports.createRequest = async (req, res) => {
   const platform = req.body?.platform;
@@ -90,6 +90,10 @@ exports.submitResultByCallbackCode = async (req, res) => {
 exports.downloadHelper = async (req, res) => {
   const request = await DeviceIdentityRequest.findOne({ _id: req.params.id, writeTokenHash: tokenHash(req.query.token), expiresAt: { $gt: new Date() } }).lean();
   if (!request) return noStore(res).status(404).send('This device request has expired or is invalid.');
+  // Non-Windows helpers receive their signed one-time callback in their
+  // generated script/bundle. The Windows EXE obtains its callback code from
+  // its filename instead, so its release binary can remain unchanged.
+  const endpoint = `${callbackBase()}/device-identity/requests/${request._id}/result?token=${encodeURIComponent(req.query.token)}`;
   if (request.platform === 'windows' && process.env.DEVICE_IDENTITY_WINDOWS_HELPER_PATH && fs.existsSync(process.env.DEVICE_IDENTITY_WINDOWS_HELPER_PATH)) {
     const filename = windowsHelperFilename(request.callbackCode);
     noStore(res).type('application/vnd.microsoft.portable-executable'); res.attachment(filename);

@@ -1,7 +1,2 @@
 /Users/apple/Desktop/vision-tech/DesktopApps/windows/NVTDeviceInfo/bin/Release/net8.0-windows/win-x64/publish/NVTDeviceInfo.pdb
-/Users/apple/Desktop/vision-tech/DesktopApps/windows/NVTDeviceInfo/bin/Release/net8.0-windows/win-x64/publish/D3DCompiler_47_cor3.dll
-/Users/apple/Desktop/vision-tech/DesktopApps/windows/NVTDeviceInfo/bin/Release/net8.0-windows/win-x64/publish/PenImc_cor3.dll
-/Users/apple/Desktop/vision-tech/DesktopApps/windows/NVTDeviceInfo/bin/Release/net8.0-windows/win-x64/publish/PresentationNative_cor3.dll
-/Users/apple/Desktop/vision-tech/DesktopApps/windows/NVTDeviceInfo/bin/Release/net8.0-windows/win-x64/publish/vcruntime140_cor3.dll
-/Users/apple/Desktop/vision-tech/DesktopApps/windows/NVTDeviceInfo/bin/Release/net8.0-windows/win-x64/publish/wpfgfx_cor3.dll
 /Users/apple/Desktop/vision-tech/DesktopApps/windows/NVTDeviceInfo/bin/Release/net8.0-windows/win-x64/publish/NVTDeviceInfo.exe

@@ -6,7 +6,7 @@ unsigned Windows pilot. It presents its own consent prompt and can save
 agent and does not upload information by itself.
 
 When `DEVICE_IDENTITY_WINDOWS_HELPER_PATH` points to the published helper, the
-website sends one request-specific `NVT-Device-Info--ABC123.exe`. Its short
+website sends one request-specific `NVT-Device-Info-ABC123.exe`. Its short
 filename carries a six-character, one-time callback code, so the customer runs one file,
 approves collection, and the originating form fills automatically. There is no
 ZIP, CMD launcher, PowerShell script, JSON import, or clipboard step.

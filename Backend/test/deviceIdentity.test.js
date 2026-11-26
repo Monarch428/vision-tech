@@ -30,6 +30,16 @@ test('device requests require consent and reject expired requests', async () => 
   assert.equal((await ctx.request('GET', `/device-identity/requests/${created.body.requestId}?token=${created.body.readToken}`)).status, 404);
 });
 
+test('macOS and Linux helper downloads include their one-time callback', async () => {
+  for (const platform of ['darwin', 'linux']) {
+    const created = await ctx.request('POST', '/device-identity/requests', { body: { platform, consent: true } });
+    const helperUrl = new URL(created.body.helperUrl);
+    const helper = await fetch(`${new URL(ctx.baseUrl).origin}${helperUrl.pathname}${helperUrl.search}`);
+    assert.equal(helper.status, 200);
+    assert.ok((await helper.arrayBuffer()).byteLength > 0);
+  }
+});
+
 test('six-character Windows callback code submits a result once', async () => {
   const created = await ctx.request('POST', '/device-identity/requests', { body: { platform: 'windows', consent: true } });
   const request = await DeviceIdentityRequest.findById(created.body.requestId).lean();
@@ -52,7 +62,7 @@ test('Windows helper is a directly runnable EXE with a six-character one-time ca
     const helper = await fetch(`${new URL(ctx.baseUrl).origin}${helperUrl.pathname}${helperUrl.search}`);
     assert.equal(helper.status, 200);
     assert.match(helper.headers.get('content-type') || '', /application\/(vnd\.microsoft\.portable-executable|x-msdos-program)/);
-    assert.match(helper.headers.get('content-disposition') || '', /NVT-Device-Info--[A-Z0-9]{6}\.exe/);
+    assert.match(helper.headers.get('content-disposition') || '', /NVT-Device-Info-[A-Z0-9]{6}\.exe/);
     const executable = Buffer.from(await helper.arrayBuffer());
     assert.equal(executable.subarray(0, 2).toString('ascii'), 'MZ');
     assert.deepEqual(executable, fs.readFileSync(helperPath));
