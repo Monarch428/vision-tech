@@ -49,8 +49,11 @@ exports.getAgentChecks = async (agentId) => {
 };
 
 exports.listSites = async (clientId) => {
-  const { data } = await rmm.get(`/clients/${Number(clientId)}/sites/`);
-  return data;
+  // Tactical RMM exposes a client's Sites in the client list. Some releases
+  // do not implement /clients/:id/sites/, which otherwise returns HTML 404.
+  const { data } = await rmm.get('/clients/');
+  const client = Array.isArray(data) && data.find((item) => Number(item.id) === Number(clientId));
+  return Array.isArray(client?.sites) ? client.sites : [];
 };
 
 exports.runScript = async (agentId, scriptId, args = [], timeout = 90) => {
