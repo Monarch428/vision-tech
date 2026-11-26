@@ -7,6 +7,9 @@ const TEN_MINUTES = 10 * 60 * 1000;
 const platforms = new Set(['windows', 'darwin', 'linux']);
 const tokenHash = (token) => crypto.createHash('sha256').update(String(token || '')).digest('hex');
 const randomToken = () => crypto.randomBytes(32).toString('base64url');
+const CALLBACK_CODE_LENGTH = 6;
+const CALLBACK_CODE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+const randomCallbackCode = () => Array.from(crypto.randomBytes(CALLBACK_CODE_LENGTH), (byte) => CALLBACK_CODE_ALPHABET[byte % CALLBACK_CODE_ALPHABET.length]).join('');
 const noStore = (res) => res.set('Cache-Control', 'no-store, private, max-age=0').set('Pragma', 'no-cache');
 const callbackBase = () => String(process.env.DEVICE_IDENTITY_PUBLIC_API_URL || '').replace(/\/$/, '');
 const validPublicApiUrl = (value) => {
@@ -16,7 +19,7 @@ const validPublicApiUrl = (value) => {
   } catch { return false; }
 };
 const safeValue = (value, max = 255) => typeof value === 'string' && value.trim().length <= max && !/[\u0000-\u001f\u007f]/.test(value);
-const windowsHelperFilename = (requestId, writeToken) => `NVT-Device-Info--${requestId}--${writeToken}.exe`;
+const windowsHelperFilename = (callbackCode) => `NVT-Device-Info--${callbackCode}.exe`;
 
 exports.createRequest = async (req, res) => {
   const platform = req.body?.platform;
@@ -25,12 +28,22 @@ exports.createRequest = async (req, res) => {
   if (!validPublicApiUrl(publicApiUrl)) return res.status(503).json({ message: 'Device identification is not configured for this environment.' });
   const readToken = randomToken();
   const writeToken = randomToken();
-  const request = await DeviceIdentityRequest.create({
-    platform,
-    readTokenHash: tokenHash(readToken),
-    writeTokenHash: tokenHash(writeToken),
-    expiresAt: new Date(Date.now() + TEN_MINUTES),
-  });
+  // Six characters provide 1,073,741,824 possible values. The unique index
+  // makes a collision harmless; retrying also keeps the code fixed at six.
+  let request;
+  for (let attempt = 0; attempt < 5 && !request; attempt += 1) {
+    try {
+      request = await DeviceIdentityRequest.create({
+        platform,
+        readTokenHash: tokenHash(readToken),
+        writeTokenHash: tokenHash(writeToken),
+        callbackCode: randomCallbackCode(),
+        expiresAt: new Date(Date.now() + TEN_MINUTES),
+      });
+    } catch (error) {
+      if (error?.code !== 11000 || attempt === 4) throw error;
+    }
+  }
   noStore(res).status(201).json({
     requestId: request.id,
     readToken,
@@ -60,12 +73,25 @@ exports.submitResult = async (req, res) => {
   return noStore(res).status(202).json({ status: 'accepted' });
 };
 
+exports.submitResultByCallbackCode = async (req, res) => {
+  const { hostname, serialNumber = '', platform } = req.body || {};
+  if (!platforms.has(platform) || !safeValue(hostname) || !hostname.trim() || !safeValue(serialNumber)) {
+    return noStore(res).status(400).json({ message: 'Invalid device details.' });
+  }
+  const request = await DeviceIdentityRequest.findOneAndUpdate(
+    { callbackCode: req.params.callbackCode, platform: 'windows', status: 'pending', expiresAt: { $gt: new Date() } },
+    { $set: { status: 'completed', hostname: hostname.trim(), serialNumber: serialNumber.trim(), collectedAt: new Date() } },
+    { new: true },
+  );
+  if (!request) return noStore(res).status(409).json({ message: 'This device request is expired, invalid, or already completed.' });
+  return noStore(res).status(202).json({ status: 'accepted' });
+};
+
 exports.downloadHelper = async (req, res) => {
   const request = await DeviceIdentityRequest.findOne({ _id: req.params.id, writeTokenHash: tokenHash(req.query.token), expiresAt: { $gt: new Date() } }).lean();
   if (!request) return noStore(res).status(404).send('This device request has expired or is invalid.');
-  const endpoint = `${callbackBase()}/device-identity/requests/${request._id}/result?token=${encodeURIComponent(req.query.token)}`;
   if (request.platform === 'windows' && process.env.DEVICE_IDENTITY_WINDOWS_HELPER_PATH && fs.existsSync(process.env.DEVICE_IDENTITY_WINDOWS_HELPER_PATH)) {
-    const filename = windowsHelperFilename(request._id, req.query.token);
+    const filename = windowsHelperFilename(request.callbackCode);
     noStore(res).type('application/vnd.microsoft.portable-executable'); res.attachment(filename);
     return res.send(fs.readFileSync(process.env.DEVICE_IDENTITY_WINDOWS_HELPER_PATH));
   }

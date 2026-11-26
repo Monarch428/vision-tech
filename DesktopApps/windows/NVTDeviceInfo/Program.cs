@@ -7,17 +7,10 @@ using System.Net.Http.Json;
 const string CallbackFilePrefix = "NVT-Device-Info--";
 const string PublicApiBaseUrl = "https://essentials.newvtech.com/api";
 
-static bool IsHexObjectId(string value)
+static bool IsCallbackCode(string value)
 {
-    if (value.Length != 24) return false;
-    foreach (var character in value) if (!Uri.IsHexDigit(character)) return false;
-    return true;
-}
-
-static bool IsWriteToken(string value)
-{
-    if (value.Length < 32 || value.Length > 128) return false;
-    foreach (var character in value) if (!(char.IsLetterOrDigit(character) || character == '-' || character == '_')) return false;
+    if (value.Length != 6) return false;
+    foreach (var character in value) if (!(char.IsLetterOrDigit(character))) return false;
     return true;
 }
 
@@ -26,9 +19,9 @@ static string ReadCallbackFromFilename()
     var path = Environment.ProcessPath;
     var filename = string.IsNullOrWhiteSpace(path) ? "" : Path.GetFileNameWithoutExtension(path);
     if (!filename.StartsWith(CallbackFilePrefix, StringComparison.Ordinal)) return null;
-    var parts = filename.Substring(CallbackFilePrefix.Length).Split("--", StringSplitOptions.None);
-    if (parts.Length != 2 || !IsHexObjectId(parts[0]) || !IsWriteToken(parts[1])) return null;
-    return $"{PublicApiBaseUrl}/device-identity/requests/{parts[0]}/result?token={parts[1]}";
+    var callbackCode = filename.Substring(CallbackFilePrefix.Length);
+    if (!IsCallbackCode(callbackCode)) return null;
+    return $"{PublicApiBaseUrl}/device-identity/requests/callback/{callbackCode}/result";
 }
 
 var callback = Environment.GetEnvironmentVariable("NVT_DEVICE_INFO_CALLBACK") ?? ReadCallbackFromFilename();

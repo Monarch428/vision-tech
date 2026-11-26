@@ -12,4 +12,5 @@ router.post('/requests', start, controller.createRequest);
 router.get('/requests/:id/helper', start, controller.downloadHelper);
 router.get('/requests/:id', read, controller.getRequest);
 router.post('/requests/:id/result', write, controller.submitResult);
+router.post('/requests/callback/:callbackCode/result', write, controller.submitResultByCallbackCode);
 module.exports = router;

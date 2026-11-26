@@ -30,7 +30,18 @@ test('device requests require consent and reject expired requests', async () => 
   assert.equal((await ctx.request('GET', `/device-identity/requests/${created.body.requestId}?token=${created.body.readToken}`)).status, 404);
 });
 
-test('Windows helper is a directly runnable EXE with a one-time callback filename', async () => {
+test('six-character Windows callback code submits a result once', async () => {
+  const created = await ctx.request('POST', '/device-identity/requests', { body: { platform: 'windows', consent: true } });
+  const request = await DeviceIdentityRequest.findById(created.body.requestId).lean();
+  assert.match(request.callbackCode, /^[A-Z0-9]{6}$/);
+  const resultPath = `/device-identity/requests/callback/${request.callbackCode}/result`;
+  assert.equal((await ctx.request('POST', resultPath, { body: { hostname: 'SHORT-CODE-PC', serialNumber: 'SERIAL-2', platform: 'windows' } })).status, 202);
+  assert.equal((await ctx.request('POST', resultPath, { body: { hostname: 'OTHER-PC', serialNumber: '', platform: 'windows' } })).status, 409);
+  const read = await ctx.request('GET', `/device-identity/requests/${created.body.requestId}?token=${created.body.readToken}`);
+  assert.deepEqual(read.body.result, { hostname: 'SHORT-CODE-PC', serialNumber: 'SERIAL-2', platform: 'windows' });
+});
+
+test('Windows helper is a directly runnable EXE with a six-character one-time callback filename', async () => {
   const previousHelper = process.env.DEVICE_IDENTITY_WINDOWS_HELPER_PATH;
   const helperPath = path.resolve(__dirname, '../../DesktopApps/windows/NVTDeviceInfo/bin/Release/net8.0-windows/win-x64/NVTDeviceInfo.exe');
   assert.ok(fs.existsSync(helperPath), 'Windows helper fixture must be built before this test runs');
@@ -41,7 +52,7 @@ test('Windows helper is a directly runnable EXE with a one-time callback filenam
     const helper = await fetch(`${new URL(ctx.baseUrl).origin}${helperUrl.pathname}${helperUrl.search}`);
     assert.equal(helper.status, 200);
     assert.match(helper.headers.get('content-type') || '', /application\/(vnd\.microsoft\.portable-executable|x-msdos-program)/);
-    assert.match(helper.headers.get('content-disposition') || '', /NVT-Device-Info--[a-f0-9]{24}--[A-Za-z0-9_-]+\.exe/);
+    assert.match(helper.headers.get('content-disposition') || '', /NVT-Device-Info--[A-Z0-9]{6}\.exe/);
     const executable = Buffer.from(await helper.arrayBuffer());
     assert.equal(executable.subarray(0, 2).toString('ascii'), 'MZ');
     assert.deepEqual(executable, fs.readFileSync(helperPath));
