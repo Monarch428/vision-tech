@@ -187,9 +187,9 @@ exports.generateInstaller = async (req, res) => {
       : await ensureUserSite(req.user.id);
 
     if (!siteId) {
-      return res.status(409).json({
+      return res.status(503).json({
         success: false,
-        message: 'Your account is not linked to a device group yet. Please contact support.',
+        message: 'Automatic RMM setup is temporarily unavailable. Please try again shortly.',
       });
     }
 

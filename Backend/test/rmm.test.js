@@ -31,11 +31,13 @@ beforeEach(async () => {
   await syncRmmDevices();
 });
 
-test('unlinked customers see no devices and cannot create installers', async () => {
+test('unlinked customers see no devices and receive a temporary setup error', async () => {
   const list = await t.request('GET', '/devices', { token: t.tokens.user });
   assert.equal(list.body.linked, false);
   assert.equal(list.body.devices.length, 0);
-  assert.equal((await t.request('POST', '/devices/generate-installer', { token: t.tokens.user, body: {} })).status, 409);
+  const installer = await t.request('POST', '/devices/generate-installer', { token: t.tokens.user, body: {} });
+  assert.equal(installer.status, 503);
+  assert.equal(installer.body.message, 'Automatic RMM setup is temporarily unavailable. Please try again shortly.');
 });
 
 test('linking scopes devices to the customer Site; one Site per account', async () => {
