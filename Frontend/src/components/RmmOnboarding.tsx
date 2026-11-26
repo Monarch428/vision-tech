@@ -6,10 +6,14 @@ type Platform = "windows" | "darwin" | "linux";
 type SetupDownload = { rmmUrl: string; bitdefenderUrl: string | null; platform: Platform };
 
 const detectInstaller = (): GenerateInstallerPayload => {
-  const ua = navigator.userAgent.toLowerCase();
-  const mac = ua.includes("mac");
-  const linux = !mac && ua.includes("linux");
-  const arm = /arm|aarch64/.test(ua);
+  // navigator.platform remains useful for Safari and managed browsers whose
+  // user-agent string may be reduced or overridden. Prefer an explicit Mac
+  // signal before considering Linux.
+  const browser = navigator as Navigator & { userAgentData?: { platform?: string; architecture?: string } };
+  const fingerprint = `${browser.userAgentData?.platform || ""} ${navigator.platform || ""} ${navigator.userAgent || ""}`.toLowerCase();
+  const mac = /mac|darwin/.test(fingerprint);
+  const linux = !mac && /linux|x11/.test(fingerprint);
+  const arm = /arm|aarch64/.test(fingerprint);
   return { plat: mac ? "darwin" : linux ? "linux" : "windows", arch: mac || linux ? (arm ? "arm64" : "amd64") : "amd64", agentType: "workstation", rdp: true, ping: false };
 };
 
