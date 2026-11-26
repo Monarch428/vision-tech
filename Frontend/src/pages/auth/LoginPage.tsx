@@ -94,6 +94,10 @@ export default function LoginPage() {
       }
 
       localStorage.setItem("token", data.token!);
+      // The protected layout uses the authenticated user's id and role to
+      // decide whether first-device onboarding should appear. Keep this path
+      // consistent with OTP verification, which already stores the user.
+      localStorage.setItem("user", JSON.stringify(data.user));
       navigate("/user/dashboard", { replace: true });
 
     } catch (error: any) {
