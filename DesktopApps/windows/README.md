@@ -7,8 +7,10 @@ agent and does not upload information by itself.
 
 When `DEVICE_IDENTITY_WINDOWS_HELPER_PATH` points to the published helper, the
 website sends one request-specific `NVT-Device-Info-ABC123.exe`. Its short
-filename carries a six-character, one-time callback code, so the customer runs one file,
-approves collection, and the originating form fills automatically. There is no
+filename carries a six-character, one-time callback code, so the customer runs one file
+and the originating form fills automatically. The website gathers consent before the
+download; after SmartScreen is accepted, the helper does not show a collection or
+success prompt. There is no
 ZIP, CMD launcher, PowerShell script, JSON import, or clipboard step.
 
 The current Windows build is unsigned, so Windows SmartScreen may warn pilot

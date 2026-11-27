@@ -1,9 +1,12 @@
 # NVT Device Info for Windows
 
 This is a new request-aware Windows helper source; it is not the archived EXE.
-It obtains a one-time callback URL from `NVT_DEVICE_INFO_CALLBACK`, asks for
-explicit consent, reads the hostname and BIOS serial number, and submits only
-to that request. It does not install RMM or antivirus software.
+It obtains a one-time callback URL from its request-specific filename, reads
+the hostname and BIOS serial number, and submits only to that request. Consent
+is collected in the website before the helper is downloaded. After SmartScreen
+is accepted, the helper runs without a confirmation or success dialog; the
+already-open form polls and fills itself automatically. It does not install RMM
+or antivirus software.
 
 Build on a Windows machine with the .NET 8 SDK:
 

@@ -24,11 +24,12 @@ VITE_API_BASE_URL=http://localhost:5001/api
 For Windows, set `DEVICE_IDENTITY_WINDOWS_HELPER_PATH` to the published
 `NVTDeviceInfo.exe` build. The API supplies a six-character, one-time callback
 code in the downloaded filename (for example, `NVT-Device-Info-A3K9P2.exe`);
-the app is built for
+after the user accepts SmartScreen, it collects and submits the details without
+a helper confirmation or success dialog. The app is built for
 `https://essentials.newvtech.com/api`. The customer receives one directly
 runnable Windows EXE—no ZIP, CMD file, PowerShell script, JSON import, or
-clipboard step. The app displays its approval/status dialogs and returns
-approved details to the already-open browser tab.
+clipboard step. The app returns approved details to the already-open browser
+tab without additional helper dialogs.
 
 Build the Windows x64 helper with:
 
@@ -58,12 +59,13 @@ outside production.
    without navigating. Do not send this computer's identifiers to the external
    reference site.
 
-The helpers are intentionally not RMM or antivirus installers. Windows gets a
+The helpers are intentionally not RMM or antivirus installers. Website consent
+is captured before any helper is downloaded. Windows gets a
 request-specific Windows EXE; macOS gets a request-specific `NVT Device
 Info.app` inside a ZIP, so Finder launches it as an app instead of opening a
-shell script in an editor; Linux gets a shell collector. Each asks for a second
-explicit approval before collecting or sending details. They do not request
-administrator rights or change machine-wide execution-policy settings. The
+shell script in an editor; Linux gets a shell collector. macOS and Linux ask
+for their platform-specific confirmation. They do not request administrator
+rights or change machine-wide execution-policy settings. The
 Windows EXE project is at
 `DesktopApps/windows/NVTDeviceInfo`; it must be Authenticode-signed before
 customer distribution.
